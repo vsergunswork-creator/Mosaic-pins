@@ -1,21 +1,37 @@
-<button id="buyBtn">Buy now</button>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mosaic Pins</title>
+</head>
+<body>
 
-<script>
-  // Пример: PIN code конкретного товара
-  const PIN = "G10N11gt";
+  <h1>Mosaic Pins</h1>
 
-  document.getElementById("buyBtn").addEventListener("click", async () => {
-    const r = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: PIN, quantity: 1 }),
+  <button id="buyBtn">Buy this pin</button>
+
+  <script>
+    document.getElementById("buyBtn").addEventListener("click", async () => {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          pin: "G10N11gt",
+          quantity: 1
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("Error creating checkout");
+      }
     });
+  </script>
 
-    const data = await r.json();
-    if (data.url) window.location.href = data.url;
-    else {
-      alert("Error: " + (data.error || "Unknown"));
-      console.log(data);
-    }
-  });
-</script>
+</body>
+</html>
