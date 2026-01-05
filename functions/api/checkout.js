@@ -18,8 +18,8 @@ export async function onRequestPost(context) {
     if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
 
     const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
-    const successUrl = env.SITE_SUCCESS_URL || "https://mosaicpins.space/success";
-    const cancelUrl = env.SITE_CANCEL_URL || "https://mosaicpins.space/cancel";
+    const successUrl = env.SITE_SUCCESS_URL || "https://mosaicpins.space/success.html";
+    const cancelUrl = env.SITE_CANCEL_URL || "https://mosaicpins.space/cancel.html";
 
     // 1) Ищем запись в Airtable по PIN
     const formula = `{${pinField}}="${escapeForFormula(pin)}"`;
