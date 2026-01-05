@@ -10,3 +10,26 @@
   <p>If you can see this page, GitHub → Cloudflare Pages deployment works.</p>
 </body>
 </html>
+
+<button id="buyBtn">Buy now</button>
+
+<script>
+  // сюда вставьте priceId из Airtable (Stripe Price ID)
+  const PRICE_ID = "price_XXXXXXXXXXXXXXXXXXXX";
+
+  document.getElementById("buyBtn").addEventListener("click", async () => {
+    const r = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ priceId: PRICE_ID, quantity: 1 }),
+    });
+
+    const data = await r.json();
+    if (data.url) {
+      window.location.href = data.url; // редирект в Stripe Checkout
+    } else {
+      alert("Error: " + (data.error || "Unknown"));
+      console.log(data);
+    }
+  });
+</script>
