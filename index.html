@@ -1,33 +1,19 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mosaic Pins</title>
-</head>
-<body style="font-family: Arial, sans-serif; padding: 24px;">
-  <h1>Mosaic Pins ✅</h1>
-  <p>If you can see this page, GitHub → Cloudflare Pages deployment works.</p>
-</body>
-</html>
-
 <button id="buyBtn">Buy now</button>
 
 <script>
-  // сюда вставьте priceId из Airtable (Stripe Price ID)
-  const PRICE_ID = "price_XXXXXXXXXXXXXXXXXXXX";
+  // Пример: PIN code конкретного товара
+  const PIN = "G10N11gt";
 
   document.getElementById("buyBtn").addEventListener("click", async () => {
     const r = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ priceId: PRICE_ID, quantity: 1 }),
+      body: JSON.stringify({ pin: PIN, quantity: 1 }),
     });
 
     const data = await r.json();
-    if (data.url) {
-      window.location.href = data.url; // редирект в Stripe Checkout
-    } else {
+    if (data.url) window.location.href = data.url;
+    else {
       alert("Error: " + (data.error || "Unknown"));
       console.log(data);
     }
