@@ -395,7 +395,7 @@
     const soldOut = !(Number(p.stock||0) > 0);
 
     return `
-      <div class="card">
+      <div class="card" data-open="${escapeHtml(p.pin)}">
         <div class="thumb">
           ${img}
           <div class="badge ${soldOut ? "sold" : ""}">${soldOut ? "Sold out" : `In stock: ${p.stock}`}</div>
@@ -444,6 +444,16 @@
       });
     });
   }
+
+  // open product page on card click (but not when clicking Buy)
+  [...document.querySelectorAll(".card[data-open]")].forEach(card => {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest("button[data-pin]")) return;
+      const pin = card.getAttribute("data-open");
+      window.location.href = `/product.html?pin=${encodeURIComponent(pin)}`;
+    });
+  });
+}
 
   function escapeHtml(s){
     return String(s||"").replace(/[&<>"']/g, m => ({
