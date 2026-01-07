@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Product • Mosaic Pins</title>
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --panel:#11141b;
+      --panel2:#0f1218;
+      --text:#e9eef7;
+      --muted:#a8b3c7;
+      --line:rgba(255,255,255,.08);
+      --shadow: 0 12px 30px rgba(0,0,0,.45);
+      --r:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+                  radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+      overflow:hidden;
+    }
+
+    .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
+    .sidebar{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
+    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
+    .pill{padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); font-size:12px;}
+
+    .sb-nav{padding:6px; display:grid; gap:6px;}
+    .nav-item{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px; border-radius:12px;
+      color:var(--muted); text-decoration:none; border:1px solid transparent;
+    }
+    .nav-item:hover{background:rgba(255,255,255,.05); color:var(--text);}
+    .nav-item.active{background:rgba(34,197,94,.12); border-color: rgba(34,197,94,.22); color:var(--text);}
+
+    .main{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex; flex-direction:column; min-width:0;
+    }
+    .topbar{
+      padding:16px 18px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .sub{color:var(--muted); font-size:12px; margin-top:4px}
+
+    .content{padding:18px; overflow:auto; min-height:0;}
+    .wrap{
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:16px;
+      align-items:start;
+    }
+    @media (max-width:980px){
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none}
+      body{overflow:auto}
+      .main{height:auto; min-height:100vh}
+      .wrap{grid-template-columns:1fr}
+    }
+
+    .panel{
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+      border-radius:16px;
+      overflow:hidden;
+    }
+
+    /* Gallery */
+    .gallery{
+      padding:12px;
+      display:grid;
+      gap:10px;
+    }
+    .hero{
+      aspect-ratio: 1/1;
+      border-radius:14px;
+      overflow:hidden;
+      background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(96,165,250,.10));
+      border:1px solid var(--line);
+      display:flex; align-items:center; justify-content:center;
+      position:relative;
+    }
+    .hero img{width:100%; height:100%; object-fit:cover; display:block;}
+    .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px;}
+    .t{
+      width:72px; height:72px; border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      overflow:hidden; cursor:pointer;
+      flex:0 0 auto;
+      opacity:.8;
+    }
+    .t.active{outline:2px solid rgba(34,197,94,.45); opacity:1}
+    .t img{width:100%; height:100%; object-fit:cover; display:block;}
+
+    /* Details */
+    .details{padding:16px;}
+    .kicker{color:var(--muted); font-size:12px}
+    .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
+    .meta{color:var(--muted); font-size:13px; line-height:1.5;}
+    .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+    .chip{
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      font-size:12px;
+    }
+
+    .priceRow{
+      display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+      margin:16px 0 10px;
+    }
+    .price{
+      font-size:20px; font-weight:950;
+    }
+    .badge{
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.35);
+      color:var(--text);
+    }
+    .sold{background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.25)}
+
+    .actions{
+      display:grid;
+      gap:10px;
+      margin-top:14px;
+    }
+    .qtyRow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+    .qtyRow label{color:var(--muted); font-size:13px}
+    .qty{
+      display:flex; align-items:center; gap:8px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+    }
+    .qty button{
+      width:34px; height:34px; border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+    }
+    .qty input{
+      width:52px;
+      background:transparent;
+      border:none;
+      outline:none;
+      color:var(--text);
+      font-size:14px;
+      text-align:center;
+    }
+
+    .btn{
+      border:none; cursor:pointer;
+      padding:12px 14px;
+      border-radius:12px;
+      background:linear-gradient(135deg,#22c55e,#16a34a);
+      color:#07110b;
+      font-weight:950;
+      box-shadow: 0 10px 18px rgba(34,197,94,.18);
+      transition: filter .15s ease, transform .15s ease;
+    }
+    .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
+    .btn:disabled{
+      cursor:not-allowed;
+      background:rgba(255,255,255,.10);
+      color:rgba(255,255,255,.55);
+      box-shadow:none;
+    }
+
+    .toast{
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      background: rgba(0,0,0,.55);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: var(--text);
+      box-shadow: var(--shadow);
+      max-width: 360px;
+      display:none;
+    }
+    .toast.show{display:block}
+    .toast small{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="brand"><span class="dot"></span> Mosaic Pins</div>
+        <div class="pill" id="sbCount">Product</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/" id="navShop">← Back to shop</a>
+        <a class="nav-item active" href="#" id="navProduct">Product</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 class="h-title" id="hTitle">Loading…</h1>
+          <div class="sub" id="hSub"></div>
+        </div>
+
+        <select class="currency" id="currency" title="Currency">
+          <option value="EUR">EUR €</option>
+          <option value="USD">USD $</option>
+        </select>
+      </div>
+
+      <div class="content">
+        <div class="wrap">
+          <section class="panel">
+            <div class="gallery">
+              <div class="hero" id="hero">
+                <span style="color:var(--muted);">No image</span>
+              </div>
+              <div class="thumbs" id="thumbs"></div>
+            </div>
+          </section>
+
+          <aside class="panel">
+            <div class="details">
+              <div class="kicker" id="kicker"></div>
+              <div class="title" id="title"></div>
+              <div class="meta" id="desc"></div>
+
+              <div class="chips" id="chips"></div>
+
+              <div class="priceRow">
+                <div class="price" id="price">—</div>
+                <div class="badge" id="stockBadge">—</div>
+              </div>
+
+              <div class="actions">
+                <div class="qtyRow">
+                  <label>Quantity</label>
+                  <div class="qty">
+                    <button id="minus">−</button>
+                    <input id="qty" value="1" inputmode="numeric" />
+                    <button id="plus">+</button>
+                  </div>
+                </div>
+
+                <button class="btn" id="buyBtn">Buy now</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast">
+    <div style="font-weight:800" id="toastTitle">Checkout</div>
+    <small id="toastMsg">Opening Stripe…</small>
+  </div>
+
+<script>
+  const API_PRODUCT = "/api/product";
+  const API_CHECKOUT = "/api/checkout";
+
+  const el = (id) => document.getElementById(id);
+  const toastEl = el("toast");
+  const toastTitle = el("toastTitle");
+  const toastMsg = el("toastMsg");
+
+  function toast(title, msg){
+    toastTitle.textContent = title;
+    toastMsg.textContent = msg;
+    toastEl.classList.add("show");
+    setTimeout(()=> toastEl.classList.remove("show"), 2400);
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  function priceText(priceObj){
+    const cur = el("currency").value;
+    const v = priceObj?.[cur];
+    if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
+    return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
+  }
+
+  function setHero(url, title){
+    const hero = el("hero");
+    if (!url){
+      hero.innerHTML = `<span style="color:var(--muted);">No image</span>`;
+      return;
+    }
+    hero.innerHTML = `<img src="${url}" alt="${escapeHtml(title)}" />`;
+  }
+
+  function renderThumbs(images, title){
+    const thumbs = el("thumbs");
+    thumbs.innerHTML = "";
+
+    images.forEach((u, idx) => {
+      const d = document.createElement("div");
+      d.className = "t" + (idx===0 ? " active" : "");
+      d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" />`;
+      d.addEventListener("click", () => {
+        [...thumbs.querySelectorAll(".t")].forEach(x => x.classList.remove("active"));
+        d.classList.add("active");
+        setHero(u, title);
+      });
+      thumbs.appendChild(d);
+    });
+  }
+
+  function clampQty(q, max){
+    q = Number(q);
+    if (!Number.isFinite(q)) q = 1;
+    if (q < 1) q = 1;
+    if (max >= 1 && q > max) q = max;
+    return q;
+  }
+
+  async function load(){
+    const url = new URL(window.location.href);
+    const pin = (url.searchParams.get("pin") || "").trim();
+    if (!pin){
+      el("hTitle").textContent = "Missing PIN";
+      el("hSub").textContent = "Open a product from the shop page.";
+      return;
+    }
+
+    const r = await fetch(`${API_PRODUCT}?pin=${encodeURIComponent(pin)}`);
+    const data = await r.json();
+
+    if (!r.ok){
+      el("hTitle").textContent = "Not found";
+      el("hSub").textContent = data?.error || "Product not found";
+      return;
+    }
+
+    const p = data.product;
+
+    document.title = `${p.title} • Mosaic Pins`;
+    el("hTitle").textContent = p.title;
+    el("hSub").textContent = `${p.pin} • Ø ${p.diameter ?? "—"} mm`;
+
+    el("kicker").textContent = p.type ? String(p.type) : "";
+    el("title").textContent = p.title;
+    el("desc").textContent = p.description || "";
+
+    // chips
+    const chips = [];
+    if (p.color) chips.push(`Color: ${p.color}`);
+    if (p.diameter != null) chips.push(`Ø ${p.diameter} mm`);
+    (p.materials || []).forEach(m => chips.push(m));
+
+    el("chips").innerHTML = chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("");
+
+    // images
+    const images = Array.isArray(p.images) ? p.images : [];
+    setHero(images[0], p.title);
+    renderThumbs(images, p.title);
+
+    // stock
+    const stock = Number(p.stock || 0);
+    const badge = el("stockBadge");
+    const buyBtn = el("buyBtn");
+    if (stock > 0){
+      badge.textContent = `In stock: ${stock}`;
+      badge.classList.remove("sold");
+      buyBtn.disabled = false;
+    } else {
+      badge.textContent = "Sold out";
+      badge.classList.add("sold");
+      buyBtn.disabled = true;
+    }
+
+    // qty controls
+    const qtyInput = el("qty");
+    qtyInput.value = "1";
+
+    const setQty = (v) => {
+      qtyInput.value = String(clampQty(v, stock));
+    };
+
+    el("minus").addEventListener("click", () => setQty(Number(qtyInput.value) - 1));
+    el("plus").addEventListener("click", () => setQty(Number(qtyInput.value) + 1));
+    qtyInput.addEventListener("input", () => setQty(qtyInput.value));
+
+    // price
+    const renderPrice = () => { el("price").textContent = priceText(p.price); };
+    el("currency").addEventListener("change", renderPrice);
+    renderPrice();
+
+    // checkout
+    buyBtn.addEventListener("click", async () => {
+      const quantity = clampQty(qtyInput.value, stock);
+      if (stock <= 0) return;
+
+      toast("Checkout", "Opening Stripe…");
+      buyBtn.disabled = true;
+
+      try{
+        const res = await fetch(API_CHECKOUT, {
+          method:"POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ pin: p.pin, quantity })
+        });
+        const out = await res.json();
+        if (out.url) window.location.href = out.url;
+        else {
+          toast("Error", out.error || "Checkout failed");
+          buyBtn.disabled = false;
+          console.log(out);
+        }
+      }catch(e){
+        toast("Error", "Network error");
+        buyBtn.disabled = false;
+        console.error(e);
+      }
+    });
+  }
+
+  load();
+</script>
+</body>
+</html>
