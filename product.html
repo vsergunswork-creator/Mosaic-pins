@@ -91,6 +91,7 @@
       cursor:pointer;
       font-weight:900;
       white-space:nowrap;
+      text-decoration:none;
     }
     .cartBtn:hover{background:rgba(255,255,255,.06)}
     .cartBadge{
@@ -432,10 +433,11 @@
   </div>
 
 <script>
-  const API_PRODUCT = "/api/product";
-  const API_BUY_NOW = "/api/checkout"; // expects { pin, quantity } -> { url }
-  const CART_KEY = "mp_cart";
+  // ✅ Важно: без ведущего "/" — работает и если проект не в корне домена
+  const API_PRODUCT = "api/product";
 
+  // cart storage compatible with index.html
+  const CART_KEY = "mp_cart";
   function readCart(){
     try{
       const raw = localStorage.getItem(CART_KEY);
@@ -459,6 +461,27 @@
     toastMsg.textContent = msg;
     toastEl.classList.add("show");
     setTimeout(()=> toastEl.classList.remove("show"), 2400);
+  }
+
+  // мини-лог под заголовком (важно на телефоне)
+  function uiLog(msg){
+    const sub = el("hSub");
+    sub.textContent = msg;
+    sub.style.color = "rgba(255,255,255,.75)";
+  }
+
+  async function safeFetchJson(url){
+    const r = await fetch(url, { method:"GET", headers:{ "Accept":"application/json" } });
+    const text = await r.text();
+    let data = null;
+    try{ data = JSON.parse(text); }catch(_){}
+
+    if (!r.ok){
+      const msg = (data && (data.error || data.message)) ? (data.error || data.message) : `HTTP ${r.status}: ${text.slice(0,140)}`;
+      throw new Error(msg);
+    }
+    if (!data) throw new Error("Response is not JSON");
+    return data;
   }
 
   function escapeHtml(s){
@@ -506,7 +529,7 @@
   function syncThumbs(){
     const thumbs = el("thumbs");
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
+    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
     if (active) active.classList.add("active");
   }
 
@@ -690,118 +713,97 @@
     toast("Cart", "Added ✅");
   }
 
-  async function buyNow(pin, quantity){
-    const res = await fetch(API_BUY_NOW, {
-      method: "POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify({ pin, quantity })
-    });
-    const data = await res.json().catch(()=> ({}));
-    if (!res.ok){
-      const msg = data?.error || "Checkout failed";
-      const details = data?.details ? (" " + (typeof data.details === "string" ? data.details : JSON.stringify(data.details))) : "";
-      throw new Error(msg + details);
-    }
-    if (!data?.url) throw new Error("Missing checkout url");
-    return data.url;
-  }
-
   async function load(){
     updateCartBadge();
 
     const url = new URL(window.location.href);
     const pin = (url.searchParams.get("pin") || "").trim();
+
     if (!pin){
       el("hTitle").textContent = "Missing PIN";
-      el("hSub").textContent = "Open a product from the shop page.";
+      uiLog("URL has no ?pin= ... Example: /product.html?pin=ABC123");
       return;
     }
 
-    const r = await fetch(`${API_PRODUCT}?pin=${encodeURIComponent(pin)}`);
-    const data = await r.json();
+    el("hTitle").textContent = "Loading…";
+    uiLog(`PIN: ${pin} • Loading from ${API_PRODUCT} ...`);
 
-    if (!r.ok){
-      el("hTitle").textContent = "Not found";
-      el("hSub").textContent = data?.error || "Product not found";
-      return;
-    }
+    try{
+      const data = await safeFetchJson(`${API_PRODUCT}?pin=${encodeURIComponent(pin)}`);
 
-    const p = data.product;
-
-    document.title = `${p.title} • Mosaic Pins`;
-    el("hTitle").textContent = p.title;
-    el("hSub").textContent = `${p.pin} • Ø ${p.diameter ?? "—"} mm`;
-
-    el("kicker").textContent = p.type ? String(p.type) : "";
-    el("title").textContent = p.title;
-    el("desc").textContent = (p.description || "").trim();
-
-    const chips = [];
-    if (p.color) chips.push(`Color: ${p.color}`);
-    if (p.diameter != null) chips.push(`Ø ${p.diameter} mm`);
-    (p.materials || []).forEach(m => chips.push(m));
-    el("chips").innerHTML = chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("");
-
-    const images = Array.isArray(p.images) ? p.images : [];
-    buildCarousel(images, p.title);
-    renderThumbs(images, p.title);
-    wireCarousel();
-    updateNav();
-
-    const stock = Number(p.stock || 0);
-    const badge = el("stockBadge");
-    const buyBtn = el("buyBtn");
-    const addBtn = el("addBtn");
-
-    if (stock > 0){
-      badge.textContent = `In stock: ${stock}`;
-      badge.classList.remove("sold");
-      buyBtn.disabled = false;
-      addBtn.disabled = false;
-    } else {
-      badge.textContent = "Sold out";
-      badge.classList.add("sold");
-      buyBtn.disabled = true;
-      addBtn.disabled = true;
-    }
-
-    const qtyInput = el("qty");
-    qtyInput.value = "1";
-    const setQty = (v) => { qtyInput.value = String(clampQty(v, stock)); };
-    el("minus").addEventListener("click", () => setQty(Number(qtyInput.value) - 1));
-    el("plus").addEventListener("click", () => setQty(Number(qtyInput.value) + 1));
-    qtyInput.addEventListener("input", () => setQty(qtyInput.value));
-
-    const renderPrice = () => { el("price").textContent = priceText(p.price); };
-    el("currency").addEventListener("change", renderPrice);
-    renderPrice();
-
-    addBtn.addEventListener("click", () => {
-      const quantity = clampQty(qtyInput.value, stock);
-      if (stock <= 0) return;
-      addToCart(p, quantity);
-    });
-
-    buyBtn.addEventListener("click", async () => {
-      if (stock <= 0) return;
-      const quantity = clampQty(qtyInput.value, stock);
-
-      const prev = buyBtn.textContent;
-      buyBtn.disabled = true;
-      buyBtn.textContent = "Opening…";
-      toast("Checkout", "Opening Stripe…");
-
-      try{
-        const url = await buyNow(String(p.pin), quantity);
-        window.location.href = url;
-      }catch(e){
-        toast("Error", String(e?.message || e));
-        buyBtn.disabled = false;
-        buyBtn.textContent = prev;
+      if (!data.product){
+        el("hTitle").textContent = "Bad response";
+        uiLog("API answered but no field 'product' in response");
+        return;
       }
-    });
 
-    setupParallax();
+      const p = data.product;
+
+      document.title = `${p.title} • Mosaic Pins`;
+      el("hTitle").textContent = p.title;
+      el("hSub").textContent = `${p.pin} • Ø ${p.diameter ?? "—"} mm`;
+
+      el("kicker").textContent = p.type ? String(p.type) : "";
+      el("title").textContent = p.title;
+      el("desc").textContent = (p.description || "").trim();
+
+      const chips = [];
+      if (p.color) chips.push(`Color: ${p.color}`);
+      if (p.diameter != null) chips.push(`Ø ${p.diameter} mm`);
+      (p.materials || []).forEach(m => chips.push(m));
+      el("chips").innerHTML = chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("");
+
+      const images = Array.isArray(p.images) ? p.images : [];
+      buildCarousel(images, p.title);
+      renderThumbs(images, p.title);
+      wireCarousel();
+      updateNav();
+
+      const stock = Number(p.stock || 0);
+      const badge = el("stockBadge");
+      const buyBtn = el("buyBtn");
+      const addBtn = el("addBtn");
+
+      if (stock > 0){
+        badge.textContent = `In stock: ${stock}`;
+        badge.classList.remove("sold");
+        buyBtn.disabled = false;
+        addBtn.disabled = false;
+      } else {
+        badge.textContent = "Sold out";
+        badge.classList.add("sold");
+        buyBtn.disabled = true;
+        addBtn.disabled = true;
+      }
+
+      const qtyInput = el("qty");
+      qtyInput.value = "1";
+      const setQty = (v) => { qtyInput.value = String(clampQty(v, stock)); };
+      el("minus").addEventListener("click", () => setQty(Number(qtyInput.value) - 1));
+      el("plus").addEventListener("click", () => setQty(Number(qtyInput.value) + 1));
+      qtyInput.addEventListener("input", () => setQty(qtyInput.value));
+
+      const renderPrice = () => { el("price").textContent = priceText(p.price); };
+      el("currency").addEventListener("change", renderPrice);
+      renderPrice();
+
+      addBtn.addEventListener("click", () => {
+        const quantity = clampQty(qtyInput.value, stock);
+        if (stock <= 0) return;
+        addToCart(p, quantity);
+      });
+
+      buyBtn.addEventListener("click", () => {
+        toast("Checkout", "Buy-now stays as-is. Cart checkout is next step ✅");
+      });
+
+      setupParallax();
+
+    }catch(e){
+      el("hTitle").textContent = "Load failed";
+      uiLog(String(e?.message || e));
+      toast("Error", String(e?.message || e));
+    }
   }
 
   load();
