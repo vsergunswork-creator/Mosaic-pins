@@ -433,9 +433,9 @@
 
 <script>
   const API_PRODUCT = "/api/product";
-
-  // cart storage compatible with index.html
+  const API_BUY_NOW = "/api/checkout"; // expects { pin, quantity } -> { url }
   const CART_KEY = "mp_cart";
+
   function readCart(){
     try{
       const raw = localStorage.getItem(CART_KEY);
@@ -506,7 +506,7 @@
   function syncThumbs(){
     const thumbs = el("thumbs");
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
+    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
     if (active) active.classList.add("active");
   }
 
@@ -690,6 +690,22 @@
     toast("Cart", "Added ✅");
   }
 
+  async function buyNow(pin, quantity){
+    const res = await fetch(API_BUY_NOW, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ pin, quantity })
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok){
+      const msg = data?.error || "Checkout failed";
+      const details = data?.details ? (" " + (typeof data.details === "string" ? data.details : JSON.stringify(data.details))) : "";
+      throw new Error(msg + details);
+    }
+    if (!data?.url) throw new Error("Missing checkout url");
+    return data.url;
+  }
+
   async function load(){
     updateCartBadge();
 
@@ -766,8 +782,23 @@
       addToCart(p, quantity);
     });
 
-    buyBtn.addEventListener("click", () => {
-      toast("Checkout", "Buy-now stays as-is. Cart checkout is next step ✅");
+    buyBtn.addEventListener("click", async () => {
+      if (stock <= 0) return;
+      const quantity = clampQty(qtyInput.value, stock);
+
+      const prev = buyBtn.textContent;
+      buyBtn.disabled = true;
+      buyBtn.textContent = "Opening…";
+      toast("Checkout", "Opening Stripe…");
+
+      try{
+        const url = await buyNow(String(p.pin), quantity);
+        window.location.href = url;
+      }catch(e){
+        toast("Error", String(e?.message || e));
+        buyBtn.disabled = false;
+        buyBtn.textContent = prev;
+      }
     });
 
     setupParallax();
