@@ -91,23 +91,41 @@
     }
 
     /* Selected pill (desktop sidebar) */
-    .selectedWrap{ padding:0 6px 10px; display:none; }
+    .selectedWrap{
+      padding:0 6px 10px;
+      display:none;
+    }
     .selectedBar{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+
       padding:10px 12px;
       border-radius:14px;
       border:1px solid rgba(34,197,94,.25);
       background:rgba(34,197,94,.10);
     }
     .selectedLeft{min-width:0;}
-    .selectedTitle{ font-size:12px; font-weight:900; color:var(--text); margin:0 0 4px; letter-spacing:.2px; }
+    .selectedTitle{
+      font-size:12px;
+      font-weight:900;
+      color:var(--text);
+      margin:0 0 4px;
+      letter-spacing:.2px;
+    }
     .selectedList{
-      font-size:12px; color:var(--muted);
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:180px;
     }
     .clearBtn{
       flex:0 0 auto;
-      border:none; cursor:pointer;
+      border:none;
+      cursor:pointer;
       padding:8px 10px;
       border-radius:12px;
       background:rgba(0,0,0,.25);
@@ -118,7 +136,11 @@
     }
     .clearBtn:hover{background:rgba(255,255,255,.06)}
 
-    .list{ display:grid; gap:6px; padding:0 0 10px; }
+    .list{
+      display:grid;
+      gap:6px;
+      padding:0 0 10px;
+    }
     .item{
       padding:10px 12px;
       border-radius:12px;
@@ -185,7 +207,6 @@
       font-size:13px;
       user-select:none;
       cursor:pointer;
-      white-space:nowrap;
     }
     .toggle input{accent-color:#22c55e; width:16px; height:16px}
     .currency{
@@ -196,7 +217,6 @@
       color:var(--text);
       font-size:13px;
       outline:none;
-      white-space:nowrap;
     }
 
     /* ✅ Filters button (mobile only) */
@@ -229,7 +249,7 @@
     .cartBtn{
       display:inline-flex;
       align-items:center;
-      gap:10px;
+      gap:8px;
       padding:10px 12px;
       border-radius:999px;
       background:rgba(0,0,0,.25);
@@ -240,19 +260,17 @@
       white-space:nowrap;
     }
     .cartBtn:hover{background:rgba(255,255,255,.06)}
-    .cartCount{
-      min-width:22px;
-      height:22px;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
+    .cartBadge{
+      padding:4px 8px;
       border-radius:999px;
       background:rgba(34,197,94,.18);
       border:1px solid rgba(34,197,94,.25);
+      color:var(--text);
       font-size:12px;
-      font-weight:950;
+      font-weight:900;
       line-height:1;
-      padding:0 8px;
+      min-width:24px;
+      text-align:center;
     }
 
     .content{padding:18px; overflow:auto; min-height:0;}
@@ -272,7 +290,7 @@
       .topbar{flex-wrap:wrap; gap:10px}
       .top-left{width:100%}
       .search{order:3; width:100%; max-width:none; min-width:0}
-      .top-right{order:2; width:100%; justify-content:space-between; flex-wrap:wrap}
+      .top-right{order:2; width:100%; justify-content:space-between}
 
       .filtersBtn{display:inline-flex}
       .content{padding:14px}
@@ -334,6 +352,21 @@
       box-shadow:none;
     }
 
+    /* Add to cart button */
+    .btn2{
+      border:none; cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:900;
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+    }
+    .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
+    .btn2:disabled{opacity:.45; cursor:not-allowed}
+
     .toast{
       position: fixed;
       right: 16px;
@@ -361,15 +394,15 @@
     }
     .sheetBack.show{display:block}
 
-    /* ✅ Make sheet darker (your request) */
     .sheet{
       position:fixed;
       left:0; right:0; bottom:0;
       border-top-left-radius:18px;
       border-top-right-radius:18px;
       border:1px solid var(--line);
-      background: rgba(10,12,16,.96); /* darker, less transparent */
-      box-shadow: 0 -18px 40px rgba(0,0,0,.55);
+      /* darker */
+      background: linear-gradient(180deg, rgba(0,0,0,.85), rgba(0,0,0,.68));
+      box-shadow: 0 -18px 40px rgba(0,0,0,.45);
       transform: translateY(100%);
       transition: transform .18s ease;
       z-index:1001;
@@ -389,13 +422,16 @@
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
     }
-    .sheetTitle{ font-weight:950; letter-spacing:.2px; }
+    .sheetTitle{
+      font-weight:950;
+      letter-spacing:.2px;
+    }
     .sheetClose{
       border:none;
       cursor:pointer;
       padding:10px 12px;
       border-radius:12px;
-      background:rgba(0,0,0,.35);
+      background:rgba(0,0,0,.25);
       border:1px solid var(--line);
       color:var(--text);
       font-weight:950;
@@ -410,27 +446,25 @@
     .mSelectedWrap{display:none; margin-bottom:10px;}
     .mList .item{padding:12px 12px; border-radius:14px;}
 
-    /* ✅ Cart drawer */
+    /* ✅ Cart Drawer */
     .cartBack{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.55);
+      background:rgba(0,0,0,.62);
       display:none;
-      z-index:1200;
+      z-index:1100;
     }
     .cartBack.show{display:block}
-
     .cartDrawer{
       position:fixed;
-      top:0; right:0;
+      top:0; right:0; bottom:0;
       width:min(420px, 92vw);
-      height:100vh;
-      background: rgba(10,12,16,.98);
       border-left:1px solid var(--line);
-      box-shadow: -18px 0 40px rgba(0,0,0,.55);
+      background: linear-gradient(180deg, rgba(0,0,0,.88), rgba(0,0,0,.70));
+      box-shadow: -18px 0 40px rgba(0,0,0,.50);
       transform: translateX(100%);
       transition: transform .18s ease;
-      z-index:1201;
+      z-index:1101;
       display:flex;
       flex-direction:column;
       overflow:hidden;
@@ -438,113 +472,114 @@
     .cartDrawer.show{transform: translateX(0)}
     .cartHead{
       padding:14px 14px 10px;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
     }
     .cartTitle{font-weight:950; letter-spacing:.2px;}
     .cartClose{
-      border:none; cursor:pointer;
+      border:none;
+      cursor:pointer;
       padding:10px 12px;
       border-radius:12px;
-      background:rgba(0,0,0,.35);
+      background:rgba(0,0,0,.25);
       border:1px solid var(--line);
       color:var(--text);
       font-weight:950;
       line-height:1;
     }
     .cartClose:hover{background:rgba(255,255,255,.06)}
-    .cartBody{padding:12px; overflow:auto; min-height:0;}
+    .cartBody{
+      padding:12px;
+      overflow:auto;
+      min-height:0;
+    }
     .cartEmpty{
       padding:14px;
-      border:1px dashed rgba(255,255,255,.15);
+      border:1px solid var(--line);
       border-radius:14px;
+      background:rgba(255,255,255,.04);
       color:var(--muted);
-      text-align:center;
     }
     .cartItem{
       display:grid;
-      grid-template-columns:56px 1fr;
+      grid-template-columns:64px 1fr;
       gap:10px;
       padding:10px;
       border-radius:14px;
       border:1px solid var(--line);
-      background:rgba(255,255,255,.03);
+      background:rgba(255,255,255,.04);
       margin-bottom:10px;
     }
-    .cartThumb{
-      width:56px; height:56px;
-      border-radius:12px;
-      overflow:hidden;
+    .cartImg{
+      width:64px;height:64px;border-radius:12px;
       border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
+      background:rgba(0,0,0,.25);
+      overflow:hidden;
+      display:flex;align-items:center;justify-content:center;
+      color:var(--muted);
+      font-size:12px;
     }
-    .cartThumb img{width:100%; height:100%; object-fit:cover; display:block;}
-    .cartName{font-weight:900; font-size:13px; margin:0;}
-    .cartSub{color:var(--muted); font-size:12px; margin-top:2px;}
-    .cartRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
+    .cartImg img{width:100%;height:100%;object-fit:cover;display:block;}
+    .cartName{font-weight:900; font-size:13px; margin:0}
+    .cartMeta{color:var(--muted); font-size:12px; margin:4px 0 0}
+    .cartRow{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-top:10px;
+    }
     .cartQty{
-      display:flex; align-items:center; gap:8px;
-      padding:8px 10px;
+      display:flex; align-items:center; gap:6px;
+      padding:6px 8px;
       border-radius:12px;
       border:1px solid var(--line);
       background:rgba(0,0,0,.25);
     }
     .cartQty button{
-      width:30px; height:30px; border-radius:10px;
+      width:30px;height:30px;border-radius:10px;
       border:1px solid var(--line);
       background:rgba(255,255,255,.04);
       color:var(--text);
       cursor:pointer;
-      font-weight:950;
+      font-weight:900;
     }
     .cartQty input{
-      width:42px;
+      width:44px;
       background:transparent;
       border:none;
       outline:none;
       color:var(--text);
-      font-size:13px;
       text-align:center;
+      font-weight:900;
     }
-    .removeBtn{
-      border:none; cursor:pointer;
+    .cartRemove{
+      border:none;
+      cursor:pointer;
       padding:8px 10px;
       border-radius:12px;
       background:rgba(0,0,0,.25);
       border:1px solid var(--line);
       color:var(--text);
       font-weight:900;
+      line-height:1;
     }
-    .removeBtn:hover{background:rgba(255,255,255,.06)}
-
+    .cartRemove:hover{background:rgba(255,255,255,.06)}
     .cartFoot{
       padding:12px;
       border-top:1px solid var(--line);
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.35);
+    }
+    .cartSumRow{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom:10px;
+      color:var(--text);
+      font-weight:950;
+    }
+    .cartActions{
       display:grid;
       gap:10px;
-    }
-    .totals{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-    .totals span{color:var(--muted); font-size:13px}
-    .totals b{font-size:16px}
-    .checkoutBtn{
-      width:100%;
-      border:none; cursor:pointer;
-      padding:12px 14px;
-      border-radius:12px;
-      background:linear-gradient(135deg,#22c55e,#16a34a);
-      color:#07110b;
-      font-weight:950;
-      box-shadow: 0 10px 18px rgba(34,197,94,.18);
-      transition: filter .15s ease, transform .15s ease;
-    }
-    .checkoutBtn:hover{filter:brightness(1.05); transform: translateY(-1px)}
-    .checkoutBtn:disabled{
-      cursor:not-allowed;
-      background:rgba(255,255,255,.10);
-      color:rgba(255,255,255,.55);
-      box-shadow:none;
     }
   </style>
 </head>
@@ -606,7 +641,7 @@
 
           <!-- ✅ cart -->
           <button class="cartBtn" id="openCart" type="button" title="Cart">
-            Cart <span class="cartCount" id="cartCount">0</span>
+            🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
 
           <label class="toggle" title="Show only in-stock pins">
@@ -656,42 +691,48 @@
 
   <!-- ✅ Cart Drawer -->
   <div class="cartBack" id="cartBack"></div>
-  <aside class="cartDrawer" id="cartDrawer">
+  <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
       <div class="cartTitle">Cart</div>
       <button class="cartClose" id="closeCart" type="button">✕</button>
     </div>
     <div class="cartBody" id="cartBody"></div>
     <div class="cartFoot">
-      <div class="totals">
-        <span>Total</span>
-        <b id="cartTotal">—</b>
+      <div class="cartSumRow">
+        <div>Total</div>
+        <div id="cartTotal">—</div>
       </div>
-      <button class="checkoutBtn" id="checkoutBtn">Checkout</button>
-      <small style="color:var(--muted); line-height:1.3;">
-        Shipping will be added later. Now: one Stripe checkout for all items.
-      </small>
+      <div class="cartActions">
+        <button class="btn" id="cartCheckout">Checkout (later)</button>
+        <button class="btn2" id="cartClear">Clear cart</button>
+      </div>
     </div>
-  </aside>
+  </div>
 
   <div class="toast" id="toast">
-    <div style="font-weight:800" id="toastTitle">Checkout</div>
-    <small id="toastMsg">Opening Stripe…</small>
+    <div style="font-weight:800" id="toastTitle">Notice</div>
+    <small id="toastMsg">—</small>
   </div>
 
 <script>
   const API_PRODUCTS = "/api/products";
-  const API_CHECKOUT_CART  = "/api/checkout-cart"; // ✅ новый endpoint для корзины
 
+  // ========= CART (localStorage) =========
+  const CART_KEY = "mp_cart"; // [{pin, qty, title, image, price, stock}]
+  function readCart(){
+    try{
+      const raw = localStorage.getItem(CART_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    }catch(_){ return []; }
+  }
+  function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
+  function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
+
+  // ========= STATE =========
   let products = [];
   let filtered = [];
-
-  // multi select for diameters
   const selectedDiameters = new Set(); // numbers
-
-  // cart: pin -> qty
-  const CART_KEY = "mosaic_cart_v1";
-  let cart = loadCart(); // { pin: qty }
 
   const elGrid = document.getElementById("grid");
   const elQ = document.getElementById("q");
@@ -706,28 +747,28 @@
   const elSelectedList = document.getElementById("selectedList");
   const elClearDiameters = document.getElementById("clearDiameters");
 
-  // mobile sheet UI
+  // mobile filters sheet
   const elOpenFilters = document.getElementById("openFilters");
   const elFiltersBadge = document.getElementById("filtersBadge");
   const elSheetBack = document.getElementById("sheetBack");
   const elSheet = document.getElementById("sheet");
   const elCloseFilters = document.getElementById("closeFilters");
-
   const elMDiaCount = document.getElementById("mDiaCount");
   const elMDiameters = document.getElementById("mDiameters");
   const elMSelectedWrap = document.getElementById("mSelectedWrap");
   const elMSelectedList = document.getElementById("mSelectedList");
   const elMClearDiameters = document.getElementById("mClearDiameters");
 
-  // cart UI
+  // cart drawer
   const elOpenCart = document.getElementById("openCart");
-  const elCloseCart = document.getElementById("closeCart");
+  const elCartBadge = document.getElementById("cartBadge");
   const elCartBack = document.getElementById("cartBack");
   const elCartDrawer = document.getElementById("cartDrawer");
+  const elCloseCart = document.getElementById("closeCart");
   const elCartBody = document.getElementById("cartBody");
-  const elCartCount = document.getElementById("cartCount");
   const elCartTotal = document.getElementById("cartTotal");
-  const elCheckoutBtn = document.getElementById("checkoutBtn");
+  const elCartCheckout = document.getElementById("cartCheckout");
+  const elCartClear = document.getElementById("cartClear");
 
   // toast
   const elToast = document.getElementById("toast");
@@ -747,14 +788,14 @@
     }[m]));
   }
 
-  function priceText(p){
+  function priceText(priceObj){
     const cur = elCurrency.value;
-    const v = p?.[cur];
+    const v = priceObj?.[cur];
     if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
-  // ========== Filters sheet ==========
+  // ===== Filters sheet open/close =====
   function openSheet(){
     elSheetBack.classList.add("show");
     elSheet.classList.add("show");
@@ -769,7 +810,7 @@
   elCloseFilters.addEventListener("click", closeSheet);
   elSheetBack.addEventListener("click", closeSheet);
 
-  // ========== Cart drawer ==========
+  // ===== Cart drawer open/close =====
   function openCart(){
     elCartBack.classList.add("show");
     elCartDrawer.classList.add("show");
@@ -784,194 +825,155 @@
   elOpenCart.addEventListener("click", openCart);
   elCloseCart.addEventListener("click", closeCart);
   elCartBack.addEventListener("click", closeCart);
+  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeCart(); });
 
-  function loadCart(){
-    try{
-      const raw = localStorage.getItem(CART_KEY);
-      const obj = raw ? JSON.parse(raw) : {};
-      if (!obj || typeof obj !== "object") return {};
-      return obj;
-    }catch(_){
-      return {};
-    }
-  }
-  function saveCart(){
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
-    updateCartBadge();
-  }
   function updateCartBadge(){
-    const totalQty = Object.values(cart).reduce((a,b)=>a+Number(b||0), 0);
-    elCartCount.textContent = String(totalQty);
+    elCartBadge.textContent = String(cartCount());
   }
 
-  function findProduct(pin){
-    return products.find(p => String(p.pin) === String(pin)) || null;
-  }
+  // ===== Cart helpers =====
+  function addToCartFromProduct(p, qty){
+    qty = Number(qty);
+    if (!Number.isFinite(qty) || qty <= 0) qty = 1;
 
-  function clampQty(q, max){
-    q = Number(q);
-    if (!Number.isFinite(q)) q = 1;
-    if (q < 1) q = 1;
-    if (Number.isFinite(max) && max >= 0 && q > max) q = max;
-    return q;
-  }
-
-  function addToCart(pin, qty=1){
-    const p = findProduct(pin);
-    const stock = Number(p?.stock ?? 0);
-
-    if (!p){
-      toast("Cart", "Product not found");
-      return;
-    }
+    const stock = Number(p.stock ?? 0);
     if (stock <= 0){
-      toast("Sold out", "This item is not in stock");
+      toast("Cart", "Sold out");
       return;
     }
 
-    const current = Number(cart[pin] || 0);
-    const next = clampQty(current + qty, stock);
-    cart[pin] = next;
-    saveCart();
-    toast("Added to cart", `${p.title} • Qty: ${next}`);
+    const cart = readCart();
+    const idx = cart.findIndex(x => String(x.pin) === String(p.pin));
+
+    if (idx >= 0){
+      const next = Math.min(stock, (Number(cart[idx].qty)||0) + qty);
+      cart[idx].qty = next;
+      cart[idx].stock = stock;
+      cart[idx].title = p.title;
+      cart[idx].image = (p.images && p.images[0]) ? p.images[0] : (cart[idx].image || "");
+      cart[idx].price = p.price || cart[idx].price || {};
+    } else {
+      cart.push({
+        pin: String(p.pin),
+        qty: Math.min(stock, qty),
+        title: String(p.title || p.pin),
+        image: (p.images && p.images[0]) ? p.images[0] : "",
+        price: p.price || {},
+        stock: stock
+      });
+    }
+
+    writeCart(cart);
+    updateCartBadge();
+    renderCart();
+    toast("Cart", "Added ✅");
   }
 
   function setCartQty(pin, qty){
-    const p = findProduct(pin);
-    const stock = Number(p?.stock ?? 0);
-    if (!p) return;
+    const cart = readCart();
+    const idx = cart.findIndex(x => String(x.pin) === String(pin));
+    if (idx < 0) return;
 
-    qty = clampQty(qty, stock);
-    if (qty <= 0) delete cart[pin];
-    else cart[pin] = qty;
+    const stock = Number(cart[idx].stock ?? 0);
+    qty = Number(qty);
+    if (!Number.isFinite(qty)) qty = 1;
+    qty = Math.max(1, qty);
+    if (stock > 0) qty = Math.min(stock, qty);
 
-    saveCart();
+    cart[idx].qty = qty;
+    writeCart(cart);
+    updateCartBadge();
     renderCart();
   }
 
   function removeFromCart(pin){
-    delete cart[pin];
-    saveCart();
+    const cart = readCart().filter(x => String(x.pin) !== String(pin));
+    writeCart(cart);
+    updateCartBadge();
     renderCart();
   }
 
-  function money(cur, amount){
-    if (typeof amount !== "number") return cur === "EUR" ? "— €" : "— $";
-    return cur === "EUR" ? `${amount.toFixed(2)} €` : `${amount.toFixed(2)} $`;
+  function clearCart(){
+    writeCart([]);
+    updateCartBadge();
+    renderCart();
   }
 
-  function computeTotal(){
+  function cartTotal(){
     const cur = elCurrency.value;
-    let total = 0;
-    for (const [pin, qty] of Object.entries(cart)){
-      const p = findProduct(pin);
-      const price = p?.price?.[cur];
-      if (typeof price === "number") total += price * Number(qty||0);
+    const cart = readCart();
+    let sum = 0;
+    for (const it of cart){
+      const unit = Number(it?.price?.[cur]);
+      if (Number.isFinite(unit)) sum += unit * (Number(it?.qty)||0);
     }
-    return total;
+    return sum;
   }
 
   function renderCart(){
-    const cur = elCurrency.value;
-    const entries = Object.entries(cart).filter(([_,q]) => Number(q||0) > 0);
-
-    if (entries.length === 0){
-      elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty</div>`;
-      elCartTotal.textContent = money(cur, 0);
-      elCheckoutBtn.disabled = true;
+    const cart = readCart();
+    if (!cart.length){
+      elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
+      elCartTotal.textContent = "—";
+      elCartCheckout.disabled = true;
       return;
     }
 
-    elCheckoutBtn.disabled = false;
+    elCartCheckout.disabled = false;
 
-    elCartBody.innerHTML = entries.map(([pin, qty]) => {
-      const p = findProduct(pin) || {};
-      const img = (p.images && p.images[0]) ? `<img src="${p.images[0]}" alt="${escapeHtml(p.title)}" />` : "";
-      const stock = Number(p.stock ?? 0);
-      const unit = p?.price?.[cur];
-      const line = (typeof unit === "number") ? (unit * Number(qty||0)) : null;
-
+    elCartBody.innerHTML = cart.map(it => {
+      const img = it.image ? `<img src="${it.image}" alt="${escapeHtml(it.title)}" />` : `<span>—</span>`;
+      const cur = elCurrency.value;
+      const unit = it?.price?.[cur];
+      const unitText = (typeof unit === "number") ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`) : "—";
       return `
-        <div class="cartItem">
-          <div class="cartThumb">${img}</div>
+        <div class="cartItem" data-pin="${escapeHtml(it.pin)}">
+          <div class="cartImg">${img}</div>
           <div>
-            <p class="cartName">${escapeHtml(p.title || pin)}</p>
-            <div class="cartSub">${escapeHtml(pin)} • Ø ${escapeHtml(p.diameter ?? "—")} • Stock: ${stock}</div>
-
+            <p class="cartName">${escapeHtml(it.title || it.pin)}</p>
+            <div class="cartMeta">${escapeHtml(it.pin)} • ${unitText}</div>
             <div class="cartRow">
               <div class="cartQty">
-                <button data-act="dec" data-pin="${escapeHtml(pin)}">−</button>
-                <input data-act="inp" data-pin="${escapeHtml(pin)}" value="${Number(qty||1)}" inputmode="numeric" />
-                <button data-act="inc" data-pin="${escapeHtml(pin)}">+</button>
+                <button type="button" data-act="minus">−</button>
+                <input value="${escapeHtml(it.qty)}" inputmode="numeric" />
+                <button type="button" data-act="plus">+</button>
               </div>
-
-              <div style="text-align:right;">
-                <div style="font-weight:950;">${money(cur, line)}</div>
-                <div style="color:var(--muted); font-size:12px;">${money(cur, unit)} each</div>
-              </div>
+              <button class="cartRemove" type="button" data-act="remove">✕</button>
             </div>
-
-            <div style="margin-top:10px; display:flex; justify-content:flex-end;">
-              <button class="removeBtn" data-act="rm" data-pin="${escapeHtml(pin)}">Remove</button>
-            </div>
+            <div class="cartMeta" style="margin-top:8px;">Stock: ${escapeHtml(it.stock ?? "—")}</div>
           </div>
         </div>
       `;
     }).join("");
 
-    elCartTotal.textContent = money(cur, computeTotal());
+    [...elCartBody.querySelectorAll(".cartItem")].forEach(row => {
+      const pin = row.getAttribute("data-pin");
+      const input = row.querySelector("input");
+      const btnMinus = row.querySelector('button[data-act="minus"]');
+      const btnPlus  = row.querySelector('button[data-act="plus"]');
+      const btnRem   = row.querySelector('button[data-act="remove"]');
 
-    // bind cart controls
-    [...elCartBody.querySelectorAll("[data-act]")].forEach(elm => {
-      const act = elm.getAttribute("data-act");
-      const pin = elm.getAttribute("data-pin");
-
-      if (act === "dec"){
-        elm.addEventListener("click", () => setCartQty(pin, Number(cart[pin]||1) - 1));
-      }
-      if (act === "inc"){
-        elm.addEventListener("click", () => setCartQty(pin, Number(cart[pin]||1) + 1));
-      }
-      if (act === "rm"){
-        elm.addEventListener("click", () => removeFromCart(pin));
-      }
-      if (act === "inp"){
-        elm.addEventListener("input", () => setCartQty(pin, elm.value));
-      }
+      btnMinus.addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
+      btnPlus.addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
+      input.addEventListener("input", () => {
+        const v = Number(input.value);
+        if (!Number.isFinite(v)) return;
+        setCartQty(pin, v);
+      });
+      btnRem.addEventListener("click", () => removeFromCart(pin));
     });
+
+    const sum = cartTotal();
+    const cur = elCurrency.value;
+    elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
   }
 
-  elCheckoutBtn.addEventListener("click", async () => {
-    const cur = elCurrency.value;
-    const items = Object.entries(cart)
-      .map(([pin, quantity]) => ({ pin, quantity: Number(quantity||0) }))
-      .filter(x => x.quantity > 0);
-
-    if (items.length === 0) return;
-
-    toast("Checkout", "Opening Stripe…");
-    elCheckoutBtn.disabled = true;
-
-    try{
-      const res = await fetch(API_CHECKOUT_CART, {
-        method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ currency: cur, items })
-      });
-
-      const out = await res.json();
-      if (out.url) window.location.href = out.url;
-
-      toast("Error", out.error || "Checkout failed");
-      elCheckoutBtn.disabled = false;
-    }catch(e){
-      toast("Error", "Network error");
-      elCheckoutBtn.disabled = false;
-      console.error(e);
-    }
+  elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+  elCartCheckout.addEventListener("click", () => {
+    toast("Checkout", "Next step: server checkout for full cart ✅");
   });
 
-  // ========== Filters logic ==========
+  // ===== Diameter filter UI =====
   function updateSelectedUI(){
     const arr = [...selectedDiameters].sort((a,b)=>a-b);
 
@@ -1035,7 +1037,10 @@
               <div class="price">${priceText(p.price)}</div>
               <div style="color:var(--muted); font-size:12px; margin-top:2px;">Ø ${p.diameter ?? "—"}</div>
             </div>
-            <button class="btn" ${soldOut ? "disabled" : ""} data-add="${escapeHtml(p.pin)}">Add</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn2" ${soldOut ? "disabled" : ""} data-add="${escapeHtml(p.pin)}" title="Add to cart">＋</button>
+              <button class="btn" ${soldOut ? "disabled" : ""} data-openbuy="${escapeHtml(p.pin)}">Buy</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1051,12 +1056,22 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const pin = btn.getAttribute("data-add");
-        addToCart(pin, 1);
-        renderCart(); // чтобы сумма обновилась, если корзина открыта
+        const p = products.find(x => String(x.pin) === String(pin));
+        if (!p) return;
+        addToCartFromProduct(p, 1);
       });
     });
 
-    // Open product
+    // Buy (still goes to product page so user can choose qty, then Buy)
+    [...document.querySelectorAll("button[data-openbuy]")].forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pin = btn.getAttribute("data-openbuy");
+        window.location.href = `/product.html?pin=${encodeURIComponent(pin)}`;
+      });
+    });
+
+    // Open product on card click
     [...document.querySelectorAll(".card[data-open]")].forEach(card => {
       card.addEventListener("click", () => {
         const pin = card.getAttribute("data-open");
@@ -1138,10 +1153,28 @@
       if (r.ok){
         const data = await r.json();
         products = normalizeProducts(data);
-
         buildDiameterLists();
         applyFilters();
+
+        // sync cart meta (title/image/price/stock) with latest products
+        const cart = readCart();
+        if (cart.length){
+          const next = cart.map(it => {
+            const p = products.find(x => String(x.pin) === String(it.pin));
+            if (!p) return it;
+            return {
+              ...it,
+              title: p.title,
+              image: (p.images && p.images[0]) ? p.images[0] : (it.image || ""),
+              price: p.price || it.price || {},
+              stock: Number(p.stock ?? it.stock ?? 0)
+            };
+          });
+          writeCart(next);
+        }
+
         updateCartBadge();
+        renderCart();
         return;
       }
     }catch(_){}
@@ -1150,6 +1183,7 @@
     buildDiameterLists();
     applyFilters();
     updateCartBadge();
+    renderCart();
   }
 
   // Events
@@ -1161,6 +1195,9 @@
     if (window.innerWidth > 980) closeSheet();
   });
 
+  // init
+  updateCartBadge();
+  renderCart();
   loadProducts();
 </script>
 </body>
