@@ -91,41 +91,23 @@
     }
 
     /* Selected pill (desktop sidebar) */
-    .selectedWrap{
-      padding:0 6px 10px;
-      display:none;
-    }
+    .selectedWrap{ padding:0 6px 10px; display:none; }
     .selectedBar{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:10px;
-
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
       padding:10px 12px;
       border-radius:14px;
       border:1px solid rgba(34,197,94,.25);
       background:rgba(34,197,94,.10);
     }
     .selectedLeft{min-width:0;}
-    .selectedTitle{
-      font-size:12px;
-      font-weight:900;
-      color:var(--text);
-      margin:0 0 4px;
-      letter-spacing:.2px;
-    }
+    .selectedTitle{ font-size:12px; font-weight:900; color:var(--text); margin:0 0 4px; letter-spacing:.2px; }
     .selectedList{
-      font-size:12px;
-      color:var(--muted);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width:180px;
+      font-size:12px; color:var(--muted);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;
     }
     .clearBtn{
       flex:0 0 auto;
-      border:none;
-      cursor:pointer;
+      border:none; cursor:pointer;
       padding:8px 10px;
       border-radius:12px;
       background:rgba(0,0,0,.25);
@@ -136,11 +118,7 @@
     }
     .clearBtn:hover{background:rgba(255,255,255,.06)}
 
-    .list{
-      display:grid;
-      gap:6px;
-      padding:0 0 10px;
-    }
+    .list{ display:grid; gap:6px; padding:0 0 10px; }
     .item{
       padding:10px 12px;
       border-radius:12px;
@@ -196,6 +174,7 @@
       font-size:14px;
     }
     .top-right{display:flex; align-items:center; gap:10px}
+
     .toggle{
       display:flex; align-items:center; gap:8px;
       padding:10px 12px;
@@ -206,6 +185,7 @@
       font-size:13px;
       user-select:none;
       cursor:pointer;
+      white-space:nowrap;
     }
     .toggle input{accent-color:#22c55e; width:16px; height:16px}
     .currency{
@@ -216,6 +196,7 @@
       color:var(--text);
       font-size:13px;
       outline:none;
+      white-space:nowrap;
     }
 
     /* ✅ Filters button (mobile only) */
@@ -244,6 +225,36 @@
       line-height:1;
     }
 
+    /* ✅ Cart button */
+    .cartBtn{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+    }
+    .cartBtn:hover{background:rgba(255,255,255,.06)}
+    .cartCount{
+      min-width:22px;
+      height:22px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      background:rgba(34,197,94,.18);
+      border:1px solid rgba(34,197,94,.25);
+      font-size:12px;
+      font-weight:950;
+      line-height:1;
+      padding:0 8px;
+    }
+
     .content{padding:18px; overflow:auto; min-height:0;}
     .grid{
       display:grid;
@@ -253,7 +264,6 @@
     @media (max-width:1200px){ .grid{grid-template-columns:repeat(4,1fr)} }
 
     @media (max-width:980px){
-      /* ✅ Mobile layout fix */
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
       .sidebar{display:none}
@@ -262,7 +272,7 @@
       .topbar{flex-wrap:wrap; gap:10px}
       .top-left{width:100%}
       .search{order:3; width:100%; max-width:none; min-width:0}
-      .top-right{order:2; width:100%; justify-content:space-between}
+      .top-right{order:2; width:100%; justify-content:space-between; flex-wrap:wrap}
 
       .filtersBtn{display:inline-flex}
       .content{padding:14px}
@@ -341,35 +351,25 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* ✅ Mobile Filters Sheet (DARKER) */
+    /* ✅ Mobile Filters Sheet */
     .sheetBack{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.70);
-      backdrop-filter: blur(2px);
+      background:rgba(0,0,0,.55);
       display:none;
       z-index:1000;
     }
     .sheetBack.show{display:block}
 
+    /* ✅ Make sheet darker (your request) */
     .sheet{
       position:fixed;
       left:0; right:0; bottom:0;
       border-top-left-radius:18px;
       border-top-right-radius:18px;
       border:1px solid var(--line);
-
-      background:
-        linear-gradient(
-          180deg,
-          rgba(15,18,24,.96),
-          rgba(11,13,17,.96)
-        );
-
-      box-shadow:
-        0 -20px 50px rgba(0,0,0,.65),
-        inset 0 1px 0 rgba(255,255,255,.06);
-
+      background: rgba(10,12,16,.96); /* darker, less transparent */
+      box-shadow: 0 -18px 40px rgba(0,0,0,.55);
       transform: translateY(100%);
       transition: transform .18s ease;
       z-index:1001;
@@ -389,16 +389,13 @@
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
     }
-    .sheetTitle{
-      font-weight:950;
-      letter-spacing:.2px;
-    }
+    .sheetTitle{ font-weight:950; letter-spacing:.2px; }
     .sheetClose{
       border:none;
       cursor:pointer;
       padding:10px 12px;
       border-radius:12px;
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.35);
       border:1px solid var(--line);
       color:var(--text);
       font-weight:950;
@@ -412,6 +409,143 @@
     }
     .mSelectedWrap{display:none; margin-bottom:10px;}
     .mList .item{padding:12px 12px; border-radius:14px;}
+
+    /* ✅ Cart drawer */
+    .cartBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      z-index:1200;
+    }
+    .cartBack.show{display:block}
+
+    .cartDrawer{
+      position:fixed;
+      top:0; right:0;
+      width:min(420px, 92vw);
+      height:100vh;
+      background: rgba(10,12,16,.98);
+      border-left:1px solid var(--line);
+      box-shadow: -18px 0 40px rgba(0,0,0,.55);
+      transform: translateX(100%);
+      transition: transform .18s ease;
+      z-index:1201;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .cartDrawer.show{transform: translateX(0)}
+    .cartHead{
+      padding:14px 14px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .cartTitle{font-weight:950; letter-spacing:.2px;}
+    .cartClose{
+      border:none; cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.35);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .cartClose:hover{background:rgba(255,255,255,.06)}
+    .cartBody{padding:12px; overflow:auto; min-height:0;}
+    .cartEmpty{
+      padding:14px;
+      border:1px dashed rgba(255,255,255,.15);
+      border-radius:14px;
+      color:var(--muted);
+      text-align:center;
+    }
+    .cartItem{
+      display:grid;
+      grid-template-columns:56px 1fr;
+      gap:10px;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+      margin-bottom:10px;
+    }
+    .cartThumb{
+      width:56px; height:56px;
+      border-radius:12px;
+      overflow:hidden;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+    }
+    .cartThumb img{width:100%; height:100%; object-fit:cover; display:block;}
+    .cartName{font-weight:900; font-size:13px; margin:0;}
+    .cartSub{color:var(--muted); font-size:12px; margin-top:2px;}
+    .cartRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
+    .cartQty{
+      display:flex; align-items:center; gap:8px;
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+    }
+    .cartQty button{
+      width:30px; height:30px; border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:950;
+    }
+    .cartQty input{
+      width:42px;
+      background:transparent;
+      border:none;
+      outline:none;
+      color:var(--text);
+      font-size:13px;
+      text-align:center;
+    }
+    .removeBtn{
+      border:none; cursor:pointer;
+      padding:8px 10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:900;
+    }
+    .removeBtn:hover{background:rgba(255,255,255,.06)}
+
+    .cartFoot{
+      padding:12px;
+      border-top:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      display:grid;
+      gap:10px;
+    }
+    .totals{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+    .totals span{color:var(--muted); font-size:13px}
+    .totals b{font-size:16px}
+    .checkoutBtn{
+      width:100%;
+      border:none; cursor:pointer;
+      padding:12px 14px;
+      border-radius:12px;
+      background:linear-gradient(135deg,#22c55e,#16a34a);
+      color:#07110b;
+      font-weight:950;
+      box-shadow: 0 10px 18px rgba(34,197,94,.18);
+      transition: filter .15s ease, transform .15s ease;
+    }
+    .checkoutBtn:hover{filter:brightness(1.05); transform: translateY(-1px)}
+    .checkoutBtn:disabled{
+      cursor:not-allowed;
+      background:rgba(255,255,255,.10);
+      color:rgba(255,255,255,.55);
+      box-shadow:none;
+    }
   </style>
 </head>
 
@@ -470,6 +604,11 @@
             Filters <span class="filtersBadge" id="filtersBadge">0</span>
           </button>
 
+          <!-- ✅ cart -->
+          <button class="cartBtn" id="openCart" type="button" title="Cart">
+            Cart <span class="cartCount" id="cartCount">0</span>
+          </button>
+
           <label class="toggle" title="Show only in-stock pins">
             <input id="inStockOnly" type="checkbox" />
             In stock
@@ -515,6 +654,26 @@
     </div>
   </div>
 
+  <!-- ✅ Cart Drawer -->
+  <div class="cartBack" id="cartBack"></div>
+  <aside class="cartDrawer" id="cartDrawer">
+    <div class="cartHead">
+      <div class="cartTitle">Cart</div>
+      <button class="cartClose" id="closeCart" type="button">✕</button>
+    </div>
+    <div class="cartBody" id="cartBody"></div>
+    <div class="cartFoot">
+      <div class="totals">
+        <span>Total</span>
+        <b id="cartTotal">—</b>
+      </div>
+      <button class="checkoutBtn" id="checkoutBtn">Checkout</button>
+      <small style="color:var(--muted); line-height:1.3;">
+        Shipping will be added later. Now: one Stripe checkout for all items.
+      </small>
+    </div>
+  </aside>
+
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Checkout</div>
     <small id="toastMsg">Opening Stripe…</small>
@@ -522,13 +681,17 @@
 
 <script>
   const API_PRODUCTS = "/api/products";
-  const API_CHECKOUT  = "/api/checkout";
+  const API_CHECKOUT_CART  = "/api/checkout-cart"; // ✅ новый endpoint для корзины
 
   let products = [];
   let filtered = [];
 
   // multi select for diameters
   const selectedDiameters = new Set(); // numbers
+
+  // cart: pin -> qty
+  const CART_KEY = "mosaic_cart_v1";
+  let cart = loadCart(); // { pin: qty }
 
   const elGrid = document.getElementById("grid");
   const elQ = document.getElementById("q");
@@ -556,6 +719,16 @@
   const elMSelectedList = document.getElementById("mSelectedList");
   const elMClearDiameters = document.getElementById("mClearDiameters");
 
+  // cart UI
+  const elOpenCart = document.getElementById("openCart");
+  const elCloseCart = document.getElementById("closeCart");
+  const elCartBack = document.getElementById("cartBack");
+  const elCartDrawer = document.getElementById("cartDrawer");
+  const elCartBody = document.getElementById("cartBody");
+  const elCartCount = document.getElementById("cartCount");
+  const elCartTotal = document.getElementById("cartTotal");
+  const elCheckoutBtn = document.getElementById("checkoutBtn");
+
   // toast
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
@@ -581,6 +754,7 @@
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
+  // ========== Filters sheet ==========
   function openSheet(){
     elSheetBack.classList.add("show");
     elSheet.classList.add("show");
@@ -591,23 +765,222 @@
     elSheet.classList.remove("show");
     document.body.style.overflow = "";
   }
-
   elOpenFilters.addEventListener("click", openSheet);
   elCloseFilters.addEventListener("click", closeSheet);
   elSheetBack.addEventListener("click", closeSheet);
 
+  // ========== Cart drawer ==========
+  function openCart(){
+    elCartBack.classList.add("show");
+    elCartDrawer.classList.add("show");
+    document.body.style.overflow = "hidden";
+    renderCart();
+  }
+  function closeCart(){
+    elCartBack.classList.remove("show");
+    elCartDrawer.classList.remove("show");
+    document.body.style.overflow = "";
+  }
+  elOpenCart.addEventListener("click", openCart);
+  elCloseCart.addEventListener("click", closeCart);
+  elCartBack.addEventListener("click", closeCart);
+
+  function loadCart(){
+    try{
+      const raw = localStorage.getItem(CART_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      if (!obj || typeof obj !== "object") return {};
+      return obj;
+    }catch(_){
+      return {};
+    }
+  }
+  function saveCart(){
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    updateCartBadge();
+  }
+  function updateCartBadge(){
+    const totalQty = Object.values(cart).reduce((a,b)=>a+Number(b||0), 0);
+    elCartCount.textContent = String(totalQty);
+  }
+
+  function findProduct(pin){
+    return products.find(p => String(p.pin) === String(pin)) || null;
+  }
+
+  function clampQty(q, max){
+    q = Number(q);
+    if (!Number.isFinite(q)) q = 1;
+    if (q < 1) q = 1;
+    if (Number.isFinite(max) && max >= 0 && q > max) q = max;
+    return q;
+  }
+
+  function addToCart(pin, qty=1){
+    const p = findProduct(pin);
+    const stock = Number(p?.stock ?? 0);
+
+    if (!p){
+      toast("Cart", "Product not found");
+      return;
+    }
+    if (stock <= 0){
+      toast("Sold out", "This item is not in stock");
+      return;
+    }
+
+    const current = Number(cart[pin] || 0);
+    const next = clampQty(current + qty, stock);
+    cart[pin] = next;
+    saveCart();
+    toast("Added to cart", `${p.title} • Qty: ${next}`);
+  }
+
+  function setCartQty(pin, qty){
+    const p = findProduct(pin);
+    const stock = Number(p?.stock ?? 0);
+    if (!p) return;
+
+    qty = clampQty(qty, stock);
+    if (qty <= 0) delete cart[pin];
+    else cart[pin] = qty;
+
+    saveCart();
+    renderCart();
+  }
+
+  function removeFromCart(pin){
+    delete cart[pin];
+    saveCart();
+    renderCart();
+  }
+
+  function money(cur, amount){
+    if (typeof amount !== "number") return cur === "EUR" ? "— €" : "— $";
+    return cur === "EUR" ? `${amount.toFixed(2)} €` : `${amount.toFixed(2)} $`;
+  }
+
+  function computeTotal(){
+    const cur = elCurrency.value;
+    let total = 0;
+    for (const [pin, qty] of Object.entries(cart)){
+      const p = findProduct(pin);
+      const price = p?.price?.[cur];
+      if (typeof price === "number") total += price * Number(qty||0);
+    }
+    return total;
+  }
+
+  function renderCart(){
+    const cur = elCurrency.value;
+    const entries = Object.entries(cart).filter(([_,q]) => Number(q||0) > 0);
+
+    if (entries.length === 0){
+      elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty</div>`;
+      elCartTotal.textContent = money(cur, 0);
+      elCheckoutBtn.disabled = true;
+      return;
+    }
+
+    elCheckoutBtn.disabled = false;
+
+    elCartBody.innerHTML = entries.map(([pin, qty]) => {
+      const p = findProduct(pin) || {};
+      const img = (p.images && p.images[0]) ? `<img src="${p.images[0]}" alt="${escapeHtml(p.title)}" />` : "";
+      const stock = Number(p.stock ?? 0);
+      const unit = p?.price?.[cur];
+      const line = (typeof unit === "number") ? (unit * Number(qty||0)) : null;
+
+      return `
+        <div class="cartItem">
+          <div class="cartThumb">${img}</div>
+          <div>
+            <p class="cartName">${escapeHtml(p.title || pin)}</p>
+            <div class="cartSub">${escapeHtml(pin)} • Ø ${escapeHtml(p.diameter ?? "—")} • Stock: ${stock}</div>
+
+            <div class="cartRow">
+              <div class="cartQty">
+                <button data-act="dec" data-pin="${escapeHtml(pin)}">−</button>
+                <input data-act="inp" data-pin="${escapeHtml(pin)}" value="${Number(qty||1)}" inputmode="numeric" />
+                <button data-act="inc" data-pin="${escapeHtml(pin)}">+</button>
+              </div>
+
+              <div style="text-align:right;">
+                <div style="font-weight:950;">${money(cur, line)}</div>
+                <div style="color:var(--muted); font-size:12px;">${money(cur, unit)} each</div>
+              </div>
+            </div>
+
+            <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+              <button class="removeBtn" data-act="rm" data-pin="${escapeHtml(pin)}">Remove</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    elCartTotal.textContent = money(cur, computeTotal());
+
+    // bind cart controls
+    [...elCartBody.querySelectorAll("[data-act]")].forEach(elm => {
+      const act = elm.getAttribute("data-act");
+      const pin = elm.getAttribute("data-pin");
+
+      if (act === "dec"){
+        elm.addEventListener("click", () => setCartQty(pin, Number(cart[pin]||1) - 1));
+      }
+      if (act === "inc"){
+        elm.addEventListener("click", () => setCartQty(pin, Number(cart[pin]||1) + 1));
+      }
+      if (act === "rm"){
+        elm.addEventListener("click", () => removeFromCart(pin));
+      }
+      if (act === "inp"){
+        elm.addEventListener("input", () => setCartQty(pin, elm.value));
+      }
+    });
+  }
+
+  elCheckoutBtn.addEventListener("click", async () => {
+    const cur = elCurrency.value;
+    const items = Object.entries(cart)
+      .map(([pin, quantity]) => ({ pin, quantity: Number(quantity||0) }))
+      .filter(x => x.quantity > 0);
+
+    if (items.length === 0) return;
+
+    toast("Checkout", "Opening Stripe…");
+    elCheckoutBtn.disabled = true;
+
+    try{
+      const res = await fetch(API_CHECKOUT_CART, {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ currency: cur, items })
+      });
+
+      const out = await res.json();
+      if (out.url) window.location.href = out.url;
+
+      toast("Error", out.error || "Checkout failed");
+      elCheckoutBtn.disabled = false;
+    }catch(e){
+      toast("Error", "Network error");
+      elCheckoutBtn.disabled = false;
+      console.error(e);
+    }
+  });
+
+  // ========== Filters logic ==========
   function updateSelectedUI(){
     const arr = [...selectedDiameters].sort((a,b)=>a-b);
 
-    // counts / badge
     elDiaCount.textContent = String(arr.length);
     elMDiaCount.textContent = String(arr.length);
     elFiltersBadge.textContent = String(arr.length);
 
-    // text
     const text = (arr.length ? arr.map(d => `Ø${d}`).join(", ") : "—");
 
-    // desktop pill
     if (arr.length === 0){
       elSelectedWrap.style.display = "none";
       elSelectedList.textContent = "—";
@@ -616,7 +989,6 @@
       elSelectedList.textContent = text;
     }
 
-    // mobile pill
     if (arr.length === 0){
       elMSelectedWrap.style.display = "none";
       elMSelectedList.textContent = "—";
@@ -663,7 +1035,7 @@
               <div class="price">${priceText(p.price)}</div>
               <div style="color:var(--muted); font-size:12px; margin-top:2px;">Ø ${p.diameter ?? "—"}</div>
             </div>
-            <button class="btn" ${soldOut ? "disabled" : ""} data-pin="${escapeHtml(p.pin)}">Buy</button>
+            <button class="btn" ${soldOut ? "disabled" : ""} data-add="${escapeHtml(p.pin)}">Add</button>
           </div>
         </div>
       </div>
@@ -674,29 +1046,13 @@
     elSbCount.textContent = `${filtered.length} items`;
     elGrid.innerHTML = filtered.map(cardTemplate).join("");
 
-    // Buy
-    [...document.querySelectorAll("button[data-pin]")].forEach(btn => {
-      btn.addEventListener("click", async (e) => {
+    // Add to cart
+    [...document.querySelectorAll("button[data-add]")].forEach(btn => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const pin = btn.getAttribute("data-pin");
-        toast("Checkout", "Opening Stripe…");
-
-        try{
-          const res = await fetch(API_CHECKOUT, {
-            method:"POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ pin, quantity: 1 })
-          });
-          const data = await res.json();
-          if (data.url) window.location.href = data.url;
-          else {
-            toast("Error", data.error || "Checkout failed");
-            console.log(data);
-          }
-        }catch(err){
-          toast("Error", "Network error");
-          console.error(err);
-        }
+        const pin = btn.getAttribute("data-add");
+        addToCart(pin, 1);
+        renderCart(); // чтобы сумма обновилась, если корзина открыта
       });
     });
 
@@ -782,8 +1138,10 @@
       if (r.ok){
         const data = await r.json();
         products = normalizeProducts(data);
+
         buildDiameterLists();
         applyFilters();
+        updateCartBadge();
         return;
       }
     }catch(_){}
@@ -791,14 +1149,14 @@
     products = [];
     buildDiameterLists();
     applyFilters();
+    updateCartBadge();
   }
 
   // Events
   elQ.addEventListener("input", applyFilters);
   elStock.addEventListener("change", applyFilters);
-  elCurrency.addEventListener("change", render);
+  elCurrency.addEventListener("change", () => { render(); renderCart(); });
 
-  // Close sheet on orientation / resize if needed
   window.addEventListener("resize", () => {
     if (window.innerWidth > 980) closeSheet();
   });
@@ -807,4 +1165,3 @@
 </script>
 </body>
 </html>
-```0
