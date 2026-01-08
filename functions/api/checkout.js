@@ -3,15 +3,17 @@ export async function onRequestPost(context) {
     const { request, env } = context;
 
     const body = await request.json().catch(() => ({}));
-    const pin = String(body.pin || "").trim();
+    const pin = (body.pin || "").trim();
     const quantity = Number(body.quantity || 1);
+    const currency = String(body.currency || "EUR").toUpperCase();
 
     if (!pin) return json({ error: "Missing pin" }, 400);
+    if (!["EUR","USD"].includes(currency)) return json({ error: "Unsupported currency" }, 400);
     if (!Number.isFinite(quantity) || quantity < 1 || quantity > 10) {
       return json({ error: "Invalid quantity" }, 400);
     }
 
-    // required env
+    // обязательные секреты/переменные
     if (!env.STRIPE_SECRET_KEY) return json({ error: "STRIPE_SECRET_KEY is not set" }, 500);
     if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
     if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
@@ -21,7 +23,14 @@ export async function onRequestPost(context) {
     const successUrl = env.SITE_SUCCESS_URL || "https://mosaicpins.space/success.html";
     const cancelUrl = env.SITE_CANCEL_URL || "https://mosaicpins.space/cancel.html";
 
-    // 1) find Airtable record by PIN
+    // ✅ Названия полей Price ID (лучше задать явно в env)
+    // Например:
+    // STRIPE_PRICE_FIELD_EUR="Stripe Price ID EUR"
+    // STRIPE_PRICE_FIELD_USD="Stripe Price ID USD"
+    const PRICE_FIELD_EUR = env.STRIPE_PRICE_FIELD_EUR || "Stripe Price ID EUR";
+    const PRICE_FIELD_USD = env.STRIPE_PRICE_FIELD_USD || "Stripe Price ID USD";
+
+    // 1) Ищем запись в Airtable по PIN
     const formula = `{${pinField}}="${escapeForFormula(pin)}"`;
     const airtableUrl =
       `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}` +
@@ -40,30 +49,23 @@ export async function onRequestPost(context) {
     if (!record) return json({ error: "PIN not found" }, 404);
 
     const fields = record.fields || {};
+    const active = fields["Active"];
+    if (active === false) return json({ error: "Product is inactive" }, 403);
 
-    // Active
-    if (fields["Active"] === false) return json({ error: "Product is inactive" }, 403);
+    // 2) Берём Price ID по валюте (с fallback на популярные варианты названий)
+    const priceId = pickPriceId(fields, currency, {
+      eur: PRICE_FIELD_EUR,
+      usd: PRICE_FIELD_USD,
+    });
 
-    // Stock check
-    const stock = Number(fields["Stock"] ?? 0);
-    if (!Number.isFinite(stock) || stock <= 0) {
-      return json({ error: "Sold out" }, 409);
-    }
-    if (quantity > stock) {
-      return json({ error: `Not enough stock. Available: ${stock}` }, 409);
-    }
-
-    // Stripe Price ID (with safe fallbacks)
-    const priceId =
-      fields["Stripe Price ID"] ||
-      fields["Stripe Prince ID"] || // fallback if old typo exists somewhere
-      fields["Stripe Price Id"];    // fallback for different casing
-
-    if (!priceId || typeof priceId !== "string") {
-      return json({ error: 'Missing "Stripe Price ID" in Airtable record' }, 400);
+    if (!priceId) {
+      return json({
+        error: `Missing Stripe Price ID for ${currency} in Airtable record`,
+        hint: `Set env STRIPE_PRICE_FIELD_EUR / STRIPE_PRICE_FIELD_USD or rename Airtable fields`,
+      }, 400);
     }
 
-    // 2) Create Stripe Checkout Session
+    // 3) Создаём Stripe Checkout Session
     const params = new URLSearchParams();
     params.set("mode", "payment");
     params.append("payment_method_types[]", "card");
@@ -72,10 +74,6 @@ export async function onRequestPost(context) {
 
     params.append("line_items[0][price]", priceId);
     params.append("line_items[0][quantity]", String(quantity));
-
-    // optional shipping address
-    // params.append("shipping_address_collection[allowed_countries][]", "DE");
-    // params.append("shipping_address_collection[allowed_countries][]", "LV");
 
     const sResp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -92,10 +90,27 @@ export async function onRequestPost(context) {
       return json({ error: sData?.error?.message || "Stripe error", details: sData }, 400);
     }
 
-    return json({ url: sData.url, pin, recordId: record.id });
+    return json({ url: sData.url, pin, currency, recordId: record.id });
   } catch (e) {
     return json({ error: e?.message || "Server error" }, 500);
   }
+}
+
+function pickPriceId(fields, currency, cfg){
+  // 1) Prefer env-configured exact field names:
+  const direct = (currency === "EUR") ? fields[cfg.eur] : fields[cfg.usd];
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+
+  // 2) Fallback common naming patterns:
+  const candidates = currency === "EUR"
+    ? ["Stripe Price ID EUR","Stripe Price ID (EUR)","Stripe Price EUR","Stripe Price ID - EUR","Stripe Price ID_EUR","Stripe Price ID"]
+    : ["Stripe Price ID USD","Stripe Price ID (USD)","Stripe Price USD","Stripe Price ID - USD","Stripe Price ID_USD","Stripe Price ID"];
+
+  for (const k of candidates){
+    const v = fields[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
 }
 
 function json(obj, status = 200) {
@@ -109,6 +124,5 @@ function json(obj, status = 200) {
 }
 
 function escapeForFormula(value) {
-  // Airtable formula escaping
   return String(value).replace(/"/g, '\\"');
 }
