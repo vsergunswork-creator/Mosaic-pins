@@ -703,7 +703,7 @@
         <div id="cartTotal">—</div>
       </div>
       <div class="cartActions">
-        <button class="btn" id="cartCheckout">Checkout (later)</button>
+        <button class="btn" id="cartCheckout">Checkout</button>
         <button class="btn2" id="cartClear">Clear cart</button>
       </div>
     </div>
@@ -716,6 +716,10 @@
 
 <script>
   const API_PRODUCTS = "/api/products";
+
+  // ✅ Cart checkout endpoint (main + fallback)
+  const API_CHECKOUT_CART_PRIMARY = "/api/checkout-cart";
+  const API_CHECKOUT_CART_FALLBACK = "/api/checkout";
 
   // ========= CART (localStorage) =========
   const CART_KEY = "mp_cart"; // [{pin, qty, title, image, price, stock}]
@@ -969,8 +973,65 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-  elCartCheckout.addEventListener("click", () => {
-    toast("Checkout", "Next step: server checkout for full cart ✅");
+
+  async function postCheckoutCart(endpoint){
+    const cart = readCart();
+    const items = cart
+      .map(it => ({
+        pin: String(it.pin || "").trim(),
+        quantity: Number(it.qty || 0)
+      }))
+      .filter(it => it.pin && Number.isFinite(it.quantity) && it.quantity > 0);
+
+    if (!items.length){
+      toast("Cart", "Cart is empty");
+      return null;
+    }
+
+    const currency = (elCurrency.value || "EUR").toUpperCase();
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ currency, items })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok){
+      const msg = data?.error || "Checkout failed";
+      const details = data?.details ? (" " + (typeof data.details === "string" ? data.details : JSON.stringify(data.details))) : "";
+      throw new Error(msg + details);
+    }
+    return data;
+  }
+
+  elCartCheckout.addEventListener("click", async () => {
+    const prevText = elCartCheckout.textContent;
+    elCartCheckout.disabled = true;
+    elCartCheckout.textContent = "Opening…";
+    toast("Checkout", "Opening Stripe…");
+
+    try{
+      // try primary
+      let out = null;
+      try{
+        out = await postCheckoutCart(API_CHECKOUT_CART_PRIMARY);
+      }catch(err){
+        // fallback only if primary endpoint not present / route mismatch
+        out = await postCheckoutCart(API_CHECKOUT_CART_FALLBACK);
+      }
+
+      if (out?.url){
+        window.location.href = out.url;
+        return;
+      }
+
+      throw new Error(out?.error || "Missing checkout url");
+    }catch(e){
+      toast("Error", String(e?.message || e));
+      elCartCheckout.disabled = false;
+      elCartCheckout.textContent = prevText;
+    }
   });
 
   // ===== Diameter filter UI =====
@@ -1062,7 +1123,7 @@
       });
     });
 
-    // Buy (still goes to product page so user can choose qty, then Buy)
+    // Buy -> product page
     [...document.querySelectorAll("button[data-openbuy]")].forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
