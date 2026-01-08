@@ -30,7 +30,7 @@
     /* Layout */
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
 
-    /* Sidebar (proper scroll, no clipping) */
+    /* Sidebar */
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
@@ -89,6 +89,54 @@
       letter-spacing:.6px;
       text-transform:uppercase;
     }
+
+    /* ✅ Selected pill (Shopify-style) */
+    .selectedWrap{
+      padding:0 6px 10px;
+      display:none; /* shown only when selection exists */
+    }
+    .selectedBar{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(34,197,94,.25);
+      background:rgba(34,197,94,.10);
+    }
+    .selectedLeft{
+      min-width:0;
+    }
+    .selectedTitle{
+      font-size:12px;
+      font-weight:900;
+      color:var(--text);
+      margin:0 0 4px;
+      letter-spacing:.2px;
+    }
+    .selectedList{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:180px;
+    }
+    .clearBtn{
+      flex:0 0 auto;
+      border:none;
+      cursor:pointer;
+      padding:8px 10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:900;
+      line-height:1;
+    }
+    .clearBtn:hover{background:rgba(255,255,255,.06)}
 
     .list{
       display:grid;
@@ -279,6 +327,17 @@
           <span class="pill" id="diaCount">0</span>
         </div>
 
+        <!-- ✅ Selected pill -->
+        <div class="selectedWrap" id="selectedWrap">
+          <div class="selectedBar">
+            <div class="selectedLeft">
+              <div class="selectedTitle">Selected</div>
+              <div class="selectedList" id="selectedList">—</div>
+            </div>
+            <button class="clearBtn" id="clearDiameters" title="Clear">✕</button>
+          </div>
+        </div>
+
         <div class="list" id="diameters"></div>
       </div>
     </aside>
@@ -326,7 +385,7 @@
   let products = [];
   let filtered = [];
 
-  // ✅ MULTI SELECT: store selected diameters
+  // ✅ Multi select for diameters
   const selectedDiameters = new Set(); // numbers
 
   const elGrid = document.getElementById("grid");
@@ -334,8 +393,14 @@
   const elStock = document.getElementById("inStockOnly");
   const elCurrency = document.getElementById("currency");
   const elSbCount = document.getElementById("sbCount");
+
   const elDiaCount = document.getElementById("diaCount");
   const elDiameters = document.getElementById("diameters");
+
+  // ✅ Selected pill elements
+  const elSelectedWrap = document.getElementById("selectedWrap");
+  const elSelectedList = document.getElementById("selectedList");
+  const elClearDiameters = document.getElementById("clearDiameters");
 
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
@@ -361,17 +426,29 @@
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
+  function updateSelectedPill(){
+    const arr = [...selectedDiameters].sort((a,b)=>a-b);
+    elDiaCount.textContent = String(arr.length);
+
+    if (arr.length === 0){
+      elSelectedWrap.style.display = "none";
+      elSelectedList.textContent = "—";
+      return;
+    }
+
+    elSelectedWrap.style.display = "block";
+    elSelectedList.textContent = arr.map(d => `Ø${d}`).join(", ");
+  }
+
   function applyFilters(){
     const q = (elQ.value || "").trim().toLowerCase();
     const inStockOnly = elStock.checked;
 
     filtered = products.filter(p => {
-      // ✅ Multi Ø filter
       if (selectedDiameters.size > 0) {
         const d = Number(p.diameter);
         if (!Number.isFinite(d) || !selectedDiameters.has(d)) return false;
       }
-
       if (inStockOnly && !(Number(p.stock||0) > 0)) return false;
 
       if (!q) return true;
@@ -437,7 +514,7 @@
       });
     });
 
-    // Open product page
+    // Open product
     [...document.querySelectorAll(".card[data-open]")].forEach(card => {
       card.addEventListener("click", () => {
         const pin = card.getAttribute("data-open");
@@ -471,8 +548,7 @@
     }
     const diameters = [...set].sort((a,b)=>a-b);
 
-    // show how many selected (or 0)
-    elDiaCount.textContent = String(selectedDiameters.size);
+    updateSelectedPill();
 
     const makeItem = ({label, sub, value, isAll=false}) => {
       const div = document.createElement("div");
@@ -487,7 +563,7 @@
           if (selectedDiameters.has(value)) selectedDiameters.delete(value);
           else selectedDiameters.add(value);
         }
-        buildDiameterFilter(); // refresh active states + counter
+        buildDiameterFilter();
         applyFilters();
       });
 
@@ -501,6 +577,14 @@
       elDiameters.appendChild(makeItem({ label:`Ø ${d}`, sub:"Exact", value:d }));
     }
   }
+
+  // ✅ clear button
+  elClearDiameters.addEventListener("click", (e) => {
+    e.preventDefault();
+    selectedDiameters.clear();
+    buildDiameterFilter();
+    applyFilters();
+  });
 
   async function loadProducts(){
     try{
