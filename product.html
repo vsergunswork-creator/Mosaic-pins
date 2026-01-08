@@ -94,16 +94,94 @@
       display:grid;
       gap:10px;
     }
+
+    /* === Variant B: swipe/drag carousel === */
     .hero{
       aspect-ratio: 1/1;
       border-radius:14px;
       overflow:hidden;
       background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(96,165,250,.10));
       border:1px solid var(--line);
-      display:flex; align-items:center; justify-content:center;
       position:relative;
     }
-    .hero img{width:100%; height:100%; object-fit:cover; display:block;}
+    .carousel{
+      width:100%;
+      height:100%;
+      overflow-x:auto;
+      overflow-y:hidden;
+      display:flex;
+      scroll-snap-type:x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width:none;
+      cursor: grab;
+      user-select:none;
+    }
+    .carousel::-webkit-scrollbar{display:none;}
+    .carousel.dragging{cursor: grabbing;}
+    .slide{
+      flex: 0 0 100%;
+      width:100%;
+      height:100%;
+      scroll-snap-align:center;
+      position:relative;
+    }
+    .slide img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      pointer-events:none;
+    }
+    .heroEmpty{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+    }
+
+    .navBtn{
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      width:44px;
+      height:44px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.45);
+      color:var(--text);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      backdrop-filter: blur(8px);
+      transition: transform .15s ease, filter .15s ease, opacity .15s ease;
+      opacity:.95;
+      user-select:none;
+    }
+    .navBtn:hover{filter:brightness(1.1); transform:translateY(-50%) scale(1.03)}
+    .navBtn:active{transform:translateY(-50%) scale(.98)}
+    .navPrev{left:10px;}
+    .navNext{right:10px;}
+    .navBtn[disabled]{opacity:.35; cursor:not-allowed;}
+    @media (max-width:980px){
+      .navBtn{display:none;} /* на мобилке — чистый swipe */
+    }
+
+    .counter{
+      position:absolute;
+      left:10px;
+      bottom:10px;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.35);
+      color:var(--text);
+      backdrop-filter: blur(6px);
+    }
+
     .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px;}
     .t{
       width:72px; height:72px; border-radius:12px;
@@ -135,9 +213,7 @@
       display:flex; align-items:baseline; justify-content:space-between; gap:10px;
       margin:16px 0 10px;
     }
-    .price{
-      font-size:20px; font-weight:950;
-    }
+    .price{font-size:20px; font-weight:950;}
     .badge{
       padding:6px 10px;
       border-radius:999px;
@@ -148,11 +224,7 @@
     }
     .sold{background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.25)}
 
-    .actions{
-      display:grid;
-      gap:10px;
-      margin-top:14px;
-    }
+    .actions{display:grid; gap:10px; margin-top:14px;}
     .qtyRow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .qtyRow label{color:var(--muted); font-size:13px}
     .qty{
@@ -246,9 +318,14 @@
         <div class="wrap">
           <section class="panel">
             <div class="gallery">
+
               <div class="hero" id="hero">
-                <span style="color:var(--muted);">No image</span>
+                <div class="carousel" id="carousel" aria-label="Product images"></div>
+                <button class="navBtn navPrev" id="prevBtn" aria-label="Previous image">←</button>
+                <button class="navBtn navNext" id="nextBtn" aria-label="Next image">→</button>
+                <div class="counter" id="counter" style="display:none;">1 / 1</div>
               </div>
+
               <div class="thumbs" id="thumbs"></div>
             </div>
           </section>
@@ -299,6 +376,16 @@
   const toastTitle = el("toastTitle");
   const toastMsg = el("toastMsg");
 
+  // Carousel elements
+  const carousel = el("carousel");
+  const prevBtn = el("prevBtn");
+  const nextBtn = el("nextBtn");
+  const counter = el("counter");
+
+  // state
+  let currentIndex = 0;
+  let imagesState = [];
+
   function toast(title, msg){
     toastTitle.textContent = title;
     toastMsg.textContent = msg;
@@ -319,13 +406,69 @@
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
-  function setHero(url, title){
-    const hero = el("hero");
-    if (!url){
-      hero.innerHTML = `<span style="color:var(--muted);">No image</span>`;
+  function clampQty(q, max){
+    q = Number(q);
+    if (!Number.isFinite(q)) q = 1;
+    if (q < 1) q = 1;
+    if (max >= 1 && q > max) q = max;
+    return q;
+  }
+
+  // ===== Carousel helpers =====
+  function updateNav(){
+    const n = imagesState.length;
+    const hasMany = n > 1;
+    counter.style.display = n >= 2 ? "block" : "none";
+    counter.textContent = `${Math.min(currentIndex+1, n)} / ${n}`;
+
+    prevBtn.disabled = !hasMany || currentIndex <= 0;
+    nextBtn.disabled = !hasMany || currentIndex >= n-1;
+  }
+
+  function scrollToIndex(idx, smooth=true){
+    const n = imagesState.length;
+    if (!n) return;
+    currentIndex = Math.max(0, Math.min(idx, n-1));
+    const x = carousel.clientWidth * currentIndex;
+    carousel.scrollTo({ left: x, behavior: smooth ? "smooth" : "auto" });
+    syncThumbs();
+    updateNav();
+  }
+
+  function detectIndexFromScroll(){
+    const w = carousel.clientWidth || 1;
+    const idx = Math.round(carousel.scrollLeft / w);
+    const n = imagesState.length;
+    const clamped = Math.max(0, Math.min(idx, Math.max(0,n-1)));
+    if (clamped !== currentIndex){
+      currentIndex = clamped;
+      syncThumbs();
+      updateNav();
+    } else {
+      updateNav();
+    }
+  }
+
+  function buildCarousel(images, title){
+    imagesState = images.slice();
+    currentIndex = 0;
+
+    carousel.innerHTML = "";
+    if (!imagesState.length){
+      carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
+      updateNav();
       return;
     }
-    hero.innerHTML = `<img src="${url}" alt="${escapeHtml(title)}" />`;
+
+    imagesState.forEach((u) => {
+      const s = document.createElement("div");
+      s.className = "slide";
+      s.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" />`;
+      carousel.appendChild(s);
+    });
+
+    // start at 0
+    requestAnimationFrame(() => scrollToIndex(0, false));
   }
 
   function renderThumbs(images, title){
@@ -335,24 +478,81 @@
     images.forEach((u, idx) => {
       const d = document.createElement("div");
       d.className = "t" + (idx===0 ? " active" : "");
+      d.dataset.idx = String(idx);
       d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" />`;
-      d.addEventListener("click", () => {
-        [...thumbs.querySelectorAll(".t")].forEach(x => x.classList.remove("active"));
-        d.classList.add("active");
-        setHero(u, title);
-      });
+      d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
   }
 
-  function clampQty(q, max){
-    q = Number(q);
-    if (!Number.isFinite(q)) q = 1;
-    if (q < 1) q = 1;
-    if (max >= 1 && q > max) q = max;
-    return q;
+  function syncThumbs(){
+    const thumbs = el("thumbs");
+    const list = thumbs.querySelectorAll(".t");
+    list.forEach(t => t.classList.remove("active"));
+    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
+    if (active) active.classList.add("active");
   }
 
+  // Drag mouse (desktop)
+  function enableDragScroll(){
+    let isDown = false;
+    let startX = 0;
+    let startLeft = 0;
+
+    const onDown = (e) => {
+      // only left button
+      if (e.button !== 0) return;
+      isDown = true;
+      carousel.classList.add("dragging");
+      startX = e.clientX;
+      startLeft = carousel.scrollLeft;
+      carousel.setPointerCapture?.(e.pointerId);
+    };
+    const onMove = (e) => {
+      if (!isDown) return;
+      const dx = e.clientX - startX;
+      carousel.scrollLeft = startLeft - dx;
+    };
+    const onUp = () => {
+      if (!isDown) return;
+      isDown = false;
+      carousel.classList.remove("dragging");
+      // snap to nearest
+      detectIndexFromScroll();
+      scrollToIndex(currentIndex);
+    };
+
+    // Pointer events (works for mouse and some touch, but touch already works natively)
+    carousel.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  }
+
+  function wireCarouselControls(){
+    prevBtn.addEventListener("click", () => scrollToIndex(currentIndex - 1));
+    nextBtn.addEventListener("click", () => scrollToIndex(currentIndex + 1));
+
+    // when user swipes / scrolls
+    let t;
+    carousel.addEventListener("scroll", () => {
+      clearTimeout(t);
+      t = setTimeout(detectIndexFromScroll, 80);
+    });
+
+    // keyboard arrows (nice premium touch)
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") scrollToIndex(currentIndex - 1);
+      if (e.key === "ArrowRight") scrollToIndex(currentIndex + 1);
+    });
+
+    enableDragScroll();
+
+    // on resize keep slide aligned
+    window.addEventListener("resize", () => scrollToIndex(currentIndex, false));
+  }
+
+  // ===== Main load =====
   async function load(){
     const url = new URL(window.location.href);
     const pin = (url.searchParams.get("pin") || "").trim();
@@ -386,13 +586,14 @@
     if (p.color) chips.push(`Color: ${p.color}`);
     if (p.diameter != null) chips.push(`Ø ${p.diameter} mm`);
     (p.materials || []).forEach(m => chips.push(m));
-
     el("chips").innerHTML = chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("");
 
     // images
     const images = Array.isArray(p.images) ? p.images : [];
-    setHero(images[0], p.title);
+    buildCarousel(images, p.title);
     renderThumbs(images, p.title);
+    wireCarouselControls();
+    updateNav();
 
     // stock
     const stock = Number(p.stock || 0);
@@ -411,11 +612,7 @@
     // qty controls
     const qtyInput = el("qty");
     qtyInput.value = "1";
-
-    const setQty = (v) => {
-      qtyInput.value = String(clampQty(v, stock));
-    };
-
+    const setQty = (v) => { qtyInput.value = String(clampQty(v, stock)); };
     el("minus").addEventListener("click", () => setQty(Number(qtyInput.value) - 1));
     el("plus").addEventListener("click", () => setQty(Number(qtyInput.value) + 1));
     qtyInput.addEventListener("input", () => setQty(qtyInput.value));
