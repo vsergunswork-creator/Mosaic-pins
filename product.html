@@ -7,13 +7,17 @@
   <style>
     :root{
       --bg:#0b0d11;
-      --panel:#11141b;
-      --panel2:#0f1218;
       --text:#e9eef7;
       --muted:#a8b3c7;
       --line:rgba(255,255,255,.08);
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
+
+      /* darker overlays */
+      --overlay: rgba(0,0,0,.72);
+      --overlay2: rgba(0,0,0,.82);
+      --panel: rgba(0,0,0,.28);
+      --panelHover: rgba(255,255,255,.05);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -27,6 +31,16 @@
       overflow:hidden;
     }
 
+    /* nicer dark scrollbars */
+    *{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
+    }
+    *::-webkit-scrollbar{width:10px;height:10px}
+    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
+    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
+    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
@@ -38,7 +52,7 @@
     .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
     .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
-    .pill{padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); font-size:12px;}
+    .pill{padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); font-size:12px; white-space:nowrap;}
 
     .sb-nav{padding:6px; display:grid; gap:6px;}
     .nav-item{
@@ -85,7 +99,7 @@
       gap:8px;
       padding:10px 12px;
       border-radius:999px;
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.28);
       border:1px solid var(--line);
       color:var(--text);
       cursor:pointer;
@@ -176,13 +190,13 @@
       height:44px;
       border-radius:14px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.45);
+      background:rgba(0,0,0,.55);
       color:var(--text);
       display:flex;
       align-items:center;
       justify-content:center;
       cursor:pointer;
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(10px);
       transition: transform .15s ease, filter .15s ease, opacity .15s ease;
       opacity:.95;
       user-select:none;
@@ -203,9 +217,9 @@
       border-radius:999px;
       font-size:12px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.35);
+      background:rgba(0,0,0,.55);
       color:var(--text);
-      backdrop-filter: blur(6px);
+      backdrop-filter: blur(10px);
       z-index:5;
       display:none;
     }
@@ -227,13 +241,14 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    /* ✅ description: keep Airtable formatting */
+    /* ✅ Airtable-like description formatting */
     .meta{
       color:var(--muted);
       font-size:13px;
       line-height:1.65;
-      white-space: pre-line; /* key */
+      white-space: pre-wrap; /* keep line breaks */
       word-break: break-word;
+      margin-top:8px;
     }
 
     .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
@@ -256,11 +271,11 @@
       border-radius:999px;
       font-size:12px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.45);
+      background:rgba(0,0,0,.55);
       color:var(--text);
       backdrop-filter: blur(10px);
     }
-    .sold{background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.25)}
+    .sold{background:rgba(239,68,68,.22); border-color:rgba(239,68,68,.28)}
 
     .actions{display:grid; gap:10px; margin-top:14px;}
     .qtyRow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -288,6 +303,7 @@
       color:var(--text);
       font-size:14px;
       text-align:center;
+      font-weight:900;
     }
 
     .btn{
@@ -317,7 +333,6 @@
       color:var(--text);
       font-weight:950;
       transition: background .15s ease, transform .15s ease;
-      backdrop-filter: blur(8px);
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
@@ -326,7 +341,7 @@
       position: fixed;
       right: 16px;
       bottom: 16px;
-      background: rgba(0,0,0,.70);
+      background: rgba(0,0,0,.65);
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 12px 14px;
@@ -339,23 +354,6 @@
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
-
-    /* ================================
-       REMOVE "white качель" scrollbar
-       ================================ */
-    .content,
-    .thumbs,
-    .carousel{
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-    .content::-webkit-scrollbar,
-    .thumbs::-webkit-scrollbar,
-    .carousel::-webkit-scrollbar{
-      width: 0 !important;
-      height: 0 !important;
-      display: none !important;
-    }
 
     @media (prefers-reduced-motion: reduce){
       .hero-inner{will-change:auto}
@@ -480,7 +478,7 @@
     toastTitle.textContent = title;
     toastMsg.textContent = msg;
     toastEl.classList.add("show");
-    setTimeout(()=> toastEl.classList.remove("show"), 2400);
+    setTimeout(()=> toastEl.classList.remove("show"), 2600);
   }
 
   function escapeHtml(s){
@@ -514,7 +512,6 @@
 
   let currentIndex = 0;
   let imagesState = [];
-  let carouselWired = false;
 
   function updateNav(){
     const n = imagesState.length;
@@ -529,7 +526,7 @@
   function syncThumbs(){
     const thumbs = el("thumbs");
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
+    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
     if (active) active.classList.add("active");
   }
 
@@ -561,7 +558,7 @@
 
     carousel.innerHTML = "";
     if (!imagesState.length){
-      carousel.innerHTML = \`<div class="heroEmpty">No image</div>\`;
+      carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
       updateNav();
       return;
     }
@@ -569,7 +566,7 @@
     imagesState.forEach((u) => {
       const s = document.createElement("div");
       s.className = "slide";
-      s.innerHTML = \`<img src="\${u}" alt="\${escapeHtml(title)}" draggable="false" />\`;
+      s.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
       carousel.appendChild(s);
     });
 
@@ -583,7 +580,7 @@
       const d = document.createElement("div");
       d.className = "t" + (idx===0 ? " active" : "");
       d.dataset.idx = String(idx);
-      d.innerHTML = \`<img src="\${u}" alt="\${escapeHtml(title)}" draggable="false" />\`;
+      d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
       d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
@@ -623,10 +620,7 @@
     window.addEventListener("pointercancel", onUp);
   }
 
-  function wireCarouselOnce(){
-    if (carouselWired) return;
-    carouselWired = true;
-
+  function wireCarousel(){
     prevBtn.addEventListener("click", () => scrollToIndex(currentIndex - 1));
     nextBtn.addEventListener("click", () => scrollToIndex(currentIndex + 1));
 
@@ -656,7 +650,7 @@
       curr.ry += (target.ry - curr.ry) * k;
 
       heroInner.style.transform =
-        \`translate3d(\${curr.x}px, \${curr.y}px, 0) rotateX(\${curr.rx}deg) rotateY(\${curr.ry}deg) scale(\${target.s})\`;
+        `translate3d(${curr.x}px, ${curr.y}px, 0) rotateX(${curr.rx}deg) rotateY(${curr.ry}deg) scale(${target.s})`;
 
       requestAnimationFrame(apply);
     }
@@ -727,8 +721,16 @@
       return;
     }
 
-    const r = await fetch(`${API_PRODUCT}?pin=${encodeURIComponent(pin)}`);
-    const data = await r.json();
+    let r, data;
+    try{
+      r = await fetch(`${API_PRODUCT}?pin=${encodeURIComponent(pin)}`, { cache:"no-store" });
+      data = await r.json();
+    }catch(_){
+      el("hTitle").textContent = "Network error";
+      el("hSub").textContent = "API is not reachable";
+      toast("Error", "Product API is not reachable");
+      return;
+    }
 
     if (!r.ok){
       el("hTitle").textContent = "Not found";
@@ -745,7 +747,7 @@
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
 
-    // ✅ description keeps line breaks
+    // ✅ keep Airtable-like line breaks
     el("desc").textContent = (p.description || "").trim();
 
     const chips = [];
@@ -757,7 +759,7 @@
     const images = Array.isArray(p.images) ? p.images : [];
     buildCarousel(images, p.title);
     renderThumbs(images, p.title);
-    wireCarouselOnce();
+    wireCarousel();
     updateNav();
 
     const stock = Number(p.stock || 0);
