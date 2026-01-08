@@ -7,28 +7,43 @@ export async function onRequestPost({ env, request }) {
     if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
 
     const body = await request.json().catch(() => ({}));
-    const currency = (body.currency || "EUR").toUpperCase();
-    const items = Array.isArray(body.items) ? body.items : [];
+    const currency = String(body.currency || "EUR").toUpperCase();
+    const rawItems = Array.isArray(body.items) ? body.items : [];
 
-    if (!["EUR","USD"].includes(currency)) return json({ error: "Unsupported currency" }, 400);
-    if (!items.length) return json({ error: "Empty cart" }, 400);
+    if (!["EUR", "USD"].includes(currency)) return json({ error: "Unsupported currency" }, 400);
+    if (!rawItems.length) return json({ error: "Empty cart" }, 400);
 
-    // Load active products from Airtable (one time)
+    // Normalize cart: trim pin, clamp qty, merge same pins
+    const merged = new Map(); // pin -> qty
+    for (const it of rawItems) {
+      const pin = String(it?.pin || "").trim();
+      let qty = Math.floor(Number(it?.quantity || 0));
+      if (!pin) continue;
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+      if (qty > 99) qty = 99; // hard cap
+
+      merged.set(pin, (merged.get(pin) || 0) + qty);
+    }
+    if (!merged.size) return json({ error: "No valid items" }, 400);
+
+    // Load active products from Airtable (handles pagination, not only first 100)
     const products = await loadProductsFromAirtable(env);
 
-    // Build Stripe line_items using price_data (no need to create Stripe Price IDs)
+    // Build Stripe line_items using price_data (no Stripe Price IDs needed)
     const line_items = [];
-    for (const it of items) {
-      const pin = String(it.pin || "").trim();
-      const qty = Math.floor(Number(it.quantity || 0));
-      if (!pin || qty <= 0) continue;
 
+    for (const [pin, qty] of merged.entries()) {
       const p = products.get(pin);
       if (!p) return json({ error: `Product not found: ${pin}` }, 404);
 
       const stock = Number(p.stock || 0);
       if (stock <= 0) return json({ error: `Sold out: ${pin}` }, 400);
-      if (qty > stock) return json({ error: `Not enough stock for ${pin}. Max: ${stock}` }, 400);
+
+      const finalQty = Math.min(qty, stock);
+      if (finalQty <= 0) return json({ error: `Sold out: ${pin}` }, 400);
+      if (qty > stock) {
+        return json({ error: `Not enough stock for ${pin}. Max: ${stock}` }, 400);
+      }
 
       const unit = currency === "EUR" ? p.price_eur : p.price_usd;
       const unit_amount = toCents(unit);
@@ -46,7 +61,7 @@ export async function onRequestPost({ env, request }) {
           },
           unit_amount,
         },
-        quantity: qty,
+        quantity: finalQty,
       });
     }
 
@@ -56,13 +71,12 @@ export async function onRequestPost({ env, request }) {
     const success_url = `${origin}/?success=1`;
     const cancel_url = `${origin}/?canceled=1`;
 
-    // Create Stripe Checkout Session (REST API)
     const session = await stripeCreateCheckoutSession(env.STRIPE_SECRET_KEY, {
       mode: "payment",
       success_url,
       cancel_url,
       line_items,
-      // Later we can add shipping_address_collection, shipping_options, etc.
+      // позже добавим shipping_address_collection / shipping_options
     });
 
     return json({ url: session.url });
@@ -71,46 +85,60 @@ export async function onRequestPost({ env, request }) {
   }
 }
 
-async function loadProductsFromAirtable(env){
-  const apiUrl = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`);
-  apiUrl.searchParams.set("filterByFormula", "{Active}=TRUE()");
-  apiUrl.searchParams.set("pageSize", "100");
-
-  const r = await fetch(apiUrl.toString(), {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
-  });
-
-  const data = await r.json();
-  if (!r.ok) throw new Error(`Airtable error: ${JSON.stringify(data)}`);
+async function loadProductsFromAirtable(env) {
+  const baseUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`;
 
   const map = new Map();
-  for (const rec of (data.records || [])) {
-    const f = rec.fields || {};
-    const pin = String(f["PIN Code"] || "").trim();
-    if (!pin) continue;
+  let offset = null;
 
-    const images = Array.isArray(f["Images"]) ? f["Images"].map(x => x?.url).filter(Boolean) : [];
+  // Airtable pagination loop
+  for (let guard = 0; guard < 20; guard++) {
+    const apiUrl = new URL(baseUrl);
+    apiUrl.searchParams.set("filterByFormula", "{Active}=TRUE()");
+    apiUrl.searchParams.set("pageSize", "100");
+    if (offset) apiUrl.searchParams.set("offset", offset);
 
-    map.set(pin, {
-      pin,
-      title: f["Title"] ?? "",
-      diameter: f["Diameter"] ?? null,
-      stock: Number(f["Stock"] ?? 0),
-      price_eur: f["Price_EUR"],
-      price_usd: f["Price_USD"],
-      images,
+    const r = await fetch(apiUrl.toString(), {
+      headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
     });
+
+    const data = await r.json();
+    if (!r.ok) throw new Error(`Airtable error: ${JSON.stringify(data)}`);
+
+    for (const rec of (data.records || [])) {
+      const f = rec.fields || {};
+      const pin = String(f["PIN Code"] || "").trim();
+      if (!pin) continue;
+
+      const images = Array.isArray(f["Images"])
+        ? f["Images"].map(x => x?.url).filter(Boolean)
+        : [];
+
+      map.set(pin, {
+        pin,
+        title: f["Title"] ?? "",
+        diameter: f["Diameter"] ?? null,
+        stock: Number(f["Stock"] ?? 0),
+        price_eur: f["Price_EUR"],
+        price_usd: f["Price_USD"],
+        images,
+      });
+    }
+
+    offset = data.offset;
+    if (!offset) break;
   }
+
   return map;
 }
 
-function toCents(v){
+function toCents(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return NaN;
   return Math.round(n * 100);
 }
 
-async function stripeCreateCheckoutSession(secretKey, payload){
+async function stripeCreateCheckoutSession(secretKey, payload) {
   const form = new URLSearchParams();
   form.set("mode", payload.mode);
   form.set("success_url", payload.success_url);
