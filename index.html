@@ -7,13 +7,17 @@
   <style>
     :root{
       --bg:#0b0d11;
-      --panel:#11141b;
-      --panel2:#0f1218;
       --text:#e9eef7;
       --muted:#a8b3c7;
       --line:rgba(255,255,255,.08);
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
+
+      /* darker overlays (less прозрачные) */
+      --overlay: rgba(0,0,0,.72);
+      --overlay2: rgba(0,0,0,.82);
+      --panel: rgba(0,0,0,.28);
+      --panelHover: rgba(255,255,255,.05);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -27,10 +31,18 @@
       overflow:hidden;
     }
 
-    /* Layout */
+    /* nicer dark scrollbars */
+    *{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
+    }
+    *::-webkit-scrollbar{width:10px;height:10px}
+    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
+    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
+    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
 
-    /* Sidebar */
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
@@ -78,9 +90,30 @@
       flex:1 1 auto;
       min-height:0;
       overflow:auto;
-      padding:6px;
-      padding-bottom:10px;
+      padding:6px 6px 10px;
+      position:relative;
     }
+
+    /* subtle fade at top/bottom instead of ugly “качель” feeling */
+    .sb-scroll:before,
+    .sb-scroll:after{
+      content:"";
+      position:sticky;
+      left:0; right:0;
+      height:14px;
+      pointer-events:none;
+      z-index:2;
+      display:block;
+    }
+    .sb-scroll:before{
+      top:0;
+      background: linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,0));
+    }
+    .sb-scroll:after{
+      bottom:0;
+      background: linear-gradient(0deg, rgba(11,13,17,.95), rgba(11,13,17,0));
+    }
+
     .sb-section{
       padding:14px 12px 10px;
       display:flex; align-items:center; justify-content:space-between;
@@ -90,38 +123,20 @@
       text-transform:uppercase;
     }
 
-    /* Selected pill (desktop sidebar) */
-    .selectedWrap{
-      padding:0 6px 10px;
-      display:none;
-    }
+    .selectedWrap{padding:0 6px 10px; display:none;}
     .selectedBar{
       display:flex;
       align-items:flex-start;
       justify-content:space-between;
       gap:10px;
-
       padding:10px 12px;
       border-radius:14px;
       border:1px solid rgba(34,197,94,.25);
       background:rgba(34,197,94,.10);
     }
     .selectedLeft{min-width:0;}
-    .selectedTitle{
-      font-size:12px;
-      font-weight:900;
-      color:var(--text);
-      margin:0 0 4px;
-      letter-spacing:.2px;
-    }
-    .selectedList{
-      font-size:12px;
-      color:var(--muted);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width:180px;
-    }
+    .selectedTitle{font-size:12px; font-weight:900; color:var(--text); margin:0 0 4px; letter-spacing:.2px;}
+    .selectedList{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;}
     .clearBtn{
       flex:0 0 auto;
       border:none;
@@ -136,11 +151,7 @@
     }
     .clearBtn:hover{background:rgba(255,255,255,.06)}
 
-    .list{
-      display:grid;
-      gap:6px;
-      padding:0 0 10px;
-    }
+    .list{display:grid; gap:6px; padding:0 0 10px;}
     .item{
       padding:10px 12px;
       border-radius:12px;
@@ -152,12 +163,8 @@
     }
     .item:hover{background:rgba(255,255,255,.05)}
     .item small{display:block; color:var(--muted); margin-top:4px}
-    .item.active{
-      background:rgba(34,197,94,.12);
-      border-color: rgba(34,197,94,.22);
-    }
+    .item.active{background:rgba(34,197,94,.12); border-color: rgba(34,197,94,.22);}
 
-    /* Main */
     .main{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       border:1px solid var(--line);
@@ -207,6 +214,7 @@
       font-size:13px;
       user-select:none;
       cursor:pointer;
+      white-space:nowrap;
     }
     .toggle input{accent-color:#22c55e; width:16px; height:16px}
     .currency{
@@ -217,16 +225,16 @@
       color:var(--text);
       font-size:13px;
       outline:none;
+      white-space:nowrap;
     }
 
-    /* ✅ Filters button (mobile only) */
     .filtersBtn{
       display:none;
       align-items:center;
       gap:8px;
       padding:10px 12px;
       border-radius:999px;
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.28);
       border:1px solid var(--line);
       color:var(--text);
       cursor:pointer;
@@ -245,14 +253,13 @@
       line-height:1;
     }
 
-    /* ✅ Cart button */
     .cartBtn{
       display:inline-flex;
       align-items:center;
       gap:8px;
       padding:10px 12px;
       border-radius:999px;
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.28);
       border:1px solid var(--line);
       color:var(--text);
       cursor:pointer;
@@ -296,9 +303,7 @@
       .content{padding:14px}
       .grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px}
     }
-    @media (max-width:520px){
-      .grid{grid-template-columns:1fr}
-    }
+    @media (max-width:520px){ .grid{grid-template-columns:1fr} }
 
     .card{
       border-radius:16px;
@@ -323,25 +328,27 @@
       border-radius:999px;
       font-size:12px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.45);
+      background:rgba(0,0,0,.55);
       color:var(--text);
       backdrop-filter: blur(10px);
     }
-    .sold{background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.25)}
+    .sold{background:rgba(239,68,68,.22); border-color:rgba(239,68,68,.28)}
     .meta{padding:12px}
     .name{font-weight:800; font-size:14px; margin:0 0 6px}
-
-    /* ✅ description: keep Airtable line breaks (not "скомкано") */
     .desc{
       margin:0;
       color:var(--muted);
       font-size:12px;
       line-height:1.35;
-      height:32px;
-      overflow:hidden;
-      white-space: pre-line; /* key */
-    }
 
+      /* cleaner clamp instead of “скомкано” */
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow:hidden;
+      min-height: 32px;
+      white-space: pre-line;
+    }
     .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px}
     .price{font-weight:900}
     .btn{
@@ -363,7 +370,6 @@
       box-shadow:none;
     }
 
-    /* Add to cart button */
     .btn2{
       border:none; cursor:pointer;
       padding:10px 12px;
@@ -374,7 +380,6 @@
       font-weight:900;
       transition: background .15s ease, transform .15s ease;
       white-space:nowrap;
-      backdrop-filter: blur(8px);
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
@@ -383,7 +388,7 @@
       position: fixed;
       right: 16px;
       bottom: 16px;
-      background: rgba(0,0,0,.70);
+      background: rgba(0,0,0,.65);
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 12px 14px;
@@ -397,13 +402,14 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* ✅ Mobile Filters Sheet */
+    /* Mobile Filters Sheet (darker, less transparent) */
     .sheetBack{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.72); /* less transparent */
+      background:rgba(0,0,0,.72);
       display:none;
       z-index:1000;
+      backdrop-filter: blur(6px);
     }
     .sheetBack.show{display:block}
 
@@ -413,10 +419,8 @@
       border-top-left-radius:18px;
       border-top-right-radius:18px;
       border:1px solid var(--line);
-
-      /* ✅ match site (less transparency, more premium) */
-      background: linear-gradient(180deg, rgba(17,20,27,.98), rgba(15,18,24,.92));
-      box-shadow: 0 -18px 40px rgba(0,0,0,.60);
+      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
+      box-shadow: 0 -18px 40px rgba(0,0,0,.55);
       transform: translateY(100%);
       transition: transform .18s ease;
       z-index:1001;
@@ -425,7 +429,7 @@
       display:flex;
       flex-direction:column;
       overflow:hidden;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(10px);
     }
     .sheet.show{transform: translateY(0)}
     .sheetHead{
@@ -437,37 +441,31 @@
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
     }
-    .sheetTitle{
-      font-weight:950;
-      letter-spacing:.2px;
-    }
+    .sheetTitle{font-weight:950; letter-spacing:.2px;}
     .sheetClose{
       border:none;
       cursor:pointer;
       padding:10px 12px;
       border-radius:12px;
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.30);
       border:1px solid var(--line);
       color:var(--text);
       font-weight:950;
       line-height:1;
     }
     .sheetClose:hover{background:rgba(255,255,255,.06)}
-    .sheetBody{
-      padding:12px;
-      overflow:auto;
-      min-height:0;
-    }
+    .sheetBody{padding:12px; overflow:auto; min-height:0;}
     .mSelectedWrap{display:none; margin-bottom:10px;}
     .mList .item{padding:12px 12px; border-radius:14px;}
 
-    /* ✅ Cart Drawer */
+    /* Cart Drawer (darker) */
     .cartBack{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.76); /* less transparent */
+      background:rgba(0,0,0,.74);
       display:none;
       z-index:1100;
+      backdrop-filter: blur(6px);
     }
     .cartBack.show{display:block}
     .cartDrawer{
@@ -475,17 +473,15 @@
       top:0; right:0; bottom:0;
       width:min(420px, 92vw);
       border-left:1px solid var(--line);
-
-      /* ✅ match site (less transparency, more premium) */
-      background: linear-gradient(180deg, rgba(17,20,27,.98), rgba(15,18,24,.92));
-      box-shadow: -18px 0 40px rgba(0,0,0,.65);
+      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
+      box-shadow: -18px 0 40px rgba(0,0,0,.60);
       transform: translateX(100%);
       transition: transform .18s ease;
       z-index:1101;
       display:flex;
       flex-direction:column;
       overflow:hidden;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(10px);
     }
     .cartDrawer.show{transform: translateX(0)}
     .cartHead{
@@ -503,18 +499,14 @@
       cursor:pointer;
       padding:10px 12px;
       border-radius:12px;
-      background:rgba(0,0,0,.25);
+      background:rgba(0,0,0,.30);
       border:1px solid var(--line);
       color:var(--text);
       font-weight:950;
       line-height:1;
     }
     .cartClose:hover{background:rgba(255,255,255,.06)}
-    .cartBody{
-      padding:12px;
-      overflow:auto;
-      min-height:0;
-    }
+    .cartBody{padding:12px; overflow:auto; min-height:0;}
     .cartEmpty{
       padding:14px;
       border:1px solid var(--line);
@@ -544,10 +536,7 @@
     .cartImg img{width:100%;height:100%;object-fit:cover;display:block;}
     .cartName{font-weight:900; font-size:13px; margin:0}
     .cartMeta{color:var(--muted); font-size:12px; margin:4px 0 0}
-    .cartRow{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      margin-top:10px;
-    }
+    .cartRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
     .cartQty{
       display:flex; align-items:center; gap:6px;
       padding:6px 8px;
@@ -587,62 +576,10 @@
     .cartFoot{
       padding:12px;
       border-top:1px solid var(--line);
-      background:rgba(0,0,0,.35);
+      background:rgba(0,0,0,.40);
     }
-    .cartSumRow{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      margin-bottom:10px;
-      color:var(--text);
-      font-weight:950;
-    }
-    .cartActions{
-      display:grid;
-      gap:10px;
-    }
-
-    /* ================================
-       REMOVE "white качель" scrollbar
-       ================================ */
-    .sb-scroll,
-    #diameters,
-    #mDiameters,
-    .sheetBody,
-    .cartBody,
-    .content{
-      scrollbar-width: none;           /* Firefox */
-      -ms-overflow-style: none;        /* old Edge */
-    }
-    .sb-scroll::-webkit-scrollbar,
-    #diameters::-webkit-scrollbar,
-    #mDiameters::-webkit-scrollbar,
-    .sheetBody::-webkit-scrollbar,
-    .cartBody::-webkit-scrollbar,
-    .content::-webkit-scrollbar{
-      width: 0 !important;
-      height: 0 !important;
-      display: none !important;
-    }
-
-    /* subtle fade edges for sidebar scroll */
-    .sb-scroll{ position: relative; }
-    .sb-scroll:before,
-    .sb-scroll:after{
-      content:"";
-      position: sticky;
-      left:0; right:0;
-      height:18px;
-      display:block;
-      pointer-events:none;
-      z-index:2;
-    }
-    .sb-scroll:before{
-      top:0;
-      background: linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,0));
-    }
-    .sb-scroll:after{
-      bottom:0;
-      background: linear-gradient(0deg, rgba(11,13,17,.95), rgba(11,13,17,0));
-    }
+    .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
+    .cartActions{display:grid; gap:10px;}
   </style>
 </head>
 
@@ -696,12 +633,10 @@
         </div>
 
         <div class="top-right">
-          <!-- ✅ mobile only -->
           <button class="filtersBtn" id="openFilters" type="button" title="Filters">
             Filters <span class="filtersBadge" id="filtersBadge">0</span>
           </button>
 
-          <!-- ✅ cart -->
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
@@ -724,7 +659,7 @@
     </main>
   </div>
 
-  <!-- ✅ Mobile Filters Sheet -->
+  <!-- Mobile Filters Sheet -->
   <div class="sheetBack" id="sheetBack"></div>
   <div class="sheet" id="sheet">
     <div class="sheetHead">
@@ -751,7 +686,7 @@
     </div>
   </div>
 
-  <!-- ✅ Cart Drawer -->
+  <!-- Cart Drawer -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -779,7 +714,6 @@
 <script>
   const API_PRODUCTS = "/api/products";
 
-  // ========= CART (localStorage) =========
   const CART_KEY = "mp_cart"; // [{pin, qty, title, image, price, stock}]
   function readCart(){
     try{
@@ -791,10 +725,9 @@
   function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
   function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
 
-  // ========= STATE =========
   let products = [];
   let filtered = [];
-  const selectedDiameters = new Set(); // numbers
+  const selectedDiameters = new Set();
 
   const elGrid = document.getElementById("grid");
   const elQ = document.getElementById("q");
@@ -802,14 +735,12 @@
   const elCurrency = document.getElementById("currency");
   const elSbCount = document.getElementById("sbCount");
 
-  // desktop diameter UI
   const elDiaCount = document.getElementById("diaCount");
   const elDiameters = document.getElementById("diameters");
   const elSelectedWrap = document.getElementById("selectedWrap");
   const elSelectedList = document.getElementById("selectedList");
   const elClearDiameters = document.getElementById("clearDiameters");
 
-  // mobile filters sheet
   const elOpenFilters = document.getElementById("openFilters");
   const elFiltersBadge = document.getElementById("filtersBadge");
   const elSheetBack = document.getElementById("sheetBack");
@@ -821,7 +752,6 @@
   const elMSelectedList = document.getElementById("mSelectedList");
   const elMClearDiameters = document.getElementById("mClearDiameters");
 
-  // cart drawer
   const elOpenCart = document.getElementById("openCart");
   const elCartBadge = document.getElementById("cartBadge");
   const elCartBack = document.getElementById("cartBack");
@@ -832,7 +762,6 @@
   const elCartCheckout = document.getElementById("cartCheckout");
   const elCartClear = document.getElementById("cartClear");
 
-  // toast
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
   const elToastMsg = document.getElementById("toastMsg");
@@ -841,7 +770,7 @@
     elToastTitle.textContent = title;
     elToastMsg.textContent = msg;
     elToast.classList.add("show");
-    setTimeout(()=> elToast.classList.remove("show"), 2400);
+    setTimeout(()=> elToast.classList.remove("show"), 2600);
   }
 
   function escapeHtml(s){
@@ -857,7 +786,6 @@
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
-  // ===== Filters sheet open/close =====
   function openSheet(){
     elSheetBack.classList.add("show");
     elSheet.classList.add("show");
@@ -872,7 +800,6 @@
   elCloseFilters.addEventListener("click", closeSheet);
   elSheetBack.addEventListener("click", closeSheet);
 
-  // ===== Cart drawer open/close =====
   function openCart(){
     elCartBack.classList.add("show");
     elCartDrawer.classList.add("show");
@@ -889,20 +816,14 @@
   elCartBack.addEventListener("click", closeCart);
   window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") { closeCart(); closeSheet(); } });
 
-  function updateCartBadge(){
-    elCartBadge.textContent = String(cartCount());
-  }
+  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
 
-  // ===== Cart helpers =====
   function addToCartFromProduct(p, qty){
     qty = Number(qty);
     if (!Number.isFinite(qty) || qty <= 0) qty = 1;
 
     const stock = Number(p.stock ?? 0);
-    if (stock <= 0){
-      toast("Cart", "Sold out");
-      return;
-    }
+    if (stock <= 0){ toast("Cart", "Sold out"); return; }
 
     const cart = readCart();
     const idx = cart.findIndex(x => String(x.pin) === String(p.pin));
@@ -987,7 +908,9 @@
       const img = it.image ? `<img src="${it.image}" alt="${escapeHtml(it.title)}" />` : `<span>—</span>`;
       const cur = elCurrency.value;
       const unit = it?.price?.[cur];
-      const unitText = (typeof unit === "number") ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`) : "—";
+      const unitText = (typeof unit === "number")
+        ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`)
+        : "—";
       return `
         <div class="cartItem" data-pin="${escapeHtml(it.pin)}">
           <div class="cartImg">${img}</div>
@@ -1011,18 +934,14 @@
     [...elCartBody.querySelectorAll(".cartItem")].forEach(row => {
       const pin = row.getAttribute("data-pin");
       const input = row.querySelector("input");
-      const btnMinus = row.querySelector('button[data-act="minus"]');
-      const btnPlus  = row.querySelector('button[data-act="plus"]');
-      const btnRem   = row.querySelector('button[data-act="remove"]');
-
-      btnMinus.addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
-      btnPlus.addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
+      row.querySelector('button[data-act="minus"]').addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
+      row.querySelector('button[data-act="plus"]').addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
       input.addEventListener("input", () => {
         const v = Number(input.value);
         if (!Number.isFinite(v)) return;
         setCartQty(pin, v);
       });
-      btnRem.addEventListener("click", () => removeFromCart(pin));
+      row.querySelector('button[data-act="remove"]').addEventListener("click", () => removeFromCart(pin));
     });
 
     const sum = cartTotal();
@@ -1031,11 +950,8 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-  elCartCheckout.addEventListener("click", () => {
-    toast("Checkout", "Next step: server checkout for full cart ✅");
-  });
+  elCartCheckout.addEventListener("click", () => toast("Checkout", "Next step: server checkout for full cart ✅"));
 
-  // ===== Diameter filter UI =====
   function updateSelectedUI(){
     const arr = [...selectedDiameters].sort((a,b)=>a-b);
 
@@ -1093,7 +1009,7 @@
         </div>
         <div class="meta">
           <p class="name">${escapeHtml(p.title)} <span style="color:var(--muted); font-weight:700;">• ${escapeHtml(p.pin)}</span></p>
-          <p class="desc">${escapeHtml(p.description || "")}</p>
+          <p class="desc">${escapeHtml((p.description || "").trim())}</p>
           <div class="row">
             <div>
               <div class="price">${priceText(p.price)}</div>
@@ -1113,7 +1029,6 @@
     elSbCount.textContent = `${filtered.length} items`;
     elGrid.innerHTML = filtered.map(cardTemplate).join("");
 
-    // Add to cart
     [...document.querySelectorAll("button[data-add]")].forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1124,7 +1039,6 @@
       });
     });
 
-    // Buy -> product page
     [...document.querySelectorAll("button[data-openbuy]")].forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1133,7 +1047,6 @@
       });
     });
 
-    // Open product on card click
     [...document.querySelectorAll(".card[data-open]")].forEach(card => {
       card.addEventListener("click", () => {
         const pin = card.getAttribute("data-open");
@@ -1174,9 +1087,8 @@
         div.innerHTML = `${escapeHtml(label)}<small>${escapeHtml(sub)}</small>`;
 
         div.addEventListener("click", () => {
-          if (isAll){
-            selectedDiameters.clear();
-          } else {
+          if (isAll) selectedDiameters.clear();
+          else {
             if (selectedDiameters.has(value)) selectedDiameters.delete(value);
             else selectedDiameters.add(value);
           }
@@ -1205,20 +1117,19 @@
     buildDiameterLists();
     applyFilters();
   }
-
   elClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
   elMClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
 
   async function loadProducts(){
     try{
-      const r = await fetch(API_PRODUCTS, { method:"GET" });
+      const r = await fetch(API_PRODUCTS, { method:"GET", cache:"no-store" });
       if (r.ok){
         const data = await r.json();
         products = normalizeProducts(data);
         buildDiameterLists();
         applyFilters();
 
-        // sync cart meta (title/image/price/stock) with latest products
+        // sync cart meta
         const cart = readCart();
         if (cart.length){
           const next = cart.map(it => {
@@ -1239,7 +1150,9 @@
         renderCart();
         return;
       }
-    }catch(_){}
+    }catch(_){
+      toast("Error", "Products API is not reachable");
+    }
 
     products = [];
     buildDiameterLists();
@@ -1248,63 +1161,15 @@
     renderCart();
   }
 
-  // Events
   elQ.addEventListener("input", applyFilters);
   elStock.addEventListener("change", applyFilters);
   elCurrency.addEventListener("change", () => { render(); renderCart(); });
 
-  window.addEventListener("resize", () => {
-    if (window.innerWidth > 980) closeSheet();
-  });
+  window.addEventListener("resize", () => { if (window.innerWidth > 980) closeSheet(); });
 
-  // ===== Nice auto-scroll on hover (desktop) for diameter lists =====
-  function enableHoverAutoScroll(container){
-    if (!container) return;
-
-    let raf = null;
-    let speed = 0;
-
-    const tick = () => {
-      if (speed !== 0) container.scrollTop += speed;
-      raf = requestAnimationFrame(tick);
-    };
-
-    const onMove = (e) => {
-      if (e.pointerType && e.pointerType !== "mouse") return;
-
-      const r = container.getBoundingClientRect();
-      const y = e.clientY - r.top;
-      const zone = 48;     // hover zone
-      const maxSpeed = 10; // max speed
-
-      if (y < zone){
-        const t = 1 - (y / zone);
-        speed = -Math.ceil(t * maxSpeed);
-      } else if (y > r.height - zone){
-        const t = (y - (r.height - zone)) / zone;
-        speed = Math.ceil(t * maxSpeed);
-      } else {
-        speed = 0;
-      }
-    };
-
-    const stop = () => { speed = 0; };
-
-    container.addEventListener("pointermove", onMove);
-    container.addEventListener("pointerleave", stop);
-
-    if (!raf) raf = requestAnimationFrame(tick);
-  }
-
-  // init
   updateCartBadge();
   renderCart();
   loadProducts();
-
-  // enable hover-scroll (desktop)
-  enableHoverAutoScroll(document.getElementById("diameters"));
-  enableHoverAutoScroll(document.getElementById("mDiameters"));
-  enableHoverAutoScroll(document.querySelector(".sb-scroll"));
 </script>
 </body>
 </html>
