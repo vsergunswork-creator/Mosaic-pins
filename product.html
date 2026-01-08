@@ -95,7 +95,7 @@
       gap:10px;
     }
 
-    /* === Variant B: swipe/drag carousel === */
+    /* === Premium hero carousel + parallax === */
     .hero{
       aspect-ratio: 1/1;
       border-radius:14px;
@@ -103,7 +103,18 @@
       background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(96,165,250,.10));
       border:1px solid var(--line);
       position:relative;
+      perspective: 900px;
+      user-select:none;
+      touch-action: pan-y;
     }
+
+    .hero-inner{
+      width:100%;
+      height:100%;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
     .carousel{
       width:100%;
       height:100%;
@@ -113,11 +124,12 @@
       scroll-snap-type:x mandatory;
       -webkit-overflow-scrolling: touch;
       scrollbar-width:none;
-      cursor: grab;
       user-select:none;
+      cursor: grab;
     }
     .carousel::-webkit-scrollbar{display:none;}
     .carousel.dragging{cursor: grabbing;}
+
     .slide{
       flex: 0 0 100%;
       width:100%;
@@ -131,7 +143,9 @@
       object-fit:cover;
       display:block;
       pointer-events:none;
+      transform: translateZ(0);
     }
+
     .heroEmpty{
       width:100%;
       height:100%;
@@ -159,6 +173,7 @@
       transition: transform .15s ease, filter .15s ease, opacity .15s ease;
       opacity:.95;
       user-select:none;
+      z-index:5;
     }
     .navBtn:hover{filter:brightness(1.1); transform:translateY(-50%) scale(1.03)}
     .navBtn:active{transform:translateY(-50%) scale(.98)}
@@ -166,7 +181,7 @@
     .navNext{right:10px;}
     .navBtn[disabled]{opacity:.35; cursor:not-allowed;}
     @media (max-width:980px){
-      .navBtn{display:none;} /* на мобилке — чистый swipe */
+      .navBtn{display:none;} /* mobile: чистый swipe */
     }
 
     .counter{
@@ -180,6 +195,8 @@
       background:rgba(0,0,0,.35);
       color:var(--text);
       backdrop-filter: blur(6px);
+      z-index:5;
+      display:none;
     }
 
     .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px;}
@@ -198,7 +215,16 @@
     .details{padding:16px;}
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
-    .meta{color:var(--muted); font-size:13px; line-height:1.5;}
+
+    /* Keep Airtable paragraphs */
+    .meta{
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
     .chip{
       padding:8px 10px;
@@ -285,6 +311,10 @@
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
+
+    @media (prefers-reduced-motion: reduce){
+      .hero-inner{will-change:auto}
+    }
   </style>
 </head>
 <body>
@@ -318,12 +348,16 @@
         <div class="wrap">
           <section class="panel">
             <div class="gallery">
-
               <div class="hero" id="hero">
-                <div class="carousel" id="carousel" aria-label="Product images"></div>
+                <div class="hero-inner" id="heroInner">
+                  <div class="carousel" id="carousel" aria-label="Product images">
+                    <div class="heroEmpty">No image</div>
+                  </div>
+                </div>
+
                 <button class="navBtn navPrev" id="prevBtn" aria-label="Previous image">←</button>
                 <button class="navBtn navNext" id="nextBtn" aria-label="Next image">→</button>
-                <div class="counter" id="counter" style="display:none;">1 / 1</div>
+                <div class="counter" id="counter">1 / 1</div>
               </div>
 
               <div class="thumbs" id="thumbs"></div>
@@ -376,13 +410,14 @@
   const toastTitle = el("toastTitle");
   const toastMsg = el("toastMsg");
 
-  // Carousel elements
+  // gallery elements
+  const hero = el("hero");
+  const heroInner = el("heroInner");
   const carousel = el("carousel");
   const prevBtn = el("prevBtn");
   const nextBtn = el("nextBtn");
   const counter = el("counter");
 
-  // state
   let currentIndex = 0;
   let imagesState = [];
 
@@ -414,7 +449,7 @@
     return q;
   }
 
-  // ===== Carousel helpers =====
+  // ===== carousel =====
   function updateNav(){
     const n = imagesState.length;
     const hasMany = n > 1;
@@ -423,6 +458,13 @@
 
     prevBtn.disabled = !hasMany || currentIndex <= 0;
     nextBtn.disabled = !hasMany || currentIndex >= n-1;
+  }
+
+  function syncThumbs(){
+    const thumbs = el("thumbs");
+    thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
+    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
+    if (active) active.classList.add("active");
   }
 
   function scrollToIndex(idx, smooth=true){
@@ -439,14 +481,12 @@
     const w = carousel.clientWidth || 1;
     const idx = Math.round(carousel.scrollLeft / w);
     const n = imagesState.length;
-    const clamped = Math.max(0, Math.min(idx, Math.max(0,n-1)));
+    const clamped = Math.max(0, Math.min(idx, Math.max(0, n-1)));
     if (clamped !== currentIndex){
       currentIndex = clamped;
       syncThumbs();
-      updateNav();
-    } else {
-      updateNav();
     }
+    updateNav();
   }
 
   function buildCarousel(images, title){
@@ -463,96 +503,175 @@
     imagesState.forEach((u) => {
       const s = document.createElement("div");
       s.className = "slide";
-      s.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" />`;
+      s.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
       carousel.appendChild(s);
     });
 
-    // start at 0
     requestAnimationFrame(() => scrollToIndex(0, false));
   }
 
   function renderThumbs(images, title){
     const thumbs = el("thumbs");
     thumbs.innerHTML = "";
-
     images.forEach((u, idx) => {
       const d = document.createElement("div");
       d.className = "t" + (idx===0 ? " active" : "");
       d.dataset.idx = String(idx);
-      d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" />`;
+      d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
       d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
   }
 
-  function syncThumbs(){
-    const thumbs = el("thumbs");
-    const list = thumbs.querySelectorAll(".t");
-    list.forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
-    if (active) active.classList.add("active");
-  }
-
-  // Drag mouse (desktop)
   function enableDragScroll(){
     let isDown = false;
     let startX = 0;
     let startLeft = 0;
 
     const onDown = (e) => {
-      // only left button
-      if (e.button !== 0) return;
+      // left button only
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       isDown = true;
       carousel.classList.add("dragging");
       startX = e.clientX;
       startLeft = carousel.scrollLeft;
-      carousel.setPointerCapture?.(e.pointerId);
+      try{ carousel.setPointerCapture(e.pointerId); }catch(_){}
     };
+
     const onMove = (e) => {
       if (!isDown) return;
       const dx = e.clientX - startX;
       carousel.scrollLeft = startLeft - dx;
     };
+
     const onUp = () => {
       if (!isDown) return;
       isDown = false;
       carousel.classList.remove("dragging");
-      // snap to nearest
       detectIndexFromScroll();
       scrollToIndex(currentIndex);
     };
 
-    // Pointer events (works for mouse and some touch, but touch already works natively)
     carousel.addEventListener("pointerdown", onDown);
-    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointermove", onMove, { passive:true });
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
   }
 
-  function wireCarouselControls(){
+  function wireCarousel(){
     prevBtn.addEventListener("click", () => scrollToIndex(currentIndex - 1));
     nextBtn.addEventListener("click", () => scrollToIndex(currentIndex + 1));
 
-    // when user swipes / scrolls
     let t;
     carousel.addEventListener("scroll", () => {
       clearTimeout(t);
       t = setTimeout(detectIndexFromScroll, 80);
     });
 
-    // keyboard arrows (nice premium touch)
     window.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft") scrollToIndex(currentIndex - 1);
       if (e.key === "ArrowRight") scrollToIndex(currentIndex + 1);
     });
 
     enableDragScroll();
-
-    // on resize keep slide aligned
     window.addEventListener("resize", () => scrollToIndex(currentIndex, false));
   }
 
-  // ===== Main load =====
+  // ===== parallax (tilt + tiny shift) =====
+  function setupParallax(){
+    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) return;
+
+    let target = { x:0, y:0, rx:0, ry:0, s:1.02 };
+    let curr   = { x:0, y:0, rx:0, ry:0, s:1.02 };
+    let running = true;
+
+    function apply(){
+      const k = 0.12;
+      curr.x  += (target.x  - curr.x)  * k;
+      curr.y  += (target.y  - curr.y)  * k;
+      curr.rx += (target.rx - curr.rx) * k;
+      curr.ry += (target.ry - curr.ry) * k;
+
+      heroInner.style.transform =
+        `translate3d(${curr.x}px, ${curr.y}px, 0) rotateX(${curr.rx}deg) rotateY(${curr.ry}deg) scale(${target.s})`;
+
+      if (running) requestAnimationFrame(apply);
+    }
+    requestAnimationFrame(apply);
+
+    function reset(){
+      target.x = 0; target.y = 0; target.rx = 0; target.ry = 0;
+    }
+
+    // Desktop mouse tilt
+    hero.addEventListener("mousemove", (e) => {
+      const r = hero.getBoundingClientRect();
+      const nx = (e.clientX - r.left) / r.width  - 0.5;
+      const ny = (e.clientY - r.top)  / r.height - 0.5;
+
+      const maxMove = 6;   // px
+      const maxTilt = 2.0; // deg
+
+      target.x = nx * maxMove;
+      target.y = ny * maxMove;
+      target.rx = (-ny) * maxTilt;
+      target.ry = (nx) * maxTilt;
+    });
+    hero.addEventListener("mouseleave", reset);
+
+    // Mobile gyro
+    let gyroEnabled = false;
+
+    function onOrient(ev){
+      const g = Number(ev.gamma);
+      const b = Number(ev.beta);
+      if (!Number.isFinite(g) || !Number.isFinite(b)) return;
+
+      const maxMove = 7;
+      const maxTilt = 2.2;
+
+      const nx = Math.max(-1, Math.min(1, g / 35));
+      const ny = Math.max(-1, Math.min(1, b / 35));
+
+      target.x = nx * maxMove;
+      target.y = ny * maxMove;
+      target.rx = (-ny) * maxTilt;
+      target.ry = (nx) * maxTilt;
+    }
+
+    async function enableGyro(){
+      if (gyroEnabled) return;
+      const DOE = window.DeviceOrientationEvent;
+      if (DOE && typeof DOE.requestPermission === "function"){
+        try{
+          const res = await DOE.requestPermission();
+          if (res !== "granted"){
+            toast("Parallax", "Gyroscope permission not granted");
+            return;
+          }
+        }catch(_){
+          toast("Parallax", "Gyroscope permission blocked");
+          return;
+        }
+      }
+      window.addEventListener("deviceorientation", onOrient, { passive:true });
+      gyroEnabled = true;
+      toast("Parallax", "Gyroscope enabled ✅");
+    }
+
+    if ("DeviceOrientationEvent" in window){
+      const DOE = window.DeviceOrientationEvent;
+      if (DOE && typeof DOE.requestPermission === "function"){
+        // iOS: enable on tap
+        hero.addEventListener("click", enableGyro);
+      } else {
+        // Android/others: enable immediately
+        enableGyro();
+      }
+    }
+  }
+
   async function load(){
     const url = new URL(window.location.href);
     const pin = (url.searchParams.get("pin") || "").trim();
@@ -579,7 +698,7 @@
 
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
-    el("desc").textContent = p.description || "";
+    el("desc").textContent = (p.description || "").trim();
 
     // chips
     const chips = [];
@@ -592,7 +711,7 @@
     const images = Array.isArray(p.images) ? p.images : [];
     buildCarousel(images, p.title);
     renderThumbs(images, p.title);
-    wireCarouselControls();
+    wireCarousel();
     updateNav();
 
     // stock
@@ -649,6 +768,8 @@
         console.error(e);
       }
     });
+
+    setupParallax();
   }
 
   load();
