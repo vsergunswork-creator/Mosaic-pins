@@ -323,14 +323,25 @@
       border-radius:999px;
       font-size:12px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.35);
+      background:rgba(0,0,0,.45);
       color:var(--text);
-      backdrop-filter: blur(6px);
+      backdrop-filter: blur(10px);
     }
     .sold{background:rgba(239,68,68,.18); border-color:rgba(239,68,68,.25)}
     .meta{padding:12px}
     .name{font-weight:800; font-size:14px; margin:0 0 6px}
-    .desc{margin:0; color:var(--muted); font-size:12px; line-height:1.35; height:32px; overflow:hidden}
+
+    /* ✅ description: keep Airtable line breaks (not "скомкано") */
+    .desc{
+      margin:0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+      height:32px;
+      overflow:hidden;
+      white-space: pre-line; /* key */
+    }
+
     .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px}
     .price{font-weight:900}
     .btn{
@@ -363,6 +374,7 @@
       font-weight:900;
       transition: background .15s ease, transform .15s ease;
       white-space:nowrap;
+      backdrop-filter: blur(8px);
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
@@ -371,7 +383,7 @@
       position: fixed;
       right: 16px;
       bottom: 16px;
-      background: rgba(0,0,0,.55);
+      background: rgba(0,0,0,.70);
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 12px 14px;
@@ -380,6 +392,7 @@
       max-width: 360px;
       display:none;
       z-index:999;
+      backdrop-filter: blur(10px);
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
@@ -388,7 +401,7 @@
     .sheetBack{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.55);
+      background:rgba(0,0,0,.72); /* less transparent */
       display:none;
       z-index:1000;
     }
@@ -400,9 +413,10 @@
       border-top-left-radius:18px;
       border-top-right-radius:18px;
       border:1px solid var(--line);
-      /* darker */
-      background: linear-gradient(180deg, rgba(0,0,0,.85), rgba(0,0,0,.68));
-      box-shadow: 0 -18px 40px rgba(0,0,0,.45);
+
+      /* ✅ match site (less transparency, more premium) */
+      background: linear-gradient(180deg, rgba(17,20,27,.98), rgba(15,18,24,.92));
+      box-shadow: 0 -18px 40px rgba(0,0,0,.60);
       transform: translateY(100%);
       transition: transform .18s ease;
       z-index:1001;
@@ -411,6 +425,7 @@
       display:flex;
       flex-direction:column;
       overflow:hidden;
+      backdrop-filter: blur(12px);
     }
     .sheet.show{transform: translateY(0)}
     .sheetHead{
@@ -450,7 +465,7 @@
     .cartBack{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.62);
+      background:rgba(0,0,0,.76); /* less transparent */
       display:none;
       z-index:1100;
     }
@@ -460,14 +475,17 @@
       top:0; right:0; bottom:0;
       width:min(420px, 92vw);
       border-left:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(0,0,0,.88), rgba(0,0,0,.70));
-      box-shadow: -18px 0 40px rgba(0,0,0,.50);
+
+      /* ✅ match site (less transparency, more premium) */
+      background: linear-gradient(180deg, rgba(17,20,27,.98), rgba(15,18,24,.92));
+      box-shadow: -18px 0 40px rgba(0,0,0,.65);
       transform: translateX(100%);
       transition: transform .18s ease;
       z-index:1101;
       display:flex;
       flex-direction:column;
       overflow:hidden;
+      backdrop-filter: blur(12px);
     }
     .cartDrawer.show{transform: translateX(0)}
     .cartHead{
@@ -580,6 +598,50 @@
     .cartActions{
       display:grid;
       gap:10px;
+    }
+
+    /* ================================
+       REMOVE "white качель" scrollbar
+       ================================ */
+    .sb-scroll,
+    #diameters,
+    #mDiameters,
+    .sheetBody,
+    .cartBody,
+    .content{
+      scrollbar-width: none;           /* Firefox */
+      -ms-overflow-style: none;        /* old Edge */
+    }
+    .sb-scroll::-webkit-scrollbar,
+    #diameters::-webkit-scrollbar,
+    #mDiameters::-webkit-scrollbar,
+    .sheetBody::-webkit-scrollbar,
+    .cartBody::-webkit-scrollbar,
+    .content::-webkit-scrollbar{
+      width: 0 !important;
+      height: 0 !important;
+      display: none !important;
+    }
+
+    /* subtle fade edges for sidebar scroll */
+    .sb-scroll{ position: relative; }
+    .sb-scroll:before,
+    .sb-scroll:after{
+      content:"";
+      position: sticky;
+      left:0; right:0;
+      height:18px;
+      display:block;
+      pointer-events:none;
+      z-index:2;
+    }
+    .sb-scroll:before{
+      top:0;
+      background: linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,0));
+    }
+    .sb-scroll:after{
+      bottom:0;
+      background: linear-gradient(0deg, rgba(11,13,17,.95), rgba(11,13,17,0));
     }
   </style>
 </head>
@@ -703,7 +765,7 @@
         <div id="cartTotal">—</div>
       </div>
       <div class="cartActions">
-        <button class="btn" id="cartCheckout">Checkout</button>
+        <button class="btn" id="cartCheckout">Checkout (later)</button>
         <button class="btn2" id="cartClear">Clear cart</button>
       </div>
     </div>
@@ -716,10 +778,6 @@
 
 <script>
   const API_PRODUCTS = "/api/products";
-
-  // ✅ Cart checkout endpoint (main + fallback)
-  const API_CHECKOUT_CART_PRIMARY = "/api/checkout-cart";
-  const API_CHECKOUT_CART_FALLBACK = "/api/checkout";
 
   // ========= CART (localStorage) =========
   const CART_KEY = "mp_cart"; // [{pin, qty, title, image, price, stock}]
@@ -829,7 +887,7 @@
   elOpenCart.addEventListener("click", openCart);
   elCloseCart.addEventListener("click", closeCart);
   elCartBack.addEventListener("click", closeCart);
-  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeCart(); });
+  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") { closeCart(); closeSheet(); } });
 
   function updateCartBadge(){
     elCartBadge.textContent = String(cartCount());
@@ -973,65 +1031,8 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-
-  async function postCheckoutCart(endpoint){
-    const cart = readCart();
-    const items = cart
-      .map(it => ({
-        pin: String(it.pin || "").trim(),
-        quantity: Number(it.qty || 0)
-      }))
-      .filter(it => it.pin && Number.isFinite(it.quantity) && it.quantity > 0);
-
-    if (!items.length){
-      toast("Cart", "Cart is empty");
-      return null;
-    }
-
-    const currency = (elCurrency.value || "EUR").toUpperCase();
-
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify({ currency, items })
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok){
-      const msg = data?.error || "Checkout failed";
-      const details = data?.details ? (" " + (typeof data.details === "string" ? data.details : JSON.stringify(data.details))) : "";
-      throw new Error(msg + details);
-    }
-    return data;
-  }
-
-  elCartCheckout.addEventListener("click", async () => {
-    const prevText = elCartCheckout.textContent;
-    elCartCheckout.disabled = true;
-    elCartCheckout.textContent = "Opening…";
-    toast("Checkout", "Opening Stripe…");
-
-    try{
-      // try primary
-      let out = null;
-      try{
-        out = await postCheckoutCart(API_CHECKOUT_CART_PRIMARY);
-      }catch(err){
-        // fallback only if primary endpoint not present / route mismatch
-        out = await postCheckoutCart(API_CHECKOUT_CART_FALLBACK);
-      }
-
-      if (out?.url){
-        window.location.href = out.url;
-        return;
-      }
-
-      throw new Error(out?.error || "Missing checkout url");
-    }catch(e){
-      toast("Error", String(e?.message || e));
-      elCartCheckout.disabled = false;
-      elCartCheckout.textContent = prevText;
-    }
+  elCartCheckout.addEventListener("click", () => {
+    toast("Checkout", "Next step: server checkout for full cart ✅");
   });
 
   // ===== Diameter filter UI =====
@@ -1256,10 +1257,54 @@
     if (window.innerWidth > 980) closeSheet();
   });
 
+  // ===== Nice auto-scroll on hover (desktop) for diameter lists =====
+  function enableHoverAutoScroll(container){
+    if (!container) return;
+
+    let raf = null;
+    let speed = 0;
+
+    const tick = () => {
+      if (speed !== 0) container.scrollTop += speed;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const onMove = (e) => {
+      if (e.pointerType && e.pointerType !== "mouse") return;
+
+      const r = container.getBoundingClientRect();
+      const y = e.clientY - r.top;
+      const zone = 48;     // hover zone
+      const maxSpeed = 10; // max speed
+
+      if (y < zone){
+        const t = 1 - (y / zone);
+        speed = -Math.ceil(t * maxSpeed);
+      } else if (y > r.height - zone){
+        const t = (y - (r.height - zone)) / zone;
+        speed = Math.ceil(t * maxSpeed);
+      } else {
+        speed = 0;
+      }
+    };
+
+    const stop = () => { speed = 0; };
+
+    container.addEventListener("pointermove", onMove);
+    container.addEventListener("pointerleave", stop);
+
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+
   // init
   updateCartBadge();
   renderCart();
   loadProducts();
+
+  // enable hover-scroll (desktop)
+  enableHoverAutoScroll(document.getElementById("diameters"));
+  enableHoverAutoScroll(document.getElementById("mDiameters"));
+  enableHoverAutoScroll(document.querySelector(".sb-scroll"));
 </script>
 </body>
 </html>
