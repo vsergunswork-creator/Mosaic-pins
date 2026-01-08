@@ -296,6 +296,21 @@
       box-shadow:none;
     }
 
+    /* Secondary button (Add to cart) */
+    .btnSecondary{
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      box-shadow:none;
+    }
+    .btnSecondary:hover{background:rgba(255,255,255,.06)}
+
+    .btnRow{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
     .toast{
       position: fixed;
       right: 16px;
@@ -387,7 +402,11 @@
                   </div>
                 </div>
 
-                <button class="btn" id="buyBtn">Buy now</button>
+                <!-- ✅ Add to cart + Buy now -->
+                <div class="btnRow">
+                  <button class="btn btnSecondary" id="addBtn" type="button">Add to cart</button>
+                  <button class="btn" id="buyBtn" type="button">Buy now</button>
+                </div>
               </div>
             </div>
           </aside>
@@ -404,6 +423,20 @@
 <script>
   const API_PRODUCT = "/api/product";
   const API_CHECKOUT = "/api/checkout";
+
+  // ✅ Cart (shared with index.html)
+  const CART_KEY = "mosaic_cart_v1";
+
+  function loadCart(){
+    try{
+      const raw = localStorage.getItem(CART_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      return (obj && typeof obj === "object") ? obj : {};
+    }catch(_){ return {}; }
+  }
+  function saveCart(cart){
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  }
 
   const el = (id) => document.getElementById(id);
   const toastEl = el("toast");
@@ -529,7 +562,6 @@
     let startLeft = 0;
 
     const onDown = (e) => {
-      // left button only
       if (e.pointerType === "mouse" && e.button !== 0) return;
       isDown = true;
       carousel.classList.add("dragging");
@@ -604,14 +636,13 @@
       target.x = 0; target.y = 0; target.rx = 0; target.ry = 0;
     }
 
-    // Desktop mouse tilt
     hero.addEventListener("mousemove", (e) => {
       const r = hero.getBoundingClientRect();
       const nx = (e.clientX - r.left) / r.width  - 0.5;
       const ny = (e.clientY - r.top)  / r.height - 0.5;
 
-      const maxMove = 6;   // px
-      const maxTilt = 2.0; // deg
+      const maxMove = 6;
+      const maxTilt = 2.0;
 
       target.x = nx * maxMove;
       target.y = ny * maxMove;
@@ -620,7 +651,6 @@
     });
     hero.addEventListener("mouseleave", reset);
 
-    // Mobile gyro
     let gyroEnabled = false;
 
     function onOrient(ev){
@@ -663,10 +693,8 @@
     if ("DeviceOrientationEvent" in window){
       const DOE = window.DeviceOrientationEvent;
       if (DOE && typeof DOE.requestPermission === "function"){
-        // iOS: enable on tap
         hero.addEventListener("click", enableGyro);
       } else {
-        // Android/others: enable immediately
         enableGyro();
       }
     }
@@ -718,14 +746,18 @@
     const stock = Number(p.stock || 0);
     const badge = el("stockBadge");
     const buyBtn = el("buyBtn");
+    const addBtn = el("addBtn");
+
     if (stock > 0){
       badge.textContent = `In stock: ${stock}`;
       badge.classList.remove("sold");
       buyBtn.disabled = false;
+      addBtn.disabled = false;
     } else {
       badge.textContent = "Sold out";
       badge.classList.add("sold");
       buyBtn.disabled = true;
+      addBtn.disabled = true;
     }
 
     // qty controls
@@ -740,6 +772,19 @@
     const renderPrice = () => { el("price").textContent = priceText(p.price); };
     el("currency").addEventListener("change", renderPrice);
     renderPrice();
+
+    // ✅ add to cart (stay on page)
+    addBtn.addEventListener("click", () => {
+      const quantity = clampQty(qtyInput.value, stock);
+      if (stock <= 0) return;
+
+      const cart = loadCart();
+      const current = Number(cart[p.pin] || 0);
+      cart[p.pin] = clampQty(current + quantity, stock);
+      saveCart(cart);
+
+      toast("Added to cart", `${p.title} • Qty: ${cart[p.pin]}`);
+    });
 
     // checkout
     buyBtn.addEventListener("click", async () => {
@@ -776,3 +821,4 @@
 </script>
 </body>
 </html>
+```0
