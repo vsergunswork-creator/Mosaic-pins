@@ -90,10 +90,10 @@
       text-transform:uppercase;
     }
 
-    /* ✅ Selected pill (Shopify-style) */
+    /* Selected pill (desktop sidebar) */
     .selectedWrap{
       padding:0 6px 10px;
-      display:none; /* shown only when selection exists */
+      display:none;
     }
     .selectedBar{
       display:flex;
@@ -106,9 +106,7 @@
       border:1px solid rgba(34,197,94,.25);
       background:rgba(34,197,94,.10);
     }
-    .selectedLeft{
-      min-width:0;
-    }
+    .selectedLeft{min-width:0;}
     .selectedTitle{
       font-size:12px;
       font-weight:900;
@@ -177,6 +175,7 @@
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
       flex:0 0 auto;
     }
+    .top-left{display:flex; align-items:center; gap:10px; min-width:0}
     .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
 
@@ -219,6 +218,32 @@
       outline:none;
     }
 
+    /* ✅ Filters button (mobile only) */
+    .filtersBtn{
+      display:none;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+    }
+    .filtersBtn:hover{background:rgba(255,255,255,.06)}
+    .filtersBadge{
+      padding:4px 8px;
+      border-radius:999px;
+      background:rgba(34,197,94,.18);
+      border:1px solid rgba(34,197,94,.25);
+      color:var(--text);
+      font-size:12px;
+      font-weight:900;
+      line-height:1;
+    }
+
     .content{padding:18px; overflow:auto; min-height:0;}
     .grid{
       display:grid;
@@ -226,14 +251,26 @@
       gap:14px;
     }
     @media (max-width:1200px){ .grid{grid-template-columns:repeat(4,1fr)} }
+
     @media (max-width:980px){
-      .app{grid-template-columns:1fr}
-      .sidebar{display:none}
-      .grid{grid-template-columns:repeat(2,1fr)}
+      /* ✅ Mobile layout fix */
       body{overflow:auto}
+      .app{grid-template-columns:1fr; height:auto; min-height:100vh}
+      .sidebar{display:none}
       .main{height:auto; min-height:100vh}
+
+      .topbar{flex-wrap:wrap; gap:10px}
+      .top-left{width:100%}
+      .search{order:3; width:100%; max-width:none; min-width:0}
+      .top-right{order:2; width:100%; justify-content:space-between}
+
+      .filtersBtn{display:inline-flex}
+      .content{padding:14px}
+      .grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px}
     }
-    @media (max-width:520px){ .grid{grid-template-columns:1fr} }
+    @media (max-width:520px){
+      .grid{grid-template-columns:1fr}
+    }
 
     .card{
       border-radius:16px;
@@ -303,6 +340,67 @@
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
+
+    /* ✅ Mobile Filters Sheet */
+    .sheetBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      z-index:1000;
+    }
+    .sheetBack.show{display:block}
+
+    .sheet{
+      position:fixed;
+      left:0; right:0; bottom:0;
+      border-top-left-radius:18px;
+      border-top-right-radius:18px;
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow: 0 -18px 40px rgba(0,0,0,.45);
+      transform: translateY(100%);
+      transition: transform .18s ease;
+      z-index:1001;
+
+      max-height: 82vh;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .sheet.show{transform: translateY(0)}
+    .sheetHead{
+      padding:14px 14px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .sheetTitle{
+      font-weight:950;
+      letter-spacing:.2px;
+    }
+    .sheetClose{
+      border:none;
+      cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .sheetClose:hover{background:rgba(255,255,255,.06)}
+    .sheetBody{
+      padding:12px;
+      overflow:auto;
+      min-height:0;
+    }
+    .mSelectedWrap{display:none; margin-bottom:10px;}
+    .mList .item{padding:12px 12px; border-radius:14px;}
   </style>
 </head>
 
@@ -327,7 +425,6 @@
           <span class="pill" id="diaCount">0</span>
         </div>
 
-        <!-- ✅ Selected pill -->
         <div class="selectedWrap" id="selectedWrap">
           <div class="selectedBar">
             <div class="selectedLeft">
@@ -344,9 +441,11 @@
 
     <main class="main">
       <div class="topbar">
-        <div>
-          <h1 class="h-title">Shop</h1>
-          <div class="sub">Handmade mosaic pins for custom knife handles</div>
+        <div class="top-left">
+          <div>
+            <h1 class="h-title">Shop</h1>
+            <div class="sub">Handmade mosaic pins for custom knife handles</div>
+          </div>
         </div>
 
         <div class="search" title="Search by title or PIN code">
@@ -355,6 +454,11 @@
         </div>
 
         <div class="top-right">
+          <!-- ✅ mobile only -->
+          <button class="filtersBtn" id="openFilters" type="button" title="Filters">
+            Filters <span class="filtersBadge" id="filtersBadge">0</span>
+          </button>
+
           <label class="toggle" title="Show only in-stock pins">
             <input id="inStockOnly" type="checkbox" />
             In stock
@@ -373,6 +477,33 @@
     </main>
   </div>
 
+  <!-- ✅ Mobile Filters Sheet -->
+  <div class="sheetBack" id="sheetBack"></div>
+  <div class="sheet" id="sheet">
+    <div class="sheetHead">
+      <div class="sheetTitle">Filters</div>
+      <button class="sheetClose" id="closeFilters" type="button">✕</button>
+    </div>
+    <div class="sheetBody">
+      <div class="mSelectedWrap" id="mSelectedWrap">
+        <div class="selectedBar">
+          <div class="selectedLeft">
+            <div class="selectedTitle">Selected</div>
+            <div class="selectedList" id="mSelectedList">—</div>
+          </div>
+          <button class="clearBtn" id="mClearDiameters" title="Clear">✕</button>
+        </div>
+      </div>
+
+      <div class="sb-section" style="padding:10px 2px 8px;">
+        <span>Diameter (Ø)</span>
+        <span class="pill" id="mDiaCount">0</span>
+      </div>
+
+      <div class="list mList" id="mDiameters"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Checkout</div>
     <small id="toastMsg">Opening Stripe…</small>
@@ -385,7 +516,7 @@
   let products = [];
   let filtered = [];
 
-  // ✅ Multi select for diameters
+  // multi select for diameters
   const selectedDiameters = new Set(); // numbers
 
   const elGrid = document.getElementById("grid");
@@ -394,14 +525,27 @@
   const elCurrency = document.getElementById("currency");
   const elSbCount = document.getElementById("sbCount");
 
+  // desktop diameter UI
   const elDiaCount = document.getElementById("diaCount");
   const elDiameters = document.getElementById("diameters");
-
-  // ✅ Selected pill elements
   const elSelectedWrap = document.getElementById("selectedWrap");
   const elSelectedList = document.getElementById("selectedList");
   const elClearDiameters = document.getElementById("clearDiameters");
 
+  // mobile sheet UI
+  const elOpenFilters = document.getElementById("openFilters");
+  const elFiltersBadge = document.getElementById("filtersBadge");
+  const elSheetBack = document.getElementById("sheetBack");
+  const elSheet = document.getElementById("sheet");
+  const elCloseFilters = document.getElementById("closeFilters");
+
+  const elMDiaCount = document.getElementById("mDiaCount");
+  const elMDiameters = document.getElementById("mDiameters");
+  const elMSelectedWrap = document.getElementById("mSelectedWrap");
+  const elMSelectedList = document.getElementById("mSelectedList");
+  const elMClearDiameters = document.getElementById("mClearDiameters");
+
+  // toast
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
   const elToastMsg = document.getElementById("toastMsg");
@@ -426,18 +570,49 @@
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
-  function updateSelectedPill(){
-    const arr = [...selectedDiameters].sort((a,b)=>a-b);
-    elDiaCount.textContent = String(arr.length);
+  function openSheet(){
+    elSheetBack.classList.add("show");
+    elSheet.classList.add("show");
+    document.body.style.overflow = "hidden";
+  }
+  function closeSheet(){
+    elSheetBack.classList.remove("show");
+    elSheet.classList.remove("show");
+    document.body.style.overflow = "";
+  }
 
+  elOpenFilters.addEventListener("click", openSheet);
+  elCloseFilters.addEventListener("click", closeSheet);
+  elSheetBack.addEventListener("click", closeSheet);
+
+  function updateSelectedUI(){
+    const arr = [...selectedDiameters].sort((a,b)=>a-b);
+
+    // counts / badge
+    elDiaCount.textContent = String(arr.length);
+    elMDiaCount.textContent = String(arr.length);
+    elFiltersBadge.textContent = String(arr.length);
+
+    // text
+    const text = (arr.length ? arr.map(d => `Ø${d}`).join(", ") : "—");
+
+    // desktop pill
     if (arr.length === 0){
       elSelectedWrap.style.display = "none";
       elSelectedList.textContent = "—";
-      return;
+    } else {
+      elSelectedWrap.style.display = "block";
+      elSelectedList.textContent = text;
     }
 
-    elSelectedWrap.style.display = "block";
-    elSelectedList.textContent = arr.map(d => `Ø${d}`).join(", ");
+    // mobile pill
+    if (arr.length === 0){
+      elMSelectedWrap.style.display = "none";
+      elMSelectedList.textContent = "—";
+    } else {
+      elMSelectedWrap.style.display = "block";
+      elMSelectedList.textContent = text;
+    }
   }
 
   function applyFilters(){
@@ -534,13 +709,10 @@
       stock: (x.stock ?? x["Stock"] ?? 0),
       images: x.images || x["Images"] || [],
       price: x.price || { EUR: x.price_eur, USD: x.price_usd },
-    })).map(p => ({
-      ...p,
-      diameter: (p.diameter == null ? null : Number(p.diameter)),
-    }));
+    })).map(p => ({ ...p, diameter: (p.diameter == null ? null : Number(p.diameter)) }));
   }
 
-  function buildDiameterFilter(){
+  function buildDiameterLists(){
     const set = new Set();
     for (const p of products){
       const d = Number(p.diameter);
@@ -548,43 +720,50 @@
     }
     const diameters = [...set].sort((a,b)=>a-b);
 
-    updateSelectedPill();
+    const buildInto = (container) => {
+      container.innerHTML = "";
 
-    const makeItem = ({label, sub, value, isAll=false}) => {
-      const div = document.createElement("div");
-      const active = isAll ? (selectedDiameters.size === 0) : selectedDiameters.has(value);
-      div.className = "item" + (active ? " active" : "");
-      div.innerHTML = `${escapeHtml(label)}<small>${escapeHtml(sub)}</small>`;
+      const makeItem = ({label, sub, value, isAll=false}) => {
+        const div = document.createElement("div");
+        const active = isAll ? (selectedDiameters.size === 0) : selectedDiameters.has(value);
+        div.className = "item" + (active ? " active" : "");
+        div.innerHTML = `${escapeHtml(label)}<small>${escapeHtml(sub)}</small>`;
 
-      div.addEventListener("click", () => {
-        if (isAll){
-          selectedDiameters.clear();
-        } else {
-          if (selectedDiameters.has(value)) selectedDiameters.delete(value);
-          else selectedDiameters.add(value);
-        }
-        buildDiameterFilter();
-        applyFilters();
-      });
+        div.addEventListener("click", () => {
+          if (isAll){
+            selectedDiameters.clear();
+          } else {
+            if (selectedDiameters.has(value)) selectedDiameters.delete(value);
+            else selectedDiameters.add(value);
+          }
+          updateSelectedUI();
+          buildDiameterLists();
+          applyFilters();
+        });
 
-      return div;
+        return div;
+      };
+
+      container.appendChild(makeItem({ label:"All", sub:"Any size", value:null, isAll:true }));
+      for (const d of diameters){
+        container.appendChild(makeItem({ label:`Ø ${d}`, sub:"Exact", value:d }));
+      }
     };
 
-    elDiameters.innerHTML = "";
-    elDiameters.appendChild(makeItem({ label:"All", sub:"Any size", value:null, isAll:true }));
-
-    for (const d of diameters){
-      elDiameters.appendChild(makeItem({ label:`Ø ${d}`, sub:"Exact", value:d }));
-    }
+    buildInto(elDiameters);
+    buildInto(elMDiameters);
+    updateSelectedUI();
   }
 
-  // ✅ clear button
-  elClearDiameters.addEventListener("click", (e) => {
-    e.preventDefault();
+  function clearDiameters(){
     selectedDiameters.clear();
-    buildDiameterFilter();
+    updateSelectedUI();
+    buildDiameterLists();
     applyFilters();
-  });
+  }
+
+  elClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
+  elMClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
 
   async function loadProducts(){
     try{
@@ -592,20 +771,26 @@
       if (r.ok){
         const data = await r.json();
         products = normalizeProducts(data);
-        buildDiameterFilter();
+        buildDiameterLists();
         applyFilters();
         return;
       }
     }catch(_){}
 
     products = [];
-    buildDiameterFilter();
+    buildDiameterLists();
     applyFilters();
   }
 
+  // Events
   elQ.addEventListener("input", applyFilters);
   elStock.addEventListener("change", applyFilters);
   elCurrency.addEventListener("change", render);
+
+  // Close sheet on orientation / resize if needed
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 980) closeSheet();
+  });
 
   loadProducts();
 </script>
