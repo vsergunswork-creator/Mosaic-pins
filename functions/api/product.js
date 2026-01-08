@@ -8,13 +8,12 @@ export async function onRequestGet({ env, request }) {
     const pin = (url.searchParams.get("pin") || "").trim();
     if (!pin) return json({ error: "Missing pin" }, 400);
 
-    const apiUrl = new URL(
-      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`
-    );
+    const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
+    const formula = `{${pinField}}="${escapeForFormula(pin)}"`;
 
-    // ищем по вашему полю "PIN Code"
+    const apiUrl = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`);
     apiUrl.searchParams.set("maxRecords", "1");
-    apiUrl.searchParams.set("filterByFormula", `{PIN Code}="${escapeForFormula(pin)}"`);
+    apiUrl.searchParams.set("filterByFormula", formula);
 
     const r = await fetch(apiUrl.toString(), {
       headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
@@ -23,20 +22,14 @@ export async function onRequestGet({ env, request }) {
     const data = await r.json();
     if (!r.ok) return json({ error: "Airtable error", details: data }, 400);
 
-    const rec = (data.records || [])[0];
-    if (!rec) return json({ error: "Not found" }, 404);
+    const rec = data?.records?.[0];
+    if (!rec) return json({ error: "Product not found" }, 404);
 
     const f = rec.fields || {};
-
-    // Active (если вдруг кто-то откроет ссылку напрямую)
-    if (f["Active"] === false) return json({ error: "Inactive product" }, 403);
-
-    const images = Array.isArray(f["Images"])
-      ? f["Images"].map(img => img?.url).filter(Boolean)
-      : [];
+    const images = Array.isArray(f["Images"]) ? f["Images"].map(x => x?.url).filter(Boolean) : [];
 
     const product = {
-      pin: String(f["PIN Code"] || rec.id),
+      pin: String(f["PIN Code"] || pin),
       title: String(f["Title"] || "Untitled"),
       description: String(f["Description"] || ""),
       type: f["Type"] ?? null,
@@ -49,11 +42,12 @@ export async function onRequestGet({ env, request }) {
         USD: asNumberOrNull(f["Price_USD"]),
       },
       images,
-      stripe_product_id: f["Stripe Products ID"] ?? null,
-      stripe_price_id: f["Stripe Prince ID"] ?? null,
+      stripe_price_id: f["Stripe Price ID"] ?? null,
     };
 
-    return json({ product });
+    return json({ product }, 200, {
+      "Cache-Control": "public, max-age=60",
+    });
   } catch (e) {
     return json({ error: "Server error", details: String(e) }, 500);
   }
@@ -68,9 +62,9 @@ function escapeForFormula(value) {
   return String(value).replace(/"/g, '\\"');
 }
 
-function json(obj, status = 200) {
+function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
   });
 }
