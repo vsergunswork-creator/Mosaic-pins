@@ -29,16 +29,23 @@
 
     /* Layout */
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
+
+    /* Sidebar (proper scroll, no clipping) */
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
+
+      display:flex;
+      flex-direction:column;
+      min-height:0;
     }
     .sb-top{
       padding:18px 18px 10px;
       display:flex; align-items:center; justify-content:space-between; gap:10px;
+      flex:0 0 auto;
     }
     .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
     .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
@@ -48,8 +55,10 @@
       border:1px solid var(--line);
       color:var(--muted);
       font-size:12px;
+      white-space:nowrap;
     }
-    .sb-nav{padding:6px; display:grid; gap:6px;}
+
+    .sb-nav{padding:6px; display:grid; gap:6px; flex:0 0 auto;}
     .nav-item{
       display:flex; align-items:center; gap:10px;
       padding:10px 12px;
@@ -64,6 +73,14 @@
       border-color: rgba(34,197,94,.22);
       color:var(--text);
     }
+
+    .sb-scroll{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:auto;
+      padding:6px;
+      padding-bottom:10px;
+    }
     .sb-section{
       padding:14px 12px 10px;
       display:flex; align-items:center; justify-content:space-between;
@@ -72,26 +89,24 @@
       letter-spacing:.6px;
       text-transform:uppercase;
     }
-    .collections{
-      padding:0 6px 10px;
+
+    .list{
       display:grid;
       gap:6px;
-      max-height:calc(100vh - 240px);
-      overflow:auto;
+      padding:0 0 10px;
     }
-    .col-item{
+    .item{
       padding:10px 12px;
       border-radius:12px;
       border:1px solid transparent;
       background:rgba(255,255,255,.03);
       color:var(--text);
       cursor:pointer;
+      user-select:none;
     }
-    .col-item:hover{background:rgba(255,255,255,.05)}
-    .col-item small{display:block; color:var(--muted); margin-top:4px}
-
-    /* NEW: active state for diameter filter items */
-    #diameterFilters .col-item.active{
+    .item:hover{background:rgba(255,255,255,.05)}
+    .item small{display:block; color:var(--muted); margin-top:4px}
+    .item.active{
       background:rgba(34,197,94,.12);
       border-color: rgba(34,197,94,.22);
     }
@@ -111,12 +126,12 @@
       padding:16px 18px;
       display:flex; align-items:center; justify-content:space-between; gap:12px;
       border-bottom:1px solid var(--line);
-      background:
-        linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+      flex:0 0 auto;
     }
-    .top-left{display:flex; align-items:center; gap:10px; min-width:0}
     .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
+
     .search{
       flex:1; max-width:520px; min-width:220px;
       display:flex; align-items:center; gap:10px;
@@ -236,6 +251,7 @@
       box-shadow: var(--shadow);
       max-width: 360px;
       display:none;
+      z-index:999;
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
@@ -257,41 +273,21 @@
         <a class="nav-item" href="#" id="navReturns">Returns</a>
       </nav>
 
-      <div class="sb-section">
-        <span>Collections</span>
-        <span class="pill" style="padding:6px 10px;">New</span>
-      </div>
+      <div class="sb-scroll">
+        <div class="sb-section">
+          <span>Ø</span>
+          <span class="pill" id="diaCount">0</span>
+        </div>
 
-      <div class="collections" id="collections">
-        <div class="col-item" data-filter="all">
-          All pins
-          <small>Everything in stock</small>
-        </div>
-        <div class="col-item" data-filter="popular">
-          Popular materials
-          <small>Brass / Copper / Mosaic</small>
-        </div>
-        <div class="col-item" data-filter="large">
-          Large diameters
-          <small>Ø 10 mm+</small>
-        </div>
+        <div class="list" id="diameters"></div>
       </div>
-
-      <!-- NEW: Diameter filter (auto from Airtable list) -->
-      <div class="sb-section">
-        <span>Diameter</span>
-        <span class="pill" id="diaCount" style="padding:6px 10px;">—</span>
-      </div>
-      <div class="collections" id="diameterFilters"></div>
     </aside>
 
     <main class="main">
       <div class="topbar">
-        <div class="top-left">
-          <div>
-            <h1 class="h-title">Shop</h1>
-            <div class="sub">Handmade mosaic pins for custom knife handles</div>
-          </div>
+        <div>
+          <h1 class="h-title">Shop</h1>
+          <div class="sub">Handmade mosaic pins for custom knife handles</div>
         </div>
 
         <div class="search" title="Search by title or PIN code">
@@ -324,57 +320,23 @@
   </div>
 
 <script>
-  // ========= CONFIG =========
   const API_PRODUCTS = "/api/products";
   const API_CHECKOUT  = "/api/checkout";
 
-  // Demo fallback (когда /api/products ещё не сделан)
-  const DEMO = [
-    {
-      pin: "G10N11gt",
-      title: "Emerald Mosaic",
-      description: "Handmade mosaic pin. Perfect for custom knife handles.",
-      price: { EUR: 22, USD: 24 },
-      stock: 1,
-      diameter: 10,
-      materials: ["Brass", "Copper", "Mosaic"],
-      images: []
-    },
-    {
-      pin: "PIN-002",
-      title: "Copper Wave",
-      description: "Copper + nickel accents. Clean pattern.",
-      price: { EUR: 19, USD: 21 },
-      stock: 0,
-      diameter: 8,
-      materials: ["Copper", "Nickel"],
-      images: []
-    },
-    {
-      pin: "PIN-003",
-      title: "Brass Grid",
-      description: "Brass dominant. High contrast, crisp look.",
-      price: { EUR: 25, USD: 27 },
-      stock: 1,
-      diameter: 12,
-      materials: ["Brass", "Steel"],
-      images: []
-    }
-  ];
-
-  // ========= STATE =========
   let products = [];
   let filtered = [];
-  let collectionMode = "all";
 
-  // NEW: diameter filter mode
-  let diameterMode = "all"; // all | "10" | "<=8" | ">=12" | "8-10"
+  // ✅ MULTI SELECT: store selected diameters
+  const selectedDiameters = new Set(); // numbers
 
   const elGrid = document.getElementById("grid");
   const elQ = document.getElementById("q");
   const elStock = document.getElementById("inStockOnly");
   const elCurrency = document.getElementById("currency");
   const elSbCount = document.getElementById("sbCount");
+  const elDiaCount = document.getElementById("diaCount");
+  const elDiameters = document.getElementById("diameters");
+
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
   const elToastMsg = document.getElementById("toastMsg");
@@ -386,6 +348,12 @@
     setTimeout(()=> elToast.classList.remove("show"), 2400);
   }
 
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
   function priceText(p){
     const cur = elCurrency.value;
     const v = p?.[cur];
@@ -393,110 +361,17 @@
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
-  function passesCollection(p){
-    if (collectionMode === "all") return true;
-    if (collectionMode === "large") return (Number(p.diameter||0) >= 10);
-    if (collectionMode === "popular") {
-      const mats = (p.materials||[]).map(x=>String(x).toLowerCase());
-      return mats.some(m => ["brass","copper","mosaic"].includes(m));
-    }
-    return true;
-  }
-
-  // ===== NEW: diameter filter helpers (auto from Airtable list) =====
-  function getDiametersFromProducts(list){
-    const set = new Set();
-    for (const p of (list || [])){
-      const d = Number(p.diameter);
-      if (Number.isFinite(d) && d > 0) set.add(d);
-    }
-    return [...set].sort((a,b)=>a-b);
-  }
-
-  function buildDiameterButtons(diams){
-    const host = document.getElementById("diameterFilters");
-    const count = document.getElementById("diaCount");
-    if (!host) return;
-
-    count.textContent = diams.length ? `${diams.length}` : "0";
-
-    const item = (label, value, sub="") => `
-      <div class="col-item ${value==="all" ? "active" : ""}" data-diameter="${value}">
-        ${label}
-        ${sub ? `<small>${sub}</small>` : `<small></small>`}
-      </div>
-    `;
-
-    let html = item("All", "all", "Any size");
-
-    if (!diams.length){
-      host.innerHTML = html;
-      return;
-    }
-
-    if (diams.length <= 10){
-      // exact sizes
-      html += diams.map(d => item(`Ø ${d} mm`, String(d), "Exact")).join("");
-      count.textContent = `${diams.length}`;
-    } else {
-      // many sizes -> ranges using quartiles
-      const min = diams[0];
-      const max = diams[diams.length-1];
-      const q1 = diams[Math.floor(diams.length*0.25)];
-      const q2 = diams[Math.floor(diams.length*0.50)];
-      const q3 = diams[Math.floor(diams.length*0.75)];
-
-      html += item(`≤ Ø ${q1} mm`, `<=${q1}`, "Small");
-      html += item(`Ø ${q1}–${q2} mm`, `${q1}-${q2}`, "Medium");
-      html += item(`Ø ${q2}–${q3} mm`, `${q2}-${q3}`, "Large");
-      html += item(`≥ Ø ${q3} mm`, `>=${q3}`, "XL");
-
-      count.textContent = `${diams.length} (${min}-${max}mm)`;
-    }
-
-    host.innerHTML = html;
-  }
-
-  function diameterPasses(p){
-    if (diameterMode === "all") return true;
-
-    const d = Number(p.diameter || 0);
-    if (!Number.isFinite(d) || d <= 0) return false;
-
-    // exact number
-    if (/^\d+(\.\d+)?$/.test(diameterMode)){
-      return d === Number(diameterMode);
-    }
-
-    // <=X
-    if (diameterMode.startsWith("<=")){
-      const x = Number(diameterMode.slice(2));
-      return d <= x;
-    }
-
-    // >=X
-    if (diameterMode.startsWith(">=")){
-      const x = Number(diameterMode.slice(2));
-      return d >= x;
-    }
-
-    // A-B
-    if (diameterMode.includes("-")){
-      const [a,b] = diameterMode.split("-").map(Number);
-      if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
-      return d >= a && d <= b;
-    }
-
-    return true;
-  }
-
   function applyFilters(){
     const q = (elQ.value || "").trim().toLowerCase();
     const inStockOnly = elStock.checked;
 
     filtered = products.filter(p => {
-      if (!passesCollection(p)) return false;
-      if (!diameterPasses(p)) return false;
+      // ✅ Multi Ø filter
+      if (selectedDiameters.size > 0) {
+        const d = Number(p.diameter);
+        if (!Number.isFinite(d) || !selectedDiameters.has(d)) return false;
+      }
+
       if (inStockOnly && !(Number(p.stock||0) > 0)) return false;
 
       if (!q) return true;
@@ -523,7 +398,7 @@
           <div class="row">
             <div>
               <div class="price">${priceText(p.price)}</div>
-              <div style="color:var(--muted); font-size:12px; margin-top:2px;">Ø ${p.diameter || "—"} mm</div>
+              <div style="color:var(--muted); font-size:12px; margin-top:2px;">Ø ${p.diameter ?? "—"}</div>
             </div>
             <button class="btn" ${soldOut ? "disabled" : ""} data-pin="${escapeHtml(p.pin)}">Buy</button>
           </div>
@@ -536,10 +411,10 @@
     elSbCount.textContent = `${filtered.length} items`;
     elGrid.innerHTML = filtered.map(cardTemplate).join("");
 
-    // bind buy buttons
+    // Buy
     [...document.querySelectorAll("button[data-pin]")].forEach(btn => {
       btn.addEventListener("click", async (e) => {
-        e.stopPropagation(); // ← чтобы клик не открыл карточку
+        e.stopPropagation();
         const pin = btn.getAttribute("data-pin");
         toast("Checkout", "Opening Stripe…");
 
@@ -561,88 +436,92 @@
         }
       });
     });
+
+    // Open product page
+    [...document.querySelectorAll(".card[data-open]")].forEach(card => {
+      card.addEventListener("click", () => {
+        const pin = card.getAttribute("data-open");
+        window.location.href = `/product.html?pin=${encodeURIComponent(pin)}`;
+      });
+    });
   }
 
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-  }
-
-  async function loadProducts(){
-    // 1) Try real API
-    try{
-      const r = await fetch(API_PRODUCTS, { method:"GET" });
-      if (r.ok){
-        const data = await r.json();
-        products = normalizeProducts(data);
-
-        // NEW: build diameter filters from Airtable products
-        buildDiameterButtons(getDiametersFromProducts(products));
-
-        applyFilters();
-        return;
-      }
-    }catch(_){}
-
-    // 2) Fallback demo
-    products = DEMO;
-
-    // NEW: build from demo too
-    buildDiameterButtons(getDiametersFromProducts(products));
-
-    applyFilters();
-  }
-
-  // Normalize API format to our UI shape
   function normalizeProducts(data){
     const arr = Array.isArray(data) ? data : (data.products || []);
     return arr.map(x => ({
       pin: x.pin || x.pin_code || x.PIN || x["PIN Code"] || "—",
       title: x.title || x.name || "Untitled",
       description: x.description || "",
-      diameter: x.diameter || x.diameter_mm || x["Diameter"] || null,
+      diameter: (x.diameter ?? x.diameter_mm ?? x["Diameter"] ?? null),
       materials: x.materials || x["Materials"] || [],
       stock: (x.stock ?? x["Stock"] ?? 0),
       images: x.images || x["Images"] || [],
       price: x.price || { EUR: x.price_eur, USD: x.price_usd },
+    })).map(p => ({
+      ...p,
+      diameter: (p.diameter == null ? null : Number(p.diameter)),
     }));
   }
 
-  // Events
+  function buildDiameterFilter(){
+    const set = new Set();
+    for (const p of products){
+      const d = Number(p.diameter);
+      if (Number.isFinite(d)) set.add(d);
+    }
+    const diameters = [...set].sort((a,b)=>a-b);
+
+    // show how many selected (or 0)
+    elDiaCount.textContent = String(selectedDiameters.size);
+
+    const makeItem = ({label, sub, value, isAll=false}) => {
+      const div = document.createElement("div");
+      const active = isAll ? (selectedDiameters.size === 0) : selectedDiameters.has(value);
+      div.className = "item" + (active ? " active" : "");
+      div.innerHTML = `${escapeHtml(label)}<small>${escapeHtml(sub)}</small>`;
+
+      div.addEventListener("click", () => {
+        if (isAll){
+          selectedDiameters.clear();
+        } else {
+          if (selectedDiameters.has(value)) selectedDiameters.delete(value);
+          else selectedDiameters.add(value);
+        }
+        buildDiameterFilter(); // refresh active states + counter
+        applyFilters();
+      });
+
+      return div;
+    };
+
+    elDiameters.innerHTML = "";
+    elDiameters.appendChild(makeItem({ label:"All", sub:"Any size", value:null, isAll:true }));
+
+    for (const d of diameters){
+      elDiameters.appendChild(makeItem({ label:`Ø ${d}`, sub:"Exact", value:d }));
+    }
+  }
+
+  async function loadProducts(){
+    try{
+      const r = await fetch(API_PRODUCTS, { method:"GET" });
+      if (r.ok){
+        const data = await r.json();
+        products = normalizeProducts(data);
+        buildDiameterFilter();
+        applyFilters();
+        return;
+      }
+    }catch(_){}
+
+    products = [];
+    buildDiameterFilter();
+    applyFilters();
+  }
+
   elQ.addEventListener("input", applyFilters);
   elStock.addEventListener("change", applyFilters);
   elCurrency.addEventListener("change", render);
-
-  document.getElementById("collections").addEventListener("click", (e) => {
-    const item = e.target.closest("[data-filter]");
-    if (!item) return;
-    collectionMode = item.getAttribute("data-filter") || "all";
-    applyFilters();
-  });
-
-  // NEW: diameter filters click
-  document.getElementById("diameterFilters").addEventListener("click", (e) => {
-    const item = e.target.closest("[data-diameter]");
-    if (!item) return;
-
-    diameterMode = item.getAttribute("data-diameter") || "all";
-
-    // active ui
-    [...document.querySelectorAll("#diameterFilters .col-item")].forEach(x => x.classList.remove("active"));
-    item.classList.add("active");
-
-    applyFilters();
-  });
-
-  // NEW: open product page on card click (delegation, no duplicates)
-  elGrid.addEventListener("click", (e) => {
-    if (e.target.closest("button[data-pin]")) return; // buy button handled separately
-    const card = e.target.closest(".card[data-open]");
-    if (!card) return;
-    const pin = card.getAttribute("data-open");
-    window.location.href = `/product.html?pin=${encodeURIComponent(pin)}`;
-  });
 
   loadProducts();
 </script>
