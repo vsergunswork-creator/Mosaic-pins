@@ -72,7 +72,13 @@
       letter-spacing:.6px;
       text-transform:uppercase;
     }
-    .collections{padding:0 6px 10px; display:grid; gap:6px; max-height:calc(100vh - 240px); overflow:auto;}
+    .collections{
+      padding:0 6px 10px;
+      display:grid;
+      gap:6px;
+      max-height:calc(100vh - 240px);
+      overflow:auto;
+    }
     .col-item{
       padding:10px 12px;
       border-radius:12px;
@@ -83,6 +89,12 @@
     }
     .col-item:hover{background:rgba(255,255,255,.05)}
     .col-item small{display:block; color:var(--muted); margin-top:4px}
+
+    /* NEW: active state for diameter filter items */
+    #diameterFilters .col-item.active{
+      background:rgba(34,197,94,.12);
+      border-color: rgba(34,197,94,.22);
+    }
 
     /* Main */
     .main{
@@ -151,7 +163,13 @@
       gap:14px;
     }
     @media (max-width:1200px){ .grid{grid-template-columns:repeat(4,1fr)} }
-    @media (max-width:980px){ .app{grid-template-columns:1fr} .sidebar{display:none} .grid{grid-template-columns:repeat(2,1fr)} body{overflow:auto} .main{height:auto; min-height:100vh} }
+    @media (max-width:980px){
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none}
+      .grid{grid-template-columns:repeat(2,1fr)}
+      body{overflow:auto}
+      .main{height:auto; min-height:100vh}
+    }
     @media (max-width:520px){ .grid{grid-template-columns:1fr} }
 
     .card{
@@ -161,7 +179,7 @@
       overflow:hidden;
       position:relative;
       transition: transform .15s ease, background .15s ease;
-      cursor: pointer;
+      cursor:pointer;
     }
     .card:hover{transform: translateY(-2px); background:rgba(255,255,255,.04)}
     .thumb{
@@ -258,6 +276,13 @@
           <small>Ø 10 mm+</small>
         </div>
       </div>
+
+      <!-- NEW: Diameter filter (auto from Airtable list) -->
+      <div class="sb-section">
+        <span>Diameter</span>
+        <span class="pill" id="diaCount" style="padding:6px 10px;">—</span>
+      </div>
+      <div class="collections" id="diameterFilters"></div>
     </aside>
 
     <main class="main">
@@ -342,6 +367,9 @@
   let filtered = [];
   let collectionMode = "all";
 
+  // NEW: diameter filter mode
+  let diameterMode = "all"; // all | "10" | "<=8" | ">=12" | "8-10"
+
   const elGrid = document.getElementById("grid");
   const elQ = document.getElementById("q");
   const elStock = document.getElementById("inStockOnly");
@@ -375,12 +403,100 @@
     return true;
   }
 
+  // ===== NEW: diameter filter helpers (auto from Airtable list) =====
+  function getDiametersFromProducts(list){
+    const set = new Set();
+    for (const p of (list || [])){
+      const d = Number(p.diameter);
+      if (Number.isFinite(d) && d > 0) set.add(d);
+    }
+    return [...set].sort((a,b)=>a-b);
+  }
+
+  function buildDiameterButtons(diams){
+    const host = document.getElementById("diameterFilters");
+    const count = document.getElementById("diaCount");
+    if (!host) return;
+
+    count.textContent = diams.length ? `${diams.length}` : "0";
+
+    const item = (label, value, sub="") => `
+      <div class="col-item ${value==="all" ? "active" : ""}" data-diameter="${value}">
+        ${label}
+        ${sub ? `<small>${sub}</small>` : `<small></small>`}
+      </div>
+    `;
+
+    let html = item("All", "all", "Any size");
+
+    if (!diams.length){
+      host.innerHTML = html;
+      return;
+    }
+
+    if (diams.length <= 10){
+      // exact sizes
+      html += diams.map(d => item(`Ø ${d} mm`, String(d), "Exact")).join("");
+      count.textContent = `${diams.length}`;
+    } else {
+      // many sizes -> ranges using quartiles
+      const min = diams[0];
+      const max = diams[diams.length-1];
+      const q1 = diams[Math.floor(diams.length*0.25)];
+      const q2 = diams[Math.floor(diams.length*0.50)];
+      const q3 = diams[Math.floor(diams.length*0.75)];
+
+      html += item(`≤ Ø ${q1} mm`, `<=${q1}`, "Small");
+      html += item(`Ø ${q1}–${q2} mm`, `${q1}-${q2}`, "Medium");
+      html += item(`Ø ${q2}–${q3} mm`, `${q2}-${q3}`, "Large");
+      html += item(`≥ Ø ${q3} mm`, `>=${q3}`, "XL");
+
+      count.textContent = `${diams.length} (${min}-${max}mm)`;
+    }
+
+    host.innerHTML = html;
+  }
+
+  function diameterPasses(p){
+    if (diameterMode === "all") return true;
+
+    const d = Number(p.diameter || 0);
+    if (!Number.isFinite(d) || d <= 0) return false;
+
+    // exact number
+    if (/^\d+(\.\d+)?$/.test(diameterMode)){
+      return d === Number(diameterMode);
+    }
+
+    // <=X
+    if (diameterMode.startsWith("<=")){
+      const x = Number(diameterMode.slice(2));
+      return d <= x;
+    }
+
+    // >=X
+    if (diameterMode.startsWith(">=")){
+      const x = Number(diameterMode.slice(2));
+      return d >= x;
+    }
+
+    // A-B
+    if (diameterMode.includes("-")){
+      const [a,b] = diameterMode.split("-").map(Number);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
+      return d >= a && d <= b;
+    }
+
+    return true;
+  }
+
   function applyFilters(){
     const q = (elQ.value || "").trim().toLowerCase();
     const inStockOnly = elStock.checked;
 
     filtered = products.filter(p => {
       if (!passesCollection(p)) return false;
+      if (!diameterPasses(p)) return false;
       if (inStockOnly && !(Number(p.stock||0) > 0)) return false;
 
       if (!q) return true;
@@ -445,14 +561,6 @@
         }
       });
     });
-
-    // open product page on card click
-    [...document.querySelectorAll(".card[data-open]")].forEach(card => {
-      card.addEventListener("click", () => {
-        const pin = card.getAttribute("data-open");
-        window.location.href = `/product.html?pin=${encodeURIComponent(pin)}`;
-      });
-    });
   }
 
   function escapeHtml(s){
@@ -468,6 +576,10 @@
       if (r.ok){
         const data = await r.json();
         products = normalizeProducts(data);
+
+        // NEW: build diameter filters from Airtable products
+        buildDiameterButtons(getDiametersFromProducts(products));
+
         applyFilters();
         return;
       }
@@ -475,6 +587,10 @@
 
     // 2) Fallback demo
     products = DEMO;
+
+    // NEW: build from demo too
+    buildDiameterButtons(getDiametersFromProducts(products));
+
     applyFilters();
   }
 
@@ -503,6 +619,29 @@
     if (!item) return;
     collectionMode = item.getAttribute("data-filter") || "all";
     applyFilters();
+  });
+
+  // NEW: diameter filters click
+  document.getElementById("diameterFilters").addEventListener("click", (e) => {
+    const item = e.target.closest("[data-diameter]");
+    if (!item) return;
+
+    diameterMode = item.getAttribute("data-diameter") || "all";
+
+    // active ui
+    [...document.querySelectorAll("#diameterFilters .col-item")].forEach(x => x.classList.remove("active"));
+    item.classList.add("active");
+
+    applyFilters();
+  });
+
+  // NEW: open product page on card click (delegation, no duplicates)
+  elGrid.addEventListener("click", (e) => {
+    if (e.target.closest("button[data-pin]")) return; // buy button handled separately
+    const card = e.target.closest(".card[data-open]");
+    if (!card) return;
+    const pin = card.getAttribute("data-open");
+    window.location.href = `/product.html?pin=${encodeURIComponent(pin)}`;
   });
 
   loadProducts();
