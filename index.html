@@ -21,14 +21,31 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
+
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      background: radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
-                  radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
-                  var(--bg);
+      background: var(--bg); /* ✅ фон теперь базовый */
       color:var(--text);
       overflow:hidden;
+      position:relative;     /* ✅ нужно для псевдо-слоя */
+      isolation:isolate;     /* ✅ фон-слой не конфликтует с blur */
+    }
+
+    /* ✅ единый цельный фон, который НЕ “ломается” при скролле */
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20vh -20vw;          /* чуть больше, чтобы на мобилке не было краёв */
+      z-index:-1;
+      pointer-events:none;
+      background:
+        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+        var(--bg);
+      filter: blur(18px) saturate(1.05); /* ✅ мягче, без “ступеньки” */
+      transform: translateZ(0);
+      will-change: transform;
     }
 
     /* nicer dark scrollbars */
@@ -979,7 +996,6 @@
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
   elCartCheckout.addEventListener("click", () => toast("Checkout", "Next step: server checkout for full cart ✅"));
 
-  // ✅ Парсер диаметра из Airtable (строка/запятая/скобки)
   function parseDiameter(raw){
     if (raw == null) return { key:null, num:null, display:null, note:null, raw:null };
 
@@ -994,14 +1010,13 @@
     const noteMatch = str.match(/\(([^)]+)\)/);
     const note = noteMatch ? noteMatch[1].trim() : null;
 
-    // берём первое число вида 3,6 или 6.35 или 10
     const m = str.match(/(\d+(?:[.,]\d+)?)/);
     if (!m) return { key: str, num:null, display:str, note: note, raw:str };
 
-    const captured = m[1];                // например "3,6" или "6.35"
-    const key = captured.replace(",","."); // ключ храним с точкой
+    const captured = m[1];
+    const key = captured.replace(",",".");
     const num = parseFloat(key);
-    const display = captured.replace(".",","); // отображаем с запятой, как в Airtable
+    const display = captured.replace(".",",");
 
     return { key, num: (Number.isFinite(num) ? num : null), display, note, raw: str };
   }
@@ -1222,7 +1237,6 @@
         buildDiameterLists();
         applyFilters();
 
-        // sync cart meta
         const cart = readCart();
         if (cart.length){
           const next = cart.map(it => {
