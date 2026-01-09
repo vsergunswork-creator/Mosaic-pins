@@ -20,6 +20,24 @@
       --panelHover: rgba(255,255,255,.05);
     }
     *{box-sizing:border-box}
+
+    /* ✅ Android Chrome tap highlight + overscroll glow fixes */
+    *{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
+    html{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
+
+    a, button, input, select, textarea{
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+    }
+    button, a{
+      touch-action: manipulation;
+      -webkit-user-select:none;
+      user-select:none;
+      -webkit-appearance:none;
+      appearance:none;
+    }
+    button:focus{ outline:none; }
+    :focus:not(:focus-visible){ outline:none; }
+
     html,body{height:100%}
     body{
       margin:0;
@@ -29,6 +47,9 @@
                   var(--bg);
       color:var(--text);
       overflow:hidden;
+
+      /* ✅ kill edge glow / bounce highlight */
+      overscroll-behavior: none;
     }
 
     /* nicer dark scrollbars */
@@ -121,7 +142,15 @@
       text-align:center;
     }
 
-    .content{padding:18px; overflow:auto; min-height:0;}
+    .content{
+      padding:18px;
+      overflow:auto;
+      min-height:0;
+
+      /* ✅ kill edge glow / bounce highlight inside scroll container */
+      overscroll-behavior: none;
+    }
+
     .wrap{
       display:grid;
       grid-template-columns: 1.2fr .8fr;
@@ -175,6 +204,8 @@
       scrollbar-width:none;
       user-select:none;
       cursor: grab;
+
+      overscroll-behavior: contain;
     }
     .carousel::-webkit-scrollbar{display:none;}
     .carousel.dragging{cursor: grabbing;}
@@ -246,7 +277,7 @@
       color:var(--muted);
       font-size:13px;
       line-height:1.65;
-      white-space: pre-wrap; /* keep line breaks */
+      white-space: pre-wrap;
       word-break: break-word;
       margin-top:8px;
     }
@@ -747,7 +778,6 @@
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
 
-    // ✅ keep Airtable-like line breaks
     el("desc").textContent = (p.description || "").trim();
 
     const chips = [];
