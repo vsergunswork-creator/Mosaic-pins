@@ -21,23 +21,6 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-
-    /* ✅ Mobile tap/focus fixes */
-    html{
-      -webkit-tap-highlight-color: transparent;
-    }
-    a, button, input, select, textarea{
-      -webkit-tap-highlight-color: transparent;
-    }
-    button, a{
-      touch-action: manipulation;
-      -webkit-user-select:none;
-      user-select:none;
-    }
-    :focus:not(:focus-visible){
-      outline: none;
-    }
-
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
@@ -263,7 +246,7 @@
       color:var(--muted);
       font-size:13px;
       line-height:1.65;
-      white-space: pre-wrap;
+      white-space: pre-wrap; /* keep line breaks */
       word-break: break-word;
       margin-top:8px;
     }
@@ -764,7 +747,7 @@
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
 
-    // keep Airtable-like line breaks
+    // ✅ keep Airtable-like line breaks
     el("desc").textContent = (p.description || "").trim();
 
     const chips = [];
