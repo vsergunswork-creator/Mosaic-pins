@@ -133,14 +133,16 @@
       text-align:center;
     }
 
+    /* ✅ UPDATED per your last message */
     .content{
       padding:18px;
       overflow:auto;
       min-height:0;
       overscroll-behavior: none;
 
-      /* ✅ ключевое: чтобы низ (Buy now) не уходил под панель браузера */
-      padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px) + 22px);
+      /* ✅ больше места снизу, чтобы Buy now не срезалась */
+      padding-bottom: max(22px, env(safe-area-inset-bottom, 0px)) ;
+      padding-bottom: calc(18px + max(34px, env(safe-area-inset-bottom, 0px)) + 40px);
     }
 
     .wrap{
@@ -149,15 +151,21 @@
       gap:16px;
       align-items:start;
     }
+
+    /* ✅ UPDATED per your last message */
     @media (max-width:980px){
       .app{grid-template-columns:1fr}
       .sidebar{display:none}
       body{overflow:auto}
       .main{height:auto; min-height:100vh}
       .wrap{grid-template-columns:1fr}
+
       .content{
         padding:14px;
-        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px) + 28px);
+        overflow:auto;
+
+        /* ✅ на мобилке делаем ещё больше “подушки” */
+        padding-bottom: calc(14px + max(44px, env(safe-area-inset-bottom, 0px)) + 56px);
       }
     }
 
