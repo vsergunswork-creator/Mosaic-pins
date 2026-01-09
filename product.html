@@ -28,15 +28,27 @@
     a, button, input, select, textarea{
       -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
+
+    /* ✅ IMPORTANT:
+       НЕ ставим appearance:none на button (ломает Android Chrome, кнопка пропадает).
+       Оставляем only touch-action / selection. */
     button, a{
       touch-action: manipulation;
       -webkit-user-select:none;
       user-select:none;
-      -webkit-appearance:none;
-      appearance:none;
     }
+
+    /* ✅ fix disappearing button on Android Chrome */
+    button{
+      -webkit-appearance: button;
+      appearance: button;
+      background-clip: padding-box;
+    }
+
+    /* ✅ убираем "серое свечение" при клике/фокусе */
     button:focus{ outline:none; }
     :focus:not(:focus-visible){ outline:none; }
+    button::-moz-focus-inner{ border:0; }
 
     html,body{height:100%}
     body{
@@ -146,8 +158,6 @@
       padding:18px;
       overflow:auto;
       min-height:0;
-
-      /* ✅ kill edge glow / bounce highlight inside scroll container */
       overscroll-behavior: none;
     }
 
@@ -204,7 +214,6 @@
       scrollbar-width:none;
       user-select:none;
       cursor: grab;
-
       overscroll-behavior: contain;
     }
     .carousel::-webkit-scrollbar{display:none;}
@@ -272,7 +281,6 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    /* ✅ Airtable-like description formatting */
     .meta{
       color:var(--muted);
       font-size:13px;
@@ -665,7 +673,6 @@
     window.addEventListener("resize", () => scrollToIndex(currentIndex, false));
   }
 
-  // parallax (desktop only)
   function setupParallax(){
     const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) return;
