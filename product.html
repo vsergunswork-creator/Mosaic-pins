@@ -13,15 +13,15 @@
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
 
-      /* darker overlays */
       --overlay: rgba(0,0,0,.72);
       --overlay2: rgba(0,0,0,.82);
       --panel: rgba(0,0,0,.28);
       --panelHover: rgba(255,255,255,.05);
     }
+
     *{box-sizing:border-box}
 
-    /* ✅ Android Chrome tap highlight + overscroll glow fixes */
+    /* ✅ tap highlight off */
     *{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
     html{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
 
@@ -29,23 +29,12 @@
       -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
 
-    /* ✅ IMPORTANT:
-       НЕ ставим appearance:none на button (ломает Android Chrome, кнопка пропадает).
-       Оставляем only touch-action / selection. */
+    /* ✅ НЕ трогаем appearance вообще (это ломает Android у части устройств) */
     button, a{
       touch-action: manipulation;
       -webkit-user-select:none;
       user-select:none;
     }
-
-    /* ✅ fix disappearing button on Android Chrome */
-    button{
-      -webkit-appearance: button;
-      appearance: button;
-      background-clip: padding-box;
-    }
-
-    /* ✅ убираем "серое свечение" при клике/фокусе */
     button:focus{ outline:none; }
     :focus:not(:focus-visible){ outline:none; }
     button::-moz-focus-inner{ border:0; }
@@ -59,8 +48,6 @@
                   var(--bg);
       color:var(--text);
       overflow:hidden;
-
-      /* ✅ kill edge glow / bounce highlight */
       overscroll-behavior: none;
     }
 
@@ -159,6 +146,9 @@
       overflow:auto;
       min-height:0;
       overscroll-behavior: none;
+
+      /* ✅ важно: чтобы нижняя кнопка не пряталась под панелью браузера */
+      padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px) + 18px);
     }
 
     .wrap{
@@ -173,7 +163,10 @@
       body{overflow:auto}
       .main{height:auto; min-height:100vh}
       .wrap{grid-template-columns:1fr}
-      .content{padding:14px}
+      .content{
+        padding:14px;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px) + 22px);
+      }
     }
 
     .panel{
@@ -183,7 +176,6 @@
       overflow:hidden;
     }
 
-    /* Gallery */
     .gallery{padding:12px; display:grid; gap:10px;}
 
     .hero{
@@ -276,7 +268,6 @@
     .t.active{outline:2px solid rgba(34,197,94,.45); opacity:1}
     .t img{width:100%; height:100%; object-fit:cover; display:block;}
 
-    /* Details */
     .details{padding:16px;}
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
@@ -316,7 +307,14 @@
     }
     .sold{background:rgba(239,68,68,.22); border-color:rgba(239,68,68,.28)}
 
-    .actions{display:grid; gap:10px; margin-top:14px;}
+    .actions{
+      display:grid;
+      gap:10px;
+      margin-top:14px;
+      position:relative;
+      z-index:1; /* ✅ страховка */
+    }
+
     .qtyRow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .qtyRow label{color:var(--muted); font-size:13px}
     .qty{
@@ -354,6 +352,10 @@
       font-weight:950;
       box-shadow: 0 10px 18px rgba(34,197,94,.18);
       transition: filter .15s ease, transform .15s ease;
+
+      /* ✅ страховка видимости */
+      display:block;
+      width:100%;
     }
     .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
     .btn:disabled{
@@ -372,6 +374,9 @@
       color:var(--text);
       font-weight:950;
       transition: background .15s ease, transform .15s ease;
+
+      display:block;
+      width:100%;
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
@@ -443,8 +448,8 @@
                   </div>
                 </div>
 
-                <button class="navBtn navPrev" id="prevBtn" aria-label="Previous image">←</button>
-                <button class="navBtn navNext" id="nextBtn" aria-label="Next image">→</button>
+                <button class="navBtn navPrev" id="prevBtn" type="button" aria-label="Previous image">←</button>
+                <button class="navBtn navNext" id="nextBtn" type="button" aria-label="Next image">→</button>
                 <div class="counter" id="counter">1 / 1</div>
               </div>
 
@@ -469,14 +474,14 @@
                 <div class="qtyRow">
                   <label>Quantity</label>
                   <div class="qty">
-                    <button id="minus">−</button>
+                    <button id="minus" type="button">−</button>
                     <input id="qty" value="1" inputmode="numeric" />
-                    <button id="plus">+</button>
+                    <button id="plus" type="button">+</button>
                   </div>
                 </div>
 
-                <button class="btn2" id="addBtn">Add to cart</button>
-                <button class="btn" id="buyBtn">Buy now</button>
+                <button class="btn2" id="addBtn" type="button">Add to cart</button>
+                <button class="btn" id="buyBtn" type="button">Buy now</button>
               </div>
             </div>
           </aside>
@@ -493,7 +498,6 @@
 <script>
   const API_PRODUCT = "/api/product";
 
-  // cart storage compatible with index.html
   const CART_KEY = "mp_cart";
   function readCart(){
     try{
@@ -508,7 +512,6 @@
 
   const el = (id) => document.getElementById(id);
 
-  // toast
   const toastEl = el("toast");
   const toastTitle = el("toastTitle");
   const toastMsg = el("toastMsg");
@@ -541,7 +544,6 @@
     return q;
   }
 
-  // gallery elements
   const hero = el("hero");
   const heroInner = el("heroInner");
   const carousel = el("carousel");
@@ -557,7 +559,6 @@
     const hasMany = n > 1;
     counter.style.display = n >= 2 ? "block" : "none";
     counter.textContent = `${Math.min(currentIndex+1, n)} / ${n}`;
-
     prevBtn.disabled = !hasMany || currentIndex <= 0;
     nextBtn.disabled = !hasMany || currentIndex >= n-1;
   }
