@@ -19,7 +19,18 @@
       --panel: rgba(0,0,0,.28);
       --panelHover: rgba(255,255,255,.05);
     }
+
     *{box-sizing:border-box}
+
+    /* ✅ mobile tap highlight off */
+    *{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
+    html{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
+    a, button, input, select, textarea{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
+    button, a{ touch-action: manipulation; -webkit-user-select:none; user-select:none; }
+    button:focus{ outline:none; }
+    :focus:not(:focus-visible){ outline:none; }
+    button::-moz-focus-inner{ border:0; }
+
     html,body{height:100%}
     body{
       margin:0;
@@ -29,6 +40,7 @@
                   var(--bg);
       color:var(--text);
       overflow:hidden;
+      overscroll-behavior: none;
     }
 
     /* nicer dark scrollbars */
@@ -121,7 +133,16 @@
       text-align:center;
     }
 
-    .content{padding:18px; overflow:auto; min-height:0;}
+    .content{
+      padding:18px;
+      overflow:auto;
+      min-height:0;
+      overscroll-behavior: none;
+
+      /* ✅ ключевое: чтобы низ (Buy now) не уходил под панель браузера */
+      padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px) + 22px);
+    }
+
     .wrap{
       display:grid;
       grid-template-columns: 1.2fr .8fr;
@@ -134,7 +155,10 @@
       body{overflow:auto}
       .main{height:auto; min-height:100vh}
       .wrap{grid-template-columns:1fr}
-      .content{padding:14px}
+      .content{
+        padding:14px;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px) + 28px);
+      }
     }
 
     .panel{
@@ -241,12 +265,11 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    /* ✅ Airtable-like description formatting */
     .meta{
       color:var(--muted);
       font-size:13px;
       line-height:1.65;
-      white-space: pre-wrap; /* keep line breaks */
+      white-space: pre-wrap;
       word-break: break-word;
       margin-top:8px;
     }
@@ -277,7 +300,7 @@
     }
     .sold{background:rgba(239,68,68,.22); border-color:rgba(239,68,68,.28)}
 
-    .actions{display:grid; gap:10px; margin-top:14px;}
+    .actions{display:grid; gap:10px; margin-top:14px; position:relative; z-index:1;}
     .qtyRow{display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .qtyRow label{color:var(--muted); font-size:13px}
     .qty{
@@ -315,6 +338,10 @@
       font-weight:950;
       box-shadow: 0 10px 18px rgba(34,197,94,.18);
       transition: filter .15s ease, transform .15s ease;
+
+      /* ✅ моб. страховка */
+      display:block;
+      width:100%;
     }
     .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
     .btn:disabled{
@@ -333,6 +360,9 @@
       color:var(--text);
       font-weight:950;
       transition: background .15s ease, transform .15s ease;
+
+      display:block;
+      width:100%;
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
@@ -404,8 +434,8 @@
                   </div>
                 </div>
 
-                <button class="navBtn navPrev" id="prevBtn" aria-label="Previous image">←</button>
-                <button class="navBtn navNext" id="nextBtn" aria-label="Next image">→</button>
+                <button class="navBtn navPrev" id="prevBtn" type="button" aria-label="Previous image">←</button>
+                <button class="navBtn navNext" id="nextBtn" type="button" aria-label="Next image">→</button>
                 <div class="counter" id="counter">1 / 1</div>
               </div>
 
@@ -430,14 +460,14 @@
                 <div class="qtyRow">
                   <label>Quantity</label>
                   <div class="qty">
-                    <button id="minus">−</button>
+                    <button id="minus" type="button">−</button>
                     <input id="qty" value="1" inputmode="numeric" />
-                    <button id="plus">+</button>
+                    <button id="plus" type="button">+</button>
                   </div>
                 </div>
 
-                <button class="btn2" id="addBtn">Add to cart</button>
-                <button class="btn" id="buyBtn">Buy now</button>
+                <button class="btn2" id="addBtn" type="button">Add to cart</button>
+                <button class="btn" id="buyBtn" type="button">Buy now</button>
               </div>
             </div>
           </aside>
@@ -454,7 +484,6 @@
 <script>
   const API_PRODUCT = "/api/product";
 
-  // cart storage compatible with index.html
   const CART_KEY = "mp_cart";
   function readCart(){
     try{
@@ -469,7 +498,6 @@
 
   const el = (id) => document.getElementById(id);
 
-  // toast
   const toastEl = el("toast");
   const toastTitle = el("toastTitle");
   const toastMsg = el("toastMsg");
@@ -502,7 +530,6 @@
     return q;
   }
 
-  // gallery elements
   const hero = el("hero");
   const heroInner = el("heroInner");
   const carousel = el("carousel");
@@ -518,7 +545,6 @@
     const hasMany = n > 1;
     counter.style.display = n >= 2 ? "block" : "none";
     counter.textContent = `${Math.min(currentIndex+1, n)} / ${n}`;
-
     prevBtn.disabled = !hasMany || currentIndex <= 0;
     nextBtn.disabled = !hasMany || currentIndex >= n-1;
   }
@@ -634,7 +660,6 @@
     window.addEventListener("resize", () => scrollToIndex(currentIndex, false));
   }
 
-  // parallax (desktop only)
   function setupParallax(){
     const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) return;
@@ -747,7 +772,6 @@
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
 
-    // ✅ keep Airtable-like line breaks
     el("desc").textContent = (p.description || "").trim();
 
     const chips = [];
