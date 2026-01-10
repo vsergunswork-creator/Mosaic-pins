@@ -2,22 +2,25 @@
 // GET /api/products
 // Returns: { products: [...] }
 
-export async function onRequestGet({ env, request }) {
+export async function onRequestGet({ env }) {
   try {
-    must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
-    must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
-    must(env.AIRTABLE_TABLE_NAME, "AIRTABLE_TABLE_NAME");
+    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
+    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
+    if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
 
     const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
+    const table = env.AIRTABLE_TABLE_NAME;
+
+    // ✅ у Вас поле Active есть
+    const filterByFormula = "{Active}=TRUE()";
 
     const records = await airtableFetchAll({
       token: env.AIRTABLE_TOKEN,
       baseId: env.AIRTABLE_BASE_ID,
-      table: env.AIRTABLE_TABLE_NAME,
-      // у Вас поле Active есть ✅
-      filterByFormula: "{Active}=TRUE()",
+      table,
+      filterByFormula,
       pageSize: 100,
-      maxPagesGuard: 200, // 200*100=20000 товаров (огромный запас)
+      maxPagesGuard: 60, // 60*100 = 6000 товаров (с запасом)
     });
 
     const products = records
@@ -27,11 +30,19 @@ export async function onRequestGet({ env, request }) {
         const pin = String(f[pinField] || "").trim();
         if (!pin) return null;
 
+        const title = String(f["Title"] || "Untitled");
+        const stock = toInt(f["Stock"], 0);
+
+        const price = {
+          EUR: asNumberOrNull(f["Price_EUR"]),
+          USD: asNumberOrNull(f["Price_USD"]),
+        };
+
         const images = extractImageUrls(f["Images"]);
 
         return {
           pin,
-          title: String(f["Title"] || "Untitled"),
+          title,
 
           description: String(f["Description"] || ""),
           type: f["Type"] ?? null,
@@ -39,33 +50,27 @@ export async function onRequestGet({ env, request }) {
           color: f["Color"] ?? null,
           materials: Array.isArray(f["Materials"]) ? f["Materials"] : [],
 
-          stock: toInt(f["Stock"], 0),
-          price: {
-            EUR: asNumberOrNull(f["Price_EUR"]),
-            USD: asNumberOrNull(f["Price_USD"]),
-          },
+          stock,
+          price,
           images,
         };
       })
       .filter(Boolean);
 
-    return json(
-      { products },
-      200,
-      { "Cache-Control": "public, max-age=60" }
-    );
+    return new Response(JSON.stringify({ products }), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "public, max-age=60",
+      },
+    });
   } catch (e) {
-    return json({ error: "Server error", details: String(e?.message || e) }, 500);
+    return json({ error: "Server error", details: String(e) }, 500);
   }
 }
 
-// -------- helpers --------
+// ---------------- Helpers ----------------
 
-function must(v, name) {
-  if (!v) throw new Error(`${name} is not set`);
-}
-
-async function airtableFetchAll({ token, baseId, table, filterByFormula, pageSize = 100, maxPagesGuard = 100 }) {
+async function airtableFetchAll({ token, baseId, table, filterByFormula, pageSize = 100, maxPagesGuard = 60 }) {
   const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
 
   let all = [];
@@ -82,7 +87,7 @@ async function airtableFetchAll({ token, baseId, table, filterByFormula, pageSiz
     });
 
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(`Airtable error: ${r.status} ${JSON.stringify(data)}`);
+    if (!r.ok) throw new Error(`Airtable error: ${JSON.stringify(data)}`);
 
     const records = Array.isArray(data.records) ? data.records : [];
     all = all.concat(records);
@@ -110,9 +115,9 @@ function toInt(v, fallback = 0) {
   return Math.floor(n);
 }
 
-function json(obj, status = 200, extraHeaders = {}) {
+function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...extraHeaders },
+    headers: { "Content-Type": "application/json; charset=utf-8" },
   });
 }
