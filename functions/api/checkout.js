@@ -2,7 +2,9 @@
 // POST /api/checkout
 // body: { currency: "EUR"|"USD", items: [{ pin: "G7N21g", qty: 1 }, ...] }
 
-export async function onRequestPost({ env, request }) {
+export async function onRequestPost(ctx) {
+  const { request, env } = ctx;
+
   // --- CORS ---
   const origin = request.headers.get("Origin") || "*";
   const corsHeaders = {
@@ -18,28 +20,35 @@ export async function onRequestPost({ env, request }) {
   }
 
   try {
-    must(env.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY");
-    must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
-    must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
-    must(env.AIRTABLE_TABLE_NAME, "AIRTABLE_TABLE_NAME");
-
     const body = await request.json().catch(() => ({}));
     const currency = String(body.currency || "EUR").toUpperCase();
-    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const items = Array.isArray(body.items) ? body.items : [];
 
     if (!["EUR", "USD"].includes(currency)) {
       return json({ ok: false, error: "Invalid currency" }, 400, corsHeaders);
     }
-    if (!rawItems.length) {
+    if (!items.length) {
       return json({ ok: false, error: "Cart is empty" }, 400, corsHeaders);
     }
 
-    // normalize cart: merge same pins, accept qty OR quantity
-    const cartMap = new Map(); // pin -> qty
-    for (const it of rawItems) {
+    // --- ENV ---
+    const STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY;
+    const SITE_URL = (env.SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
+
+    const AIRTABLE_TOKEN = env.AIRTABLE_TOKEN;
+    const AIRTABLE_BASE_ID = env.AIRTABLE_BASE_ID;
+    const AIRTABLE_TABLE = env.AIRTABLE_TABLE_NAME;
+
+    if (!STRIPE_SECRET_KEY) return json({ ok: false, error: "STRIPE_SECRET_KEY is not set" }, 500, corsHeaders);
+    if (!AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500, corsHeaders);
+    if (!AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500, corsHeaders);
+    if (!AIRTABLE_TABLE) return json({ ok: false, error: "AIRTABLE_TABLE_NAME is not set" }, 500, corsHeaders);
+
+    // --- normalize cart (sum qty by pin) ---
+    const cartMap = new Map();
+    for (const it of items) {
       const pin = String(it?.pin || "").trim();
-      let qty = it?.qty ?? it?.quantity ?? 0;
-      qty = Math.floor(Number(qty));
+      let qty = Math.floor(Number(it?.qty || 0));
       if (!pin) continue;
       if (!Number.isFinite(qty) || qty <= 0) continue;
       if (qty > 99) qty = 99;
@@ -49,35 +58,38 @@ export async function onRequestPost({ env, request }) {
 
     const pins = [...cartMap.keys()];
 
-    // fetch products from Airtable by pins (Active=TRUE())
+    // --- 1) Fetch products from Airtable by PIN Code ---
     const records = await airtableFetchByPins({
-      token: env.AIRTABLE_TOKEN,
-      baseId: env.AIRTABLE_BASE_ID,
-      table: env.AIRTABLE_TABLE_NAME,
-      pinField: env.AIRTABLE_PIN_FIELD || "PIN Code",
+      token: AIRTABLE_TOKEN,
+      baseId: AIRTABLE_BASE_ID,
+      table: AIRTABLE_TABLE,
       pins,
     });
 
     const byPin = new Map();
     for (const rec of records) {
       const f = rec.fields || {};
-      const pin = String(f[env.AIRTABLE_PIN_FIELD || "PIN Code"] ?? "").trim();
+      const pin = String(f["PIN Code"] ?? "").trim();
       if (!pin) continue;
+
+      const stock = Number(f["Stock"] ?? 0);
+      const priceEUR = Number(f["Price_EUR"]);
+      const priceUSD = Number(f["Price_USD"]);
+      const title = String(f["Title"] ?? pin);
 
       byPin.set(pin, {
         recordId: rec.id,
         pin,
-        title: String(f["Title"] ?? pin),
-        stock: toInt(f["Stock"], 0),
-        priceEUR: asNumberOrNull(f["Price_EUR"]),
-        priceUSD: asNumberOrNull(f["Price_USD"]),
-        image: firstImageUrl(f["Images"]),
-        diameter: f["Diameter"] ?? null,
+        title,
+        stock: Number.isFinite(stock) ? stock : 0,
+        priceEUR: Number.isFinite(priceEUR) ? priceEUR : null,
+        priceUSD: Number.isFinite(priceUSD) ? priceUSD : null,
       });
     }
 
+    // --- 2) Validate cart + build Stripe line_items ---
     const line_items = [];
-    const metaItems = []; // [{recordId, pin, qty}]
+    const metaItems = []; // for webhook stock update
 
     for (const pin of pins) {
       const qty = cartMap.get(pin);
@@ -86,7 +98,11 @@ export async function onRequestPost({ env, request }) {
       if (!p) return json({ ok: false, error: `Product not found: ${pin}` }, 404, corsHeaders);
       if (!(p.stock > 0)) return json({ ok: false, error: `Sold out: ${pin}` }, 409, corsHeaders);
       if (qty > p.stock) {
-        return json({ ok: false, error: `Not enough stock for ${pin}. Available: ${p.stock}` }, 409, corsHeaders);
+        return json(
+          { ok: false, error: `Not enough stock for ${pin}. Available: ${p.stock}` },
+          409,
+          corsHeaders
+        );
       }
 
       const unit = currency === "EUR" ? p.priceEUR : p.priceUSD;
@@ -101,8 +117,6 @@ export async function onRequestPost({ env, request }) {
           unit_amount: Math.round(unit * 100),
           product_data: {
             name: `${p.title} • ${p.pin}`,
-            description: p.diameter != null ? `Ø ${p.diameter} mm` : undefined,
-            images: p.image ? [p.image] : undefined,
           },
         },
       });
@@ -110,19 +124,16 @@ export async function onRequestPost({ env, request }) {
       metaItems.push({ recordId: p.recordId, pin: p.pin, qty });
     }
 
-    const siteOrigin = new URL(request.url).origin;
-    const successUrl = (env.SITE_SUCCESS_URL || `${siteOrigin}/?success=1`);
-    const cancelUrl = (env.SITE_CANCEL_URL || `${siteOrigin}/?canceled=1`);
-
+    // --- 3) Create Stripe Checkout Session ---
     const session = await stripeCreateCheckoutSession({
-      secretKey: env.STRIPE_SECRET_KEY,
+      secretKey: STRIPE_SECRET_KEY,
       payload: {
         mode: "payment",
-        success_url: successUrl,
-        cancel_url: cancelUrl,
         line_items,
+        success_url: `${SITE_URL}/?success=1`,
+        cancel_url: `${SITE_URL}/?canceled=1`,
         metadata: {
-          // Stripe metadata только строки:
+          currency,
           items: JSON.stringify(metaItems),
         },
       },
@@ -134,11 +145,7 @@ export async function onRequestPost({ env, request }) {
   }
 }
 
-// -------- helpers --------
-
-function must(v, name) {
-  if (!v) throw new Error(`${name} is not set`);
-}
+// ---------------- Helpers ----------------
 
 function json(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
@@ -147,31 +154,10 @@ function json(obj, status = 200, headers = {}) {
   });
 }
 
-function asNumberOrNull(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function toInt(v, fallback = 0) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.floor(n);
-}
-
-function firstImageUrl(v) {
-  if (!Array.isArray(v)) return null;
-  const u = v?.[0]?.url;
-  return u ? String(u) : null;
-}
-
-async function airtableFetchByPins({ token, baseId, table, pinField, pins }) {
-  // ⚠️ Для корзины обычно мало позиций — формула OR ок.
-  // + фильтруем Active=TRUE()
-  const or = pins
-    .map((p) => `{${pinField}}="${String(p).replace(/"/g, '\\"')}"`)
-    .join(",");
-
-  const formula = `AND({Active}=TRUE(), OR(${or}))`;
+async function airtableFetchByPins({ token, baseId, table, pins }) {
+  // OR({PIN Code}="X",{PIN Code}="Y")
+  const or = pins.map((p) => `{PIN Code}="${String(p).replace(/"/g, '\\"')}"`).join(",");
+  const formula = pins.length ? `OR(${or})` : "FALSE()";
 
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
   url.searchParams.set("filterByFormula", formula);
@@ -206,12 +192,6 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
     form.set(`line_items[${i}][price_data][currency]`, li.price_data.currency);
     form.set(`line_items[${i}][price_data][unit_amount]`, String(li.price_data.unit_amount));
     form.set(`line_items[${i}][price_data][product_data][name]`, li.price_data.product_data.name);
-
-    const desc = li.price_data.product_data.description;
-    if (desc) form.set(`line_items[${i}][price_data][product_data][description]`, String(desc));
-
-    const img0 = li.price_data.product_data.images?.[0];
-    if (img0) form.set(`line_items[${i}][price_data][product_data][images][0]`, String(img0));
   });
 
   const r = await fetch("https://api.stripe.com/v1/checkout/sessions", {
