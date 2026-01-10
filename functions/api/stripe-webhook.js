@@ -1,27 +1,27 @@
 // functions/api/stripe-webhook.js
 // POST /api/stripe-webhook
-// Listen: checkout.session.completed -> decrement Stock in Airtable
+// слушаем checkout.session.completed
+// списываем Stock в Airtable (не ниже 0)
 
 export async function onRequestPost({ env, request }) {
   try {
-    must(env.STRIPE_WEBHOOK_SECRET, "STRIPE_WEBHOOK_SECRET");
-    must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
-    must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
-    must(env.AIRTABLE_TABLE_NAME, "AIRTABLE_TABLE_NAME");
+    if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: "STRIPE_WEBHOOK_SECRET is not set" }, 500);
+    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
+    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
+    if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
 
-    const sigHeader = request.headers.get("stripe-signature");
-    if (!sigHeader) return json({ error: "Missing stripe-signature" }, 400);
+    const sig = request.headers.get("stripe-signature");
+    if (!sig) return json({ error: "Missing stripe-signature" }, 400);
 
     const rawBody = await request.text();
 
-    const verified = await verifyStripeSignature({
+    const ok = await verifyStripeSignature({
       payload: rawBody,
-      header: sigHeader,
+      header: sig,
       secret: env.STRIPE_WEBHOOK_SECRET,
-      toleranceSec: 300, // 5 минут
     });
 
-    if (!verified) return json({ error: "Invalid signature" }, 400);
+    if (!ok) return json({ error: "Invalid signature" }, 400);
 
     const event = JSON.parse(rawBody);
 
@@ -30,12 +30,9 @@ export async function onRequestPost({ env, request }) {
     }
 
     const session = event?.data?.object || {};
-    // важно: не списывать если не paid
-    if (session?.payment_status && String(session.payment_status) !== "paid") {
-      return json({ received: true, note: "payment_status is not paid" });
-    }
+    const meta = session?.metadata || {};
 
-    const itemsJson = String(session?.metadata?.items || "").trim();
+    const itemsJson = String(meta.items || "").trim();
     if (!itemsJson) return json({ received: true, note: "No metadata.items" });
 
     let items;
@@ -47,8 +44,6 @@ export async function onRequestPost({ env, request }) {
 
     if (!Array.isArray(items) || !items.length) return json({ received: true, note: "Empty items" });
 
-    const table = env.AIRTABLE_TABLE_NAME;
-
     for (const it of items) {
       const recordId = String(it?.recordId || "").trim();
       const qty = Math.floor(Number(it?.qty || 0));
@@ -58,7 +53,7 @@ export async function onRequestPost({ env, request }) {
       await decrementStockByRecordIdSafe({
         token: env.AIRTABLE_TOKEN,
         baseId: env.AIRTABLE_BASE_ID,
-        table,
+        table: env.AIRTABLE_TABLE_NAME,
         recordId,
         qty,
       });
@@ -66,27 +61,25 @@ export async function onRequestPost({ env, request }) {
 
     return json({ received: true });
   } catch (e) {
-    return json({ error: "Webhook error", details: String(e?.message || e) }, 500);
+    return json({ error: "Webhook error", details: String(e) }, 500);
   }
 }
 
-function must(v, name) {
-  if (!v) throw new Error(`${name} is not set`);
-}
-
 async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qty }) {
-  const recUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
 
-  // 1) read current
-  const r1 = await fetch(recUrl, { headers: { Authorization: `Bearer ${token}` } });
+  // 1) get current stock
+  const r1 = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   const rec = await r1.json().catch(() => ({}));
   if (!r1.ok) throw new Error(`Airtable get failed: ${r1.status} ${JSON.stringify(rec)}`);
 
   const current = Number(rec?.fields?.Stock ?? 0);
-  const next = Math.max(0, current - qty); // ✅ never negative
+  const next = Math.max(0, current - qty);
 
-  // 2) update
-  const r2 = await fetch(recUrl, {
+  // 2) update stock (never negative)
+  const r2 = await fetch(url, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -99,23 +92,14 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
   if (!r2.ok) throw new Error(`Airtable update failed: ${r2.status} ${JSON.stringify(data)}`);
 }
 
-/**
- * Stripe signature verification (HMAC SHA256)
- * Header: t=timestamp,v1=sig1,v1=sig2,...
- */
-async function verifyStripeSignature({ payload, header, secret, toleranceSec = 300 }) {
-  const parts = String(header).split(",").map(x => x.trim());
-  const tPart = parts.find(p => p.startsWith("t="));
-  const v1Parts = parts.filter(p => p.startsWith("v1="));
+async function verifyStripeSignature({ payload, header, secret }) {
+  const parts = String(header).split(",").map((x) => x.trim());
+  const tPart = parts.find((p) => p.startsWith("t="));
+  const v1Part = parts.find((p) => p.startsWith("v1="));
+  if (!tPart || !v1Part) return false;
 
-  if (!tPart || !v1Parts.length) return false;
-
-  const timestamp = Number(tPart.slice(2));
-  if (!Number.isFinite(timestamp)) return false;
-
-  // tolerance
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - timestamp) > toleranceSec) return false;
+  const timestamp = tPart.slice(2);
+  const sig = v1Part.slice(3);
 
   const signedPayload = `${timestamp}.${payload}`;
 
@@ -127,16 +111,10 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
     false,
     ["sign"]
   );
-
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
   const expected = toHex(mac);
 
-  // Stripe может прислать несколько v1 — принимаем любой совпавший
-  for (const v1 of v1Parts) {
-    const sig = v1.slice(3);
-    if (safeEqual(expected, sig)) return true;
-  }
-  return false;
+  return safeEqual(expected, sig);
 }
 
 function toHex(buf) {
