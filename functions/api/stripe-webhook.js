@@ -1,136 +1,148 @@
-// functions/api/stripe-webhook.js
-// POST /api/stripe-webhook
-// Stripe sends raw body + signature header.
-
-export async function onRequestPost(ctx) {
-  const { request, env } = ctx;
-
-  const STRIPE_WEBHOOK_SECRET = env.STRIPE_WEBHOOK_SECRET;
-  const AIRTABLE_API_KEY = env.AIRTABLE_API_KEY;
-  const AIRTABLE_BASE_ID = env.AIRTABLE_BASE_ID;
-  const AIRTABLE_TABLE = env.AIRTABLE_TABLE || env.AIRTABLE_TABLE_NAME || "Products";
-
-  if (!STRIPE_WEBHOOK_SECRET || !AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_TABLE) {
-    return new Response("Webhook env not configured", { status: 500 });
-  }
-
-  const sig = request.headers.get("stripe-signature");
-  if (!sig) return new Response("Missing stripe-signature", { status: 400 });
-
-  const rawBody = await request.text();
-
-  // 1) Verify signature
-  const ok = await stripeVerifyWebhookSignature({
-    payload: rawBody,
-    signatureHeader: sig,
-    secret: STRIPE_WEBHOOK_SECRET,
-  });
-
-  if (!ok) return new Response("Invalid signature", { status: 400 });
-
-  // 2) Parse event
-  const event = JSON.parse(rawBody);
-
-  // Нам важен успешный платёж:
-  // checkout.session.completed
-  if (event?.type !== "checkout.session.completed") {
-    return new Response("Ignored", { status: 200 });
-  }
-
-  const session = event?.data?.object;
-  const meta = session?.metadata || {};
-  const itemsStr = meta.items || "[]";
-
-  let items = [];
+export async function onRequestPost({ env, request }) {
   try {
-    items = JSON.parse(itemsStr);
-    if (!Array.isArray(items)) items = [];
-  } catch (_) {
-    items = [];
+    if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: "STRIPE_WEBHOOK_SECRET is not set" }, 500);
+    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
+    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
+    if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
+
+    const sig = request.headers.get("stripe-signature");
+    if (!sig) return json({ error: "Missing stripe-signature" }, 400);
+
+    const rawBody = await request.text();
+
+    const ok = await verifyStripeSignature({
+      payload: rawBody,
+      header: sig,
+      secret: env.STRIPE_WEBHOOK_SECRET,
+    });
+
+    if (!ok) return json({ error: "Invalid signature" }, 400);
+
+    const event = JSON.parse(rawBody);
+
+    // We only need completed checkout for stock update
+    if (event?.type !== "checkout.session.completed") {
+      return json({ received: true });
+    }
+
+    const session = event?.data?.object || {};
+    const meta = session?.metadata || {};
+
+    const itemsStr = String(meta.items || "").trim(); // "PIN:QTY,PIN2:QTY2"
+    if (!itemsStr) {
+      // Нечего списывать — просто подтверждаем, чтобы Stripe не ретраил бесконечно
+      return json({ received: true, note: "No metadata.items" });
+    }
+
+    const items = parseItems(itemsStr); // [{pin, qty}]
+    if (!items.length) {
+      return json({ received: true, note: "No parsable items" });
+    }
+
+    // ✅ списываем Stock в Airtable (без ухода в минус)
+    for (const it of items) {
+      await decrementStockSafe(env, it.pin, it.qty);
+    }
+
+    return json({ received: true });
+  } catch (e) {
+    // Важно: если вернуть 500 — Stripe будет ретраить.
+    // Но чтобы не делать двойные списания, мы списываем безопасно и идем дальше.
+    return json({ error: "Webhook error", details: String(e) }, 500);
   }
+}
 
-  if (!items.length) {
-    return new Response("No items", { status: 200 });
-  }
-
-  // 3) Update Airtable stock: Stock = max(0, Stock - qty)
-  for (const it of items) {
-    const recordId = String(it?.recordId || "").trim();
-    const qty = Number(it?.qty || 0);
-
-    if (!recordId) continue;
+function parseItems(s) {
+  // "PIN:2,PIN2:1"
+  const out = [];
+  for (const part of String(s).split(",")) {
+    const p = part.trim();
+    if (!p) continue;
+    const [pinRaw, qtyRaw] = p.split(":");
+    const pin = String(pinRaw || "").trim();
+    let qty = Math.floor(Number(qtyRaw || 0));
+    if (!pin) continue;
     if (!Number.isFinite(qty) || qty <= 0) continue;
+    if (qty > 99) qty = 99;
+    out.push({ pin, qty });
+  }
+  return out;
+}
 
-    // читаем текущий Stock
-    const current = await airtableGetRecord({
-      apiKey: AIRTABLE_API_KEY,
-      baseId: AIRTABLE_BASE_ID,
-      table: AIRTABLE_TABLE,
-      recordId,
-    });
-
-    const fields = current?.fields || {};
-    const stockNow = Number(fields.Stock ?? 0);
-    const safeNow = Number.isFinite(stockNow) ? stockNow : 0;
-
-    const next = Math.max(0, safeNow - Math.floor(qty));
-
-    // пишем обратно
-    await airtablePatchRecord({
-      apiKey: AIRTABLE_API_KEY,
-      baseId: AIRTABLE_BASE_ID,
-      table: AIRTABLE_TABLE,
-      recordId,
-      fields: { Stock: next },
-    });
+async function decrementStockSafe(env, pin, qty) {
+  const rec = await findAirtableRecordByPin(env, pin);
+  if (!rec) {
+    // нет записи — пропускаем, чтобы webhook не падал
+    console.warn("[stock] Record not found for PIN:", pin);
+    return;
   }
 
-  return new Response("OK", { status: 200 });
+  const currentStock = Number(rec.fields?.Stock ?? 0);
+  const nextStock = Math.max(0, currentStock - qty); // ✅ никогда не минус
+
+  if (currentStock < qty) {
+    // Это редкий случай гонки (кто-то купил последний раньше).
+    // Мы НЕ уходим в минус — просто ставим 0 и логируем.
+    console.warn(`[stock] Oversold prevented for ${pin}. current=${currentStock}, need=${qty}. Setting to 0.`);
+  }
+
+  await updateAirtableStock(env, rec.id, nextStock);
 }
 
-// ---------------- Helpers ----------------
+async function findAirtableRecordByPin(env, pin) {
+  const baseUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`;
+  const apiUrl = new URL(baseUrl);
+  // PIN Code = '...'
+  apiUrl.searchParams.set("maxRecords", "1");
+  apiUrl.searchParams.set("filterByFormula", `{PIN Code}='${escapeAirtableString(pin)}'`);
 
-async function airtableGetRecord({ apiKey, baseId, table, recordId }) {
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
-  if (!r.ok) throw new Error(`Airtable get failed: ${r.status} ${await r.text()}`);
-  return r.json();
+  const r = await fetch(apiUrl.toString(), {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(`Airtable find error: ${JSON.stringify(data)}`);
+
+  const rec = (data.records || [])[0];
+  return rec || null;
 }
 
-async function airtablePatchRecord({ apiKey, baseId, table, recordId, fields }) {
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
+async function updateAirtableStock(env, recordId, stock) {
+  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}/${recordId}`;
+
   const r = await fetch(url, {
     method: "PATCH",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${env.AIRTABLE_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields: { Stock: Number(stock) } }),
   });
-  if (!r.ok) throw new Error(`Airtable patch failed: ${r.status} ${await r.text()}`);
-  return r.json();
+
+  const data = await r.json();
+  if (!r.ok) throw new Error(`Airtable update error: ${JSON.stringify(data)}`);
+  return data;
 }
 
-// Stripe webhook signature verification (HMAC SHA256) for Cloudflare Workers
-async function stripeVerifyWebhookSignature({ payload, signatureHeader, secret }) {
-  // Header looks like: "t=123456,v1=abcdef,v0=..."
-  const parts = String(signatureHeader).split(",").map((s) => s.trim());
-  const tPart = parts.find((p) => p.startsWith("t="));
-  const v1Part = parts.find((p) => p.startsWith("v1="));
+function escapeAirtableString(s) {
+  // Airtable formula string escaping for single quotes
+  return String(s).replace(/'/g, "\\'");
+}
 
+/**
+ * Stripe signature verification (HMAC SHA256)
+ * Stripe-Signature header: t=timestamp,v1=signature,...
+ */
+async function verifyStripeSignature({ payload, header, secret }) {
+  const parts = String(header).split(",").map(x => x.trim());
+  const tPart = parts.find(p => p.startsWith("t="));
+  const v1Part = parts.find(p => p.startsWith("v1="));
   if (!tPart || !v1Part) return false;
 
   const timestamp = tPart.slice(2);
   const sig = v1Part.slice(3);
 
   const signedPayload = `${timestamp}.${payload}`;
-  const expected = await hmacSha256Hex(secret, signedPayload);
 
-  // timing safe compare
-  return timingSafeEqualHex(expected, sig);
-}
-
-async function hmacSha256Hex(secret, message) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -139,25 +151,34 @@ async function hmacSha256Hex(secret, message) {
     false,
     ["sign"]
   );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-  return bufToHex(sig);
+  const mac = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
+  const expected = toHex(mac);
+
+  // constant-time compare
+  return safeEqual(expected, sig);
 }
 
-function bufToHex(buf) {
+function toHex(buf) {
   const bytes = new Uint8Array(buf);
   let out = "";
-  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  for (let i = 0; i < bytes.length; i++) {
+    out += bytes[i].toString(16).padStart(2, "0");
+  }
   return out;
 }
 
-function timingSafeEqualHex(a, b) {
-  a = String(a || "");
-  b = String(b || "");
+function safeEqual(a, b) {
+  a = String(a);
+  b = String(b);
   if (a.length !== b.length) return false;
-
   let res = 0;
-  for (let i = 0; i < a.length; i++) {
-    res |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
+  for (let i = 0; i < a.length; i++) res |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return res === 0;
+}
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
