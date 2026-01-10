@@ -26,11 +26,16 @@ export async function onRequestPost({ env, request }) {
     }
     if (!merged.size) return json({ error: "No valid items" }, 400);
 
-    // Load active products from Airtable (handles pagination, not only first 100)
+    // Load active products from Airtable (handles pagination)
     const products = await loadProductsFromAirtable(env);
 
     // Build Stripe line_items using price_data (no Stripe Price IDs needed)
     const line_items = [];
+
+    // Also build a compact metadata string for webhook stock update
+    // format: PINCODE:QTY, PIN2:QTY2
+    // (safe for most carts; если будет очень большой — скажите, сделаем через server-side storage)
+    const metaPairs = [];
 
     for (const [pin, qty] of merged.entries()) {
       const p = products.get(pin);
@@ -39,8 +44,6 @@ export async function onRequestPost({ env, request }) {
       const stock = Number(p.stock || 0);
       if (stock <= 0) return json({ error: `Sold out: ${pin}` }, 400);
 
-      const finalQty = Math.min(qty, stock);
-      if (finalQty <= 0) return json({ error: `Sold out: ${pin}` }, 400);
       if (qty > stock) {
         return json({ error: `Not enough stock for ${pin}. Max: ${stock}` }, 400);
       }
@@ -61,13 +64,17 @@ export async function onRequestPost({ env, request }) {
           },
           unit_amount,
         },
-        quantity: finalQty,
+        quantity: qty,
       });
+
+      metaPairs.push(`${pin}:${qty}`);
     }
 
     if (!line_items.length) return json({ error: "No valid items" }, 400);
 
     const origin = new URL(request.url).origin;
+
+    // ✅ можно сделать отдельную страницу success, но пока так:
     const success_url = `${origin}/?success=1`;
     const cancel_url = `${origin}/?canceled=1`;
 
@@ -76,7 +83,10 @@ export async function onRequestPost({ env, request }) {
       success_url,
       cancel_url,
       line_items,
-      // позже добавим shipping_address_collection / shipping_options
+      metadata: {
+        currency,
+        items: metaPairs.join(","), // <-- важно для webhook списания
+      },
     });
 
     return json({ url: session.url });
@@ -115,6 +125,7 @@ async function loadProductsFromAirtable(env) {
         : [];
 
       map.set(pin, {
+        recordId: rec.id,
         pin,
         title: f["Title"] ?? "",
         diameter: f["Diameter"] ?? null,
@@ -143,6 +154,14 @@ async function stripeCreateCheckoutSession(secretKey, payload) {
   form.set("mode", payload.mode);
   form.set("success_url", payload.success_url);
   form.set("cancel_url", payload.cancel_url);
+
+  // metadata
+  if (payload.metadata && typeof payload.metadata === "object") {
+    for (const [k, v] of Object.entries(payload.metadata)) {
+      if (v == null) continue;
+      form.set(`metadata[${k}]`, String(v));
+    }
+  }
 
   payload.line_items.forEach((li, i) => {
     form.set(`line_items[${i}][quantity]`, String(li.quantity));
