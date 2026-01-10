@@ -11,11 +11,14 @@
 
   <script>
     try {
-      localStorage.removeItem("mp_cart");
+      // ✅ лучше чем removeItem: всегда будет валидный массив
+      localStorage.setItem("mp_cart", "[]");
     } catch(e) {}
 
-    // возвращаемся в магазин — он заново загрузит товары и покажет новые остатки
-    location.replace("/?success=1");
+    // ✅ небольшая пауза на “дойти” webhook (опционально)
+    setTimeout(() => {
+      location.replace("/?success=1");
+    }, 500);
   </script>
 </body>
 </html>
