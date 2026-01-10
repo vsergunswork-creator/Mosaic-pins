@@ -741,7 +741,7 @@
         <div id="cartTotal">—</div>
       </div>
       <div class="cartActions">
-        <button class="btn" id="cartCheckout">Checkout (later)</button>
+        <button class="btn" id="cartCheckout">Checkout</button>
         <button class="btn2" id="cartClear">Clear cart</button>
       </div>
     </div>
@@ -754,6 +754,7 @@
 
 <script>
   const API_PRODUCTS = "/api/products";
+  const API_CHECKOUT = "/api/checkout"; // ✅ NEW
 
   const CART_KEY = "mp_cart"; // [{pin, qty, title, image, price, stock}]
   function readCart(){
@@ -943,10 +944,12 @@
       elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
       elCartTotal.textContent = "—";
       elCartCheckout.disabled = true;
+      elCartCheckout.textContent = "Checkout";
       return;
     }
 
     elCartCheckout.disabled = false;
+    elCartCheckout.textContent = "Checkout";
 
     elCartBody.innerHTML = cart.map(it => {
       const img = it.image ? `<img src="${it.image}" alt="${escapeHtml(it.title)}" />` : `<span>—</span>`;
@@ -994,7 +997,42 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-  elCartCheckout.addEventListener("click", () => toast("Checkout", "Next step: server checkout for full cart ✅"));
+
+  /* =========================
+     ✅ REAL CHECKOUT (Stripe)
+  ========================== */
+  async function startCheckout(){
+    const cart = readCart();
+    if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
+
+    const payload = {
+      currency: elCurrency.value,
+      items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+    };
+
+    elCartCheckout.disabled = true;
+    elCartCheckout.textContent = "Redirecting…";
+
+    try{
+      const r = await fetch(API_CHECKOUT, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data?.ok || !data?.url){
+        throw new Error(data?.error || "Checkout failed");
+      }
+
+      window.location.href = data.url;
+    }catch(e){
+      toast("Checkout", String(e?.message || e));
+      elCartCheckout.disabled = false;
+      elCartCheckout.textContent = "Checkout";
+    }
+  }
+  elCartCheckout.addEventListener("click", startCheckout);
 
   function parseDiameter(raw){
     if (raw == null) return { key:null, num:null, display:null, note:null, raw:null };
@@ -1277,6 +1315,30 @@
   updateCartBadge();
   renderCart();
   loadProducts();
+
+  // ✅ Stripe return handling: /?success=1 or /?canceled=1
+  (function handleReturn(){
+    const u = new URL(window.location.href);
+
+    if (u.searchParams.get("success") === "1"){
+      writeCart([]);
+      updateCartBadge();
+      renderCart();
+      toast("Payment", "Success ✅ Stock обновится из Airtable");
+
+      u.searchParams.delete("success");
+      history.replaceState({}, "", u.toString());
+
+      // подтянуть свежий Stock
+      loadProducts();
+    }
+
+    if (u.searchParams.get("canceled") === "1"){
+      toast("Payment", "Canceled");
+      u.searchParams.delete("canceled");
+      history.replaceState({}, "", u.toString());
+    }
+  })();
 </script>
 </body>
 </html>
