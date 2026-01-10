@@ -11,6 +11,8 @@ export async function onRequestPost(ctx) {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    // Если фронт и API на одном домене — credentials не нужны.
+    // Оставляем true только если реально используете cookies/auth через браузер.
     "Access-Control-Allow-Credentials": "true",
     "Vary": "Origin",
   };
@@ -125,13 +127,15 @@ export async function onRequestPost(ctx) {
     }
 
     // --- 3) Create Stripe Checkout Session ---
+    // ✅ Теперь используем ваши страницы success/canceled
+    // А они уже редиректят на /?success=1 и /?canceled=1 для тостов/обновления.
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
       payload: {
         mode: "payment",
         line_items,
-        success_url: `${SITE_URL}/?success=1`,
-        cancel_url: `${SITE_URL}/?canceled=1`,
+        success_url: `${SITE_URL}/success.html`,
+        cancel_url: `${SITE_URL}/canceled.html`,
         metadata: {
           currency,
           items: JSON.stringify(metaItems),
