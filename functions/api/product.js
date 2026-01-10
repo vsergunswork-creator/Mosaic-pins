@@ -1,11 +1,11 @@
 // functions/api/product.js
-// GET /api/product?pin=...
+// GET /api/product?pin=XXXX
 
 export async function onRequestGet({ env, request }) {
   try {
-    must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
-    must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
-    must(env.AIRTABLE_TABLE_NAME, "AIRTABLE_TABLE_NAME");
+    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
+    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
+    if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
 
     const url = new URL(request.url);
     const pin = (url.searchParams.get("pin") || "").trim();
@@ -31,7 +31,7 @@ export async function onRequestGet({ env, request }) {
     if (!rec) return json({ error: "Product not found" }, 404);
 
     const f = rec.fields || {};
-    const images = Array.isArray(f["Images"]) ? f["Images"].map(x => x?.url).filter(Boolean) : [];
+    const images = Array.isArray(f["Images"]) ? f["Images"].map((x) => x?.url).filter(Boolean) : [];
 
     const product = {
       pin: String(f["PIN Code"] || pin),
@@ -41,7 +41,7 @@ export async function onRequestGet({ env, request }) {
       diameter: f["Diameter"] ?? null,
       color: f["Color"] ?? null,
       materials: Array.isArray(f["Materials"]) ? f["Materials"] : [],
-      stock: toInt(f["Stock"], 0),
+      stock: Number(f["Stock"] ?? 0),
       price: {
         EUR: asNumberOrNull(f["Price_EUR"]),
         USD: asNumberOrNull(f["Price_USD"]),
@@ -49,24 +49,10 @@ export async function onRequestGet({ env, request }) {
       images,
     };
 
-    return json(
-      { product },
-      200,
-      { "Cache-Control": "public, max-age=60" }
-    );
+    return json({ product }, 200, { "Cache-Control": "public, max-age=60" });
   } catch (e) {
-    return json({ error: "Server error", details: String(e?.message || e) }, 500);
+    return json({ error: "Server error", details: String(e) }, 500);
   }
-}
-
-function must(v, name) {
-  if (!v) throw new Error(`${name} is not set`);
-}
-
-function toInt(v, fallback = 0) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.floor(n);
 }
 
 function asNumberOrNull(v) {
