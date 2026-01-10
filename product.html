@@ -13,7 +13,6 @@
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
 
-      /* darker overlays */
       --overlay: rgba(0,0,0,.72);
       --overlay2: rgba(0,0,0,.82);
       --panel: rgba(0,0,0,.28);
@@ -22,7 +21,6 @@
 
     *{box-sizing:border-box}
 
-    /* ✅ mobile tap highlight off */
     *{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
     html{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
     a, button, input, select, textarea{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
@@ -43,7 +41,6 @@
       overscroll-behavior: none;
     }
 
-    /* nicer dark scrollbars */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
@@ -133,15 +130,11 @@
       text-align:center;
     }
 
-    /* ✅ UPDATED per your last message */
     .content{
       padding:18px;
       overflow:auto;
       min-height:0;
       overscroll-behavior: none;
-
-      /* ✅ больше места снизу, чтобы Buy now не срезалась */
-      padding-bottom: max(22px, env(safe-area-inset-bottom, 0px)) ;
       padding-bottom: calc(18px + max(34px, env(safe-area-inset-bottom, 0px)) + 40px);
     }
 
@@ -152,19 +145,15 @@
       align-items:start;
     }
 
-    /* ✅ UPDATED per your last message */
     @media (max-width:980px){
       .app{grid-template-columns:1fr}
       .sidebar{display:none}
       body{overflow:auto}
       .main{height:auto; min-height:100vh}
       .wrap{grid-template-columns:1fr}
-
       .content{
         padding:14px;
         overflow:auto;
-
-        /* ✅ на мобилке делаем ещё больше “подушки” */
         padding-bottom: calc(14px + max(44px, env(safe-area-inset-bottom, 0px)) + 56px);
       }
     }
@@ -176,7 +165,6 @@
       overflow:hidden;
     }
 
-    /* Gallery */
     .gallery{padding:12px; display:grid; gap:10px;}
 
     .hero{
@@ -268,7 +256,6 @@
     .t.active{outline:2px solid rgba(34,197,94,.45); opacity:1}
     .t img{width:100%; height:100%; object-fit:cover; display:block;}
 
-    /* Details */
     .details{padding:16px;}
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
@@ -346,7 +333,6 @@
       font-weight:950;
       box-shadow: 0 10px 18px rgba(34,197,94,.18);
       transition: filter .15s ease, transform .15s ease;
-
       display:block;
       width:100%;
     }
@@ -367,7 +353,6 @@
       color:var(--text);
       font-weight:950;
       transition: background .15s ease, transform .15s ease;
-
       display:block;
       width:100%;
     }
@@ -392,7 +377,6 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* ✅ Cart Drawer (same style as shop page) */
     .cartBack{
       position:fixed;
       inset:0;
@@ -543,7 +527,6 @@
         </div>
 
         <div class="topRight">
-          <!-- ✅ теперь это кнопка, открывает drawer -->
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
@@ -608,7 +591,6 @@
     </main>
   </div>
 
-  <!-- ✅ Cart Drawer -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -635,6 +617,7 @@
 
 <script>
   const API_PRODUCT = "/api/product";
+  const API_CHECKOUT = "/api/checkout";
 
   const CART_KEY = "mp_cart";
   function readCart(){
@@ -646,9 +629,10 @@
   }
   function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
   function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
-  function updateCartBadge(){ document.getElementById("cartBadge").textContent = String(cartCount()); }
 
   const el = (id) => document.getElementById(id);
+
+  function updateCartBadge(){ el("cartBadge").textContent = String(cartCount()); }
 
   const toastEl = el("toast");
   const toastTitle = el("toastTitle");
@@ -683,7 +667,7 @@
   }
 
   /* =========================
-     ✅ CART DRAWER LOGIC
+     CART DRAWER
   ========================== */
   const elOpenCart = el("openCart");
   const elCartBack = el("cartBack");
@@ -814,17 +798,16 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-  elCartCheckout.addEventListener("click", () => toast("Checkout", "Next step: server checkout for full cart ✅"));
 
-  // currency change should rerender cart total
+  // пока оставим “later”
+  elCartCheckout.addEventListener("click", () => toast("Checkout", "Cart checkout: next step ✅"));
+
   el("currency").addEventListener("change", () => {
-    // price on page is updated in load() via renderPrice handler (ниже),
-    // а корзина — здесь:
     renderCart();
   });
 
   /* =========================
-     ✅ PRODUCT PAGE LOGIC
+     PRODUCT PAGE
   ========================== */
   const hero = el("hero");
   const heroInner = el("heroInner");
@@ -1029,9 +1012,30 @@
 
     writeCart(cart);
     updateCartBadge();
-    // ✅ если корзина открыта — обновим список
     if (elCartDrawer.classList.contains("show")) renderCart();
     toast("Cart", "Added ✅");
+  }
+
+  async function buyNowOneItem(p, qty){
+    const currency = String(el("currency").value || "EUR").toUpperCase();
+
+    const payload = {
+      currency,
+      items: [{ pin: String(p.pin), qty: Number(qty) || 1 }],
+    };
+
+    const r = await fetch(API_CHECKOUT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await r.json().catch(()=>({}));
+    if (!r.ok || !data?.ok || !data?.url) {
+      throw new Error(data?.error || "Checkout failed");
+    }
+
+    window.location.href = data.url;
   }
 
   async function load(){
@@ -1071,7 +1075,6 @@
 
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
-
     el("desc").textContent = (p.description || "").trim();
 
     const chips = [];
@@ -1118,12 +1121,24 @@
       const quantity = clampQty(qtyInput.value, stock);
       if (stock <= 0) return;
       addToCart(p, quantity);
-      // ✅ удобно: можно сразу открыть корзину после Add (если захотите — скажите)
-      // openCart();
     });
 
-    buyBtn.addEventListener("click", () => {
-      toast("Checkout", "Buy-now stays as-is. Cart checkout is next step ✅");
+    // ✅ BUY NOW = Stripe checkout for this ONE item
+    buyBtn.addEventListener("click", async () => {
+      const quantity = clampQty(qtyInput.value, stock);
+      if (stock <= 0) return;
+
+      buyBtn.disabled = true;
+      const oldText = buyBtn.textContent;
+      buyBtn.textContent = "Redirecting…";
+
+      try{
+        await buyNowOneItem(p, quantity);
+      }catch(e){
+        toast("Checkout", String(e?.message || e));
+        buyBtn.disabled = false;
+        buyBtn.textContent = oldText;
+      }
     });
 
     setupParallax();
