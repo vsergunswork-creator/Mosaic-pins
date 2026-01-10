@@ -1,8 +1,11 @@
+// functions/api/product.js
+// GET /api/product?pin=...
+
 export async function onRequestGet({ env, request }) {
   try {
-    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
-    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
-    if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
+    must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
+    must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
+    must(env.AIRTABLE_TABLE_NAME, "AIRTABLE_TABLE_NAME");
 
     const url = new URL(request.url);
     const pin = (url.searchParams.get("pin") || "").trim();
@@ -11,7 +14,9 @@ export async function onRequestGet({ env, request }) {
     const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
     const formula = `{${pinField}}="${escapeForFormula(pin)}"`;
 
-    const apiUrl = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`);
+    const apiUrl = new URL(
+      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`
+    );
     apiUrl.searchParams.set("maxRecords", "1");
     apiUrl.searchParams.set("filterByFormula", formula);
 
@@ -19,7 +24,7 @@ export async function onRequestGet({ env, request }) {
       headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
     });
 
-    const data = await r.json();
+    const data = await r.json().catch(() => ({}));
     if (!r.ok) return json({ error: "Airtable error", details: data }, 400);
 
     const rec = data?.records?.[0];
@@ -36,21 +41,32 @@ export async function onRequestGet({ env, request }) {
       diameter: f["Diameter"] ?? null,
       color: f["Color"] ?? null,
       materials: Array.isArray(f["Materials"]) ? f["Materials"] : [],
-      stock: Number(f["Stock"] ?? 0),
+      stock: toInt(f["Stock"], 0),
       price: {
         EUR: asNumberOrNull(f["Price_EUR"]),
         USD: asNumberOrNull(f["Price_USD"]),
       },
       images,
-      stripe_price_id: f["Stripe Price ID"] ?? null,
     };
 
-    return json({ product }, 200, {
-      "Cache-Control": "public, max-age=60",
-    });
+    return json(
+      { product },
+      200,
+      { "Cache-Control": "public, max-age=60" }
+    );
   } catch (e) {
-    return json({ error: "Server error", details: String(e) }, 500);
+    return json({ error: "Server error", details: String(e?.message || e) }, 500);
   }
+}
+
+function must(v, name) {
+  if (!v) throw new Error(`${name} is not set`);
+}
+
+function toInt(v, fallback = 0) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.floor(n);
 }
 
 function asNumberOrNull(v) {
@@ -65,6 +81,6 @@ function escapeForFormula(value) {
 function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json", ...extraHeaders },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...extraHeaders },
   });
 }
