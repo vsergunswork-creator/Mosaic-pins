@@ -10,15 +10,13 @@
   <p style="color:#a8b3c7; margin:0 0 18px;">Updating your cart…</p>
 
   <script>
-    try {
-      // ✅ лучше чем removeItem: всегда будет валидный массив
-      localStorage.setItem("mp_cart", "[]");
-    } catch(e) {}
+    // ✅ очищаем корзину
+    try { localStorage.setItem("mp_cart", "[]"); } catch(e) {}
 
-    // ✅ небольшая пауза на “дойти” webhook (опционально)
+    // ✅ возвращаем на главную с флагом, чтобы index.html показал toast + обновил stock
     setTimeout(() => {
       location.replace("/?success=1");
-    }, 500);
+    }, 400);
   </script>
 </body>
 </html>
