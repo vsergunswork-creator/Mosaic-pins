@@ -1,128 +1,239 @@
-export async function onRequestPost(context) {
+// functions/api/checkout.js
+// POST /api/checkout
+// body: { currency: "EUR"|"USD", items: [{ pin: "G7N21g", qty: 1 }, ...] }
+
+export async function onRequestPost(ctx) {
   try {
-    const { request, env } = context;
+    const { request, env } = ctx;
+
+    // --- CORS (чтобы запросы работали нормально) ---
+    const origin = request.headers.get("Origin") || "*";
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Credentials": "true",
+      "Vary": "Origin",
+    };
+
+    // preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
 
     const body = await request.json().catch(() => ({}));
-    const pin = (body.pin || "").trim();
-    const quantity = Number(body.quantity || 1);
     const currency = String(body.currency || "EUR").toUpperCase();
+    const items = Array.isArray(body.items) ? body.items : [];
 
-    if (!pin) return json({ error: "Missing pin" }, 400);
-    if (!["EUR","USD"].includes(currency)) return json({ error: "Unsupported currency" }, 400);
-    if (!Number.isFinite(quantity) || quantity < 1 || quantity > 10) {
-      return json({ error: "Invalid quantity" }, 400);
+    if (!["EUR", "USD"].includes(currency)) {
+      return json({ ok: false, error: "Invalid currency" }, 400, corsHeaders);
+    }
+    if (!items.length) {
+      return json({ ok: false, error: "Cart is empty" }, 400, corsHeaders);
     }
 
-    // обязательные секреты/переменные
-    if (!env.STRIPE_SECRET_KEY) return json({ error: "STRIPE_SECRET_KEY is not set" }, 500);
-    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
-    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
-    if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
-
-    const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
-    const successUrl = env.SITE_SUCCESS_URL || "https://mosaicpins.space/success.html";
-    const cancelUrl = env.SITE_CANCEL_URL || "https://mosaicpins.space/cancel.html";
-
-    // ✅ Названия полей Price ID (лучше задать явно в env)
-    // Например:
-    // STRIPE_PRICE_FIELD_EUR="Stripe Price ID EUR"
-    // STRIPE_PRICE_FIELD_USD="Stripe Price ID USD"
-    const PRICE_FIELD_EUR = env.STRIPE_PRICE_FIELD_EUR || "Stripe Price ID EUR";
-    const PRICE_FIELD_USD = env.STRIPE_PRICE_FIELD_USD || "Stripe Price ID USD";
-
-    // 1) Ищем запись в Airtable по PIN
-    const formula = `{${pinField}}="${escapeForFormula(pin)}"`;
-    const airtableUrl =
-      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}` +
-      `?maxRecords=1&filterByFormula=${encodeURIComponent(formula)}`;
-
-    const aResp = await fetch(airtableUrl, {
-      headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
-    });
-    const aData = await aResp.json();
-
-    if (!aResp.ok) {
-      return json({ error: "Airtable error", details: aData }, 400);
+    // нормализация корзины (суммируем qty по pin)
+    const cartMap = new Map();
+    for (const it of items) {
+      const pin = String(it?.pin || "").trim();
+      const qty = Number(it?.qty || 0);
+      if (!pin) continue;
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+      cartMap.set(pin, (cartMap.get(pin) || 0) + Math.floor(qty));
+    }
+    if (!cartMap.size) {
+      return json({ ok: false, error: "Cart is empty" }, 400, corsHeaders);
     }
 
-    const record = aData?.records?.[0];
-    if (!record) return json({ error: "PIN not found" }, 404);
+    const pins = [...cartMap.keys()];
 
-    const fields = record.fields || {};
-    const active = fields["Active"];
-    if (active === false) return json({ error: "Product is inactive" }, 403);
+    // --- ENV ---
+    const STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY;
+    const SITE_URL = (env.SITE_URL || "").replace(/\/$/, "");
+    const AIRTABLE_API_KEY = env.AIRTABLE_API_KEY;
+    const AIRTABLE_BASE_ID = env.AIRTABLE_BASE_ID;
+    const AIRTABLE_TABLE = env.AIRTABLE_TABLE || env.AIRTABLE_TABLE_NAME || "Products";
 
-    // 2) Берём Price ID по валюте (с fallback на популярные варианты названий)
-    const priceId = pickPriceId(fields, currency, {
-      eur: PRICE_FIELD_EUR,
-      usd: PRICE_FIELD_USD,
+    if (!STRIPE_SECRET_KEY || !SITE_URL || !AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_TABLE) {
+      return json(
+        { ok: false, error: "Server env is not configured (Stripe/Airtable/SITE_URL)" },
+        500,
+        corsHeaders
+      );
+    }
+
+    // --- 1) Берём товары из Airtable по PIN Code ---
+    const records = await airtableFetchByPins({
+      apiKey: AIRTABLE_API_KEY,
+      baseId: AIRTABLE_BASE_ID,
+      table: AIRTABLE_TABLE,
+      pins,
     });
 
-    if (!priceId) {
-      return json({
-        error: `Missing Stripe Price ID for ${currency} in Airtable record`,
-        hint: `Set env STRIPE_PRICE_FIELD_EUR / STRIPE_PRICE_FIELD_USD or rename Airtable fields`,
-      }, 400);
+    // byPin: pin -> { recordId, title, stock, priceEUR, priceUSD }
+    const byPin = new Map();
+    for (const rec of records) {
+      const fields = rec.fields || {};
+      const pin = String(fields["PIN Code"] ?? "").trim();
+      if (!pin) continue;
+
+      const stock = Number(fields.Stock ?? 0);
+      const priceEUR = Number(fields.Price_EUR);
+      const priceUSD = Number(fields.Price_USD);
+
+      const title = String(fields.Title ?? fields.title ?? fields.Name ?? fields.name ?? pin);
+
+      byPin.set(pin, {
+        recordId: rec.id,
+        pin,
+        title,
+        stock: Number.isFinite(stock) ? stock : 0,
+        priceEUR: Number.isFinite(priceEUR) ? priceEUR : null,
+        priceUSD: Number.isFinite(priceUSD) ? priceUSD : null,
+      });
     }
 
-    // 3) Создаём Stripe Checkout Session
-    const params = new URLSearchParams();
-    params.set("mode", "payment");
-    params.append("payment_method_types[]", "card");
-    params.set("success_url", successUrl);
-    params.set("cancel_url", cancelUrl);
+    // --- 2) Валидация корзины и формирование line_items для Stripe ---
+    const line_items = [];
+    const orderItemsForMeta = []; // для webhook: [{recordId, pin, qty}...]
 
-    params.append("line_items[0][price]", priceId);
-    params.append("line_items[0][quantity]", String(quantity));
+    for (const pin of pins) {
+      const qty = cartMap.get(pin);
+      const p = byPin.get(pin);
 
-    const sResp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+      if (!p) {
+        return json({ ok: false, error: `Product not found: ${pin}` }, 404, corsHeaders);
+      }
+      if (!(p.stock > 0)) {
+        return json({ ok: false, error: `Sold out: ${pin}` }, 409, corsHeaders);
+      }
+      if (qty > p.stock) {
+        return json({ ok: false, error: `Not enough stock for ${pin}. Available: ${p.stock}` }, 409, corsHeaders);
+      }
+
+      const unit = currency === "EUR" ? p.priceEUR : p.priceUSD;
+      if (typeof unit !== "number" || !Number.isFinite(unit)) {
+        return json({ ok: false, error: `Missing price for ${pin} (${currency})` }, 500, corsHeaders);
+      }
+
+      line_items.push({
+        quantity: qty,
+        price_data: {
+          currency: currency.toLowerCase(),
+          unit_amount: Math.round(unit * 100), // евро/доллар -> центы
+          product_data: {
+            name: p.title,
+            metadata: { pin: p.pin },
+          },
+        },
+      });
+
+      orderItemsForMeta.push({ recordId: p.recordId, pin: p.pin, qty });
+    }
+
+    // --- 3) Создаём Stripe Checkout Session ---
+    const session = await stripeCreateCheckoutSession({
+      secretKey: STRIPE_SECRET_KEY,
+      payload: {
+        mode: "payment",
+        line_items,
+        success_url: `${SITE_URL}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${SITE_URL}/cancel.html`,
+        // ВАЖНО: всё нужное для списания стока храним в metadata
+        metadata: {
+          currency,
+          items: JSON.stringify(orderItemsForMeta),
+        },
       },
-      body: params.toString(),
     });
 
-    const sData = await sResp.json();
-
-    if (!sResp.ok) {
-      return json({ error: sData?.error?.message || "Stripe error", details: sData }, 400);
-    }
-
-    return json({ url: sData.url, pin, currency, recordId: record.id });
+    return json({ ok: true, url: session.url }, 200, corsHeaders);
   } catch (e) {
-    return json({ error: e?.message || "Server error" }, 500);
+    return json({ ok: false, error: String(e?.message || e) }, 500, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
   }
 }
 
-function pickPriceId(fields, currency, cfg){
-  // 1) Prefer env-configured exact field names:
-  const direct = (currency === "EUR") ? fields[cfg.eur] : fields[cfg.usd];
-  if (typeof direct === "string" && direct.trim()) return direct.trim();
+// ---------------- Helpers ----------------
 
-  // 2) Fallback common naming patterns:
-  const candidates = currency === "EUR"
-    ? ["Stripe Price ID EUR","Stripe Price ID (EUR)","Stripe Price EUR","Stripe Price ID - EUR","Stripe Price ID_EUR","Stripe Price ID"]
-    : ["Stripe Price ID USD","Stripe Price ID (USD)","Stripe Price USD","Stripe Price ID - USD","Stripe Price ID_USD","Stripe Price ID"];
-
-  for (const k of candidates){
-    const v = fields[k];
-    if (typeof v === "string" && v.trim()) return v.trim();
-  }
-  return null;
-}
-
-function json(obj, status = 200) {
+function json(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
   });
 }
 
-function escapeForFormula(value) {
-  return String(value).replace(/"/g, '\\"');
+// Airtable: берём записи по PIN Code через filterByFormula
+async function airtableFetchByPins({ apiKey, baseId, table, pins }) {
+  // OR({PIN Code}="X",{PIN Code}="Y")
+  const or = pins
+    .map((p) => `{PIN Code}="${String(p).replace(/"/g, '\\"')}"`)
+    .join(",");
+  const formula = pins.length ? `OR(${or})` : "FALSE()";
+
+  const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
+  url.searchParams.set("filterByFormula", formula);
+  url.searchParams.set("pageSize", "100");
+
+  const r = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`Airtable fetch failed: ${r.status} ${t}`);
+  }
+
+  const data = await r.json();
+  return Array.isArray(data.records) ? data.records : [];
+}
+
+// Stripe create session (без SDK, через fetch)
+async function stripeCreateCheckoutSession({ secretKey, payload }) {
+  const form = new URLSearchParams();
+
+  // mode
+  form.set("mode", payload.mode);
+
+  // urls
+  form.set("success_url", payload.success_url);
+  form.set("cancel_url", payload.cancel_url);
+
+  // metadata
+  if (payload.metadata) {
+    for (const [k, v] of Object.entries(payload.metadata)) {
+      form.set(`metadata[${k}]`, String(v));
+    }
+  }
+
+  // line_items
+  (payload.line_items || []).forEach((li, i) => {
+    form.set(`line_items[${i}][quantity]`, String(li.quantity));
+    form.set(`line_items[${i}][price_data][currency]`, li.price_data.currency);
+    form.set(`line_items[${i}][price_data][unit_amount]`, String(li.price_data.unit_amount));
+    form.set(`line_items[${i}][price_data][product_data][name]`, li.price_data.product_data.name);
+
+    const md = li.price_data.product_data.metadata || {};
+    for (const [k, v] of Object.entries(md)) {
+      form.set(`line_items[${i}][price_data][product_data][metadata][${k}]`, String(v));
+    }
+  });
+
+  const r = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: form.toString(),
+  });
+
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    throw new Error(`Stripe error: ${data?.error?.message || r.statusText}`);
+  }
+  return data;
 }
