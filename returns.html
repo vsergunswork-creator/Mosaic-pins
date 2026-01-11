@@ -1,40 +1,254 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Returns & Refunds</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Returns • Mosaic Pins</title>
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --text:#e9eef7;
+      --muted:#a8b3c7;
+      --line:rgba(255,255,255,.08);
+      --shadow: 0 12px 30px rgba(0,0,0,.45);
+      --r:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--bg);
+      color:var(--text);
+      overflow:auto;
+      position:relative;
+      isolation:isolate;
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20vh -20vw;
+      z-index:-1;
+      pointer-events:none;
+      background:
+        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+        var(--bg);
+      filter: blur(18px) saturate(1.05);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    /* scrollbars */
+    *{scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);}
+    *::-webkit-scrollbar{width:10px;height:10px}
+    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
+    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
+    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: calc(18px + env(safe-area-inset-top)) 16px 24px;
+    }
+
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.45);
+      overflow:hidden;
+    }
+
+    .topbar{
+      padding: 16px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.3px;}
+    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
+
+    .nav{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .nav a{
+      text-decoration:none;
+      color:var(--muted);
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid transparent;
+      background: rgba(0,0,0,.22);
+    }
+    .nav a:hover{color:var(--text); background: rgba(255,255,255,.06);}
+    .nav a.active{
+      color:var(--text);
+      border-color: rgba(34,197,94,.22);
+      background: rgba(34,197,94,.12);
+    }
+
+    .content{
+      padding: 18px;
+    }
+
+    h1{
+      margin: 0 0 10px;
+      font-size: 22px;
+      font-weight: 950;
+      letter-spacing:.2px;
+    }
+    .sub{
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width:760px){
+      .grid{grid-template-columns:1fr}
+    }
+
+    .card{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 16px;
+      background: rgba(0,0,0,.22);
+      padding: 14px 14px;
+    }
+    .card h2{
+      margin:0 0 8px;
+      font-size: 14px;
+      font-weight: 950;
+    }
+    .card p, .card li{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .card ul{margin:10px 0 0 18px; padding:0;}
+
+    .note{
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border:1px solid rgba(34,197,94,.22);
+      background: rgba(34,197,94,.10);
+      color: var(--text);
+    }
+    .note small{color: var(--muted); display:block; margin-top:6px}
+
+    .footer{
+      padding: 12px 18px;
+      border-top:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.20);
+      color: var(--muted);
+      font-size: 12px;
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .footer a{color: var(--text); text-decoration:none; opacity:.9;}
+    .footer a:hover{opacity:1}
+    .sep{opacity:.35}
+  </style>
 </head>
+
 <body>
-  <main style="max-width: 800px; margin: 40px auto; font-family: Arial, sans-serif;">
-    <h1>Returns & Refunds Policy</h1>
+  <div class="wrap">
+    <div class="panel">
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span> Mosaic Pins</div>
+        <nav class="nav">
+          <a href="/index.html">Shop</a>
+          <a href="/shipping.html">Shipping</a>
+          <a class="active" href="/returns.html">Returns</a>
+        </nav>
+      </div>
 
-    <p>
-      You have the right to return your order within
-      <strong>14 days</strong> of receiving the item, in accordance with EU consumer protection laws.
-    </p>
+      <div class="content">
+        <h1>Returns & Refunds</h1>
+        <p class="sub">
+          We want you to be happy with your purchase. If something is wrong, contact us and we’ll help.
+        </p>
 
-    <p>To be eligible for a return:</p>
-    <ul>
-      <li>The item must be unused</li>
-      <li>In original condition and packaging</li>
-    </ul>
+        <div class="grid">
+          <div class="card">
+            <h2>Damaged / wrong item</h2>
+            <p>
+              If your order arrives damaged or you receive the wrong item, please contact us within
+              <b>7 days</b> of delivery.
+            </p>
+            <ul>
+              <li>Include your order details and photos.</li>
+              <li>We will arrange replacement or refund where applicable.</li>
+            </ul>
+          </div>
 
-    <p>
-      To request a return, please contact us before sending the item back:
-      <br />
-      <strong>support@mosaipins.space</strong>
-    </p>
+          <div class="card">
+            <h2>Returns (if accepted)</h2>
+            <p>
+              Returns may be accepted in certain cases. Items must be unused and in original condition.
+            </p>
+            <ul>
+              <li>Return shipping costs are paid by the buyer (unless we made a mistake).</li>
+              <li>We recommend using a tracked service.</li>
+            </ul>
+          </div>
 
-    <p>
-      Refunds will be processed within <strong>7 days</strong> after we receive and inspect the returned item.
-      The refund will be issued to the original payment method.
-    </p>
+          <div class="card">
+            <h2>Refunds</h2>
+            <p>
+              Approved refunds are processed back to the original payment method.
+              Bank processing time can take a few business days.
+            </p>
+          </div>
 
-    <p>
-      Shipping costs are non-refundable unless the return is due to a defect
-      or an error on our part.
-    </p>
-  </main>
+          <div class="card">
+            <h2>How to contact us</h2>
+            <p>
+              Email: <a href="mailto:support@mosaipins.space" style="color:inherit; text-decoration:none; opacity:.95;">support@mosaipins.space</a><br/>
+              Please include: order/session ID (if available) and a short description.
+            </p>
+          </div>
+        </div>
+
+        <div class="note">
+          Important
+          <small>
+            We do not accept returns for custom or personalized items unless they arrive damaged or defective.
+          </small>
+        </div>
+      </div>
+
+      <div class="footer">
+        <a href="/shipping.html">Shipping</a>
+        <span class="sep">|</span>
+        <a href="/returns.html">Returns & Refunds</a>
+        <span class="sep">|</span>
+        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // если пользователь пришёл со Stripe success/canceled на эти страницы — перекинем на главную с тостом
+    (function(){
+      const u = new URL(window.location.href);
+      const ok = u.searchParams.get("success")==="1";
+      const cn = u.searchParams.get("canceled")==="1";
+      if(ok || cn){
+        window.location.replace("/index.html?" + (ok ? "success=1" : "canceled=1"));
+      }
+    })();
+  </script>
 </body>
 </html>
