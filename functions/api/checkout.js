@@ -9,7 +9,6 @@ export function onRequestOptions(ctx) {
 
 export async function onRequestPost(ctx) {
   const { request, env } = ctx;
-
   const headers = corsHeaders(request);
 
   try {
@@ -115,8 +114,24 @@ export async function onRequestPost(ctx) {
       metaItems.push({ recordId: p.recordId, pin: p.pin, qty });
     }
 
-    // ⚠️ Важно: Stripe metadata ограничена (≈500 символов на значение).
-    // Если у Вас корзина может быть очень большой, лучше хранить items в KV по session.id.
+    // --- metadata size safety ---
+    // Stripe metadata values имеют жёсткие лимиты.
+    // Чтобы не было ситуации "оплата прошла, а metadata.items не поместилась -> stock не спишется":
+    const itemsStr = JSON.stringify(metaItems);
+    // Держим консервативно (на практике лимит зависит от API, но лучше не рисковать).
+    if (itemsStr.length > 450) {
+      return json(
+        {
+          ok: false,
+          error:
+            "Cart is too large for checkout metadata. Please reduce items count (or we need to store items in KV by session).",
+        },
+        413,
+        headers
+      );
+    }
+
+    // --- 3) Create Stripe Checkout Session ---
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
       payload: {
@@ -124,9 +139,11 @@ export async function onRequestPost(ctx) {
         line_items,
         success_url: `${SITE_URL}/success.html`,
         cancel_url: `${SITE_URL}/canceled.html`,
+        // удобно для дебага в Stripe:
+        client_reference_id: `mp-${Date.now()}`,
         metadata: {
           currency,
-          items: JSON.stringify(metaItems),
+          items: itemsStr,
         },
       },
     });
@@ -142,7 +159,7 @@ export async function onRequestPost(ctx) {
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
 
-  // Если запрос без Origin (например curl/server-to-server) — можно разрешить всем без credentials.
+  // Если запрос без Origin (curl/server-to-server) — можно разрешить всем без credentials.
   if (!origin) {
     return {
       "Access-Control-Allow-Origin": "*",
@@ -158,7 +175,6 @@ function corsHeaders(request) {
     "Access-Control-Allow-Headers": "Content-Type",
     "Vary": "Origin",
     // Credentials включайте ТОЛЬКО если реально используете cookies.
-    // Если не используете cookies — лучше вообще убрать эту строку.
     // "Access-Control-Allow-Credentials": "true",
   };
 }
@@ -194,6 +210,10 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
   form.set("mode", payload.mode);
   form.set("success_url", payload.success_url);
   form.set("cancel_url", payload.cancel_url);
+
+  if (payload.client_reference_id) {
+    form.set("client_reference_id", String(payload.client_reference_id));
+  }
 
   if (payload.metadata) {
     for (const [k, v] of Object.entries(payload.metadata)) {
