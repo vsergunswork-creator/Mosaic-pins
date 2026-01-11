@@ -1,10 +1,10 @@
 // functions/api/stripe-webhook.js
 // POST /api/stripe-webhook
-// listens: checkout.session.completed
-// decrements Stock in Airtable (not below 0)
-// idempotency via KV (STRIPE_EVENTS_KV)
-// best-effort lock per recordId (reduces race conditions)
-// logs
+// слушаем checkout.session.completed
+// списываем Stock в Airtable (не ниже 0)
+// idempotency через KV (STRIPE_EVENTS_KV)
+// best-effort lock на recordId
+// логирование
 
 export async function onRequestPost(ctx) {
   const { env, request } = ctx;
@@ -16,63 +16,71 @@ export async function onRequestPost(ctx) {
     if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
     if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
 
-    // KV binding (not env var)
+    // KV binding (это binding, не env var)
     if (!env.STRIPE_EVENTS_KV) return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
 
     const sig = request.headers.get("stripe-signature");
     if (!sig) return json({ error: "Missing stripe-signature" }, 400);
 
+    // ВАЖНО: берём сырое тело
     const rawBody = await request.text();
 
     // ---------- verify signature ----------
     const ok = await verifyStripeSignature({
       payload: rawBody,
       header: sig,
-      secret: env.STRIPE_WEBHOOK_SECRET,
-      toleranceSec: 5 * 60, // 5 minutes
+      secret: String(env.STRIPE_WEBHOOK_SECRET).trim(), // trim на случай пробелов
+      toleranceSec: 5 * 60,
     });
-    if (!ok) return json({ error: "Invalid signature" }, 400);
+
+    if (!ok) {
+      console.log("[stripe-webhook] invalid signature", {
+        hasSig: true,
+        bodyLen: rawBody?.length || 0,
+        secretLen: String(env.STRIPE_WEBHOOK_SECRET || "").length,
+      });
+      return json({ error: "Invalid signature" }, 400);
+    }
 
     const event = JSON.parse(rawBody);
     const eventId = String(event?.id || "").trim();
     const eventType = String(event?.type || "").trim();
 
-    console.log(`[stripe-webhook] received`, { eventId, eventType });
+    console.log("[stripe-webhook] received", { eventId, eventType });
 
     if (!eventId) return json({ received: true, note: "Missing event.id" });
 
     // ---------- IDP (idempotency) ----------
     const EVT_KEY = `stripe_evt:${eventId}`;
-
     const prev = await env.STRIPE_EVENTS_KV.get(EVT_KEY);
 
     if (prev === "done") {
-      console.log(`[stripe-webhook] duplicate ignored`, { eventId });
+      console.log("[stripe-webhook] duplicate ignored", { eventId });
       return json({ received: true, duplicate: true });
     }
 
     if (prev === "processing") {
-      // IMPORTANT: return non-2xx to force Stripe retries
-      console.log(`[stripe-webhook] already processing -> ask Stripe to retry`, { eventId });
+      // лучше вернуть НЕ 2xx, чтобы Stripe ретраил (иначе можно зависнуть)
+      console.log("[stripe-webhook] already processing -> retry", { eventId });
       return json({ received: true, processing: true }, 409);
     }
 
-    // mark processing (TTL 30 minutes)
+    // mark processing (TTL 30 min)
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "processing", { expirationTtl: 30 * 60 });
 
     // ---------- only handle checkout.session.completed ----------
     if (eventType !== "checkout.session.completed") {
-      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 }); // 30 days
+      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, ignored: true });
     }
 
     const session = event?.data?.object || {};
     const sessionId = String(session?.id || "").trim();
 
-    // decrement only if paid
+    // списываем только если paid
     const paymentStatus = String(session?.payment_status || "").toLowerCase();
     if (paymentStatus !== "paid") {
-      console.log(`[stripe-webhook] not paid -> ignore`, { eventId, sessionId, paymentStatus });
+      console.log("[stripe-webhook] not paid -> ignore", { eventId, sessionId, paymentStatus });
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, ignored: true, reason: "payment_status_not_paid" });
     }
@@ -80,7 +88,7 @@ export async function onRequestPost(ctx) {
     const meta = session?.metadata || {};
     const itemsJson = String(meta.items || "").trim();
 
-    console.log(`[stripe-webhook] meta`, {
+    console.log("[stripe-webhook] meta", {
       eventId,
       sessionId,
       hasItems: Boolean(itemsJson),
@@ -96,9 +104,8 @@ export async function onRequestPost(ctx) {
     try {
       items = JSON.parse(itemsJson);
     } catch (e) {
-      console.error(`[stripe-webhook] bad metadata.items JSON`, { eventId, sessionId });
-      // remove processing marker => Stripe retry
-      await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
+      console.error("[stripe-webhook] bad metadata.items JSON", { eventId, sessionId });
+      await env.STRIPE_EVENTS_KV.delete(EVT_KEY); // чтобы Stripe повторил
       return json({ error: "Bad metadata.items JSON" }, 400);
     }
 
@@ -123,28 +130,22 @@ export async function onRequestPost(ctx) {
       return json({ received: true, note: "No valid recordId/qty in items" });
     }
 
-    console.log(`[stripe-webhook] processing`, { eventId, sessionId, items: normalized.length });
+    console.log("[stripe-webhook] processing", { eventId, sessionId, items: normalized.length });
 
     // ---------- process decrements ----------
     try {
       for (const it of normalized) {
         const lockKey = `lock:${it.recordId}`;
-
         const token = await acquireLock({
           kv: env.STRIPE_EVENTS_KV,
           key: lockKey,
-          ttlSec: 120, // KV TTL must be >= 60
+          ttlSec: 120,
           retries: 12,
           waitMs: 180,
         });
 
-        // ✅ FIX #1: if lock not acquired -> fail (Stripe will retry)
-        if (!token) {
-          throw new Error(`Lock not acquired for recordId=${it.recordId}`);
-        }
-
         try {
-          console.log(`[stripe-webhook] decrement`, { recordId: it.recordId, qty: it.qty });
+          console.log("[stripe-webhook] decrement", { recordId: it.recordId, qty: it.qty });
           await decrementStockByRecordIdSafe({
             token: env.AIRTABLE_TOKEN,
             baseId: env.AIRTABLE_BASE_ID,
@@ -157,21 +158,16 @@ export async function onRequestPost(ctx) {
         }
       }
 
-      // mark done (30 days)
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
-
-      console.log(`[stripe-webhook] done`, { eventId, sessionId });
+      console.log("[stripe-webhook] done", { eventId, sessionId });
       return json({ received: true });
     } catch (e) {
-      console.error(`[stripe-webhook] processing failed`, { eventId, sessionId, error: String(e?.message || e) });
-
-      // remove marker so Stripe retries
-      await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
-
+      console.error("[stripe-webhook] processing failed", { eventId, sessionId, error: String(e?.message || e) });
+      await env.STRIPE_EVENTS_KV.delete(EVT_KEY); // чтобы Stripe повторил
       return json({ error: "Webhook processing failed", details: String(e?.message || e) }, 500);
     }
   } catch (e) {
-    console.error(`[stripe-webhook] fatal`, String(e?.message || e));
+    console.error("[stripe-webhook] fatal", String(e?.message || e));
     return json({ error: "Webhook error", details: String(e?.message || e) }, 500);
   }
 }
@@ -211,7 +207,6 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
 // ---------------- KV lock (best-effort) ----------------
 
 async function acquireLock({ kv, key, ttlSec = 120, retries = 10, waitMs = 150 }) {
-  // KV TTL must be >= 60
   if (ttlSec < 60) ttlSec = 60;
 
   const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -229,7 +224,7 @@ async function acquireLock({ kv, key, ttlSec = 120, retries = 10, waitMs = 150 }
     await sleep(waitMs + Math.floor(Math.random() * 80));
   }
 
-  console.warn(`[stripe-webhook] lock not acquired`, { key });
+  console.warn("[stripe-webhook] lock not acquired", { key });
   return null;
 }
 
@@ -254,9 +249,9 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
 
   const timestamp = tPart.slice(2);
 
-  // tolerance
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
+
   const nowSec = Math.floor(Date.now() / 1000);
   if (Math.abs(nowSec - ts) > toleranceSec) return false;
 
@@ -274,12 +269,11 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
   const expected = toHex(mac);
 
-  // Stripe can send multiple v1 signatures
   for (const p of v1Parts) {
-    const sig = p.slice(3).toLowerCase();
-    // ✅ FIX #2: normalize case
+    const sig = p.slice(3);
     if (safeEqual(expected, sig)) return true;
   }
+
   return false;
 }
 
