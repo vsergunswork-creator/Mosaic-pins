@@ -1,10 +1,10 @@
 // functions/api/stripe-webhook.js
 // POST /api/stripe-webhook
-// слушаем checkout.session.completed
-// списываем Stock в Airtable (не ниже 0)
-// + idempotency через KV (STRIPE_EVENTS_KV)
-// + best-effort lock на recordId (уменьшаем race condition)
-// + логирование
+// listens: checkout.session.completed
+// decrements Stock in Airtable (not below 0)
+// idempotency via KV (STRIPE_EVENTS_KV)
+// best-effort lock per recordId (reduces race conditions)
+// logs
 
 export async function onRequestPost(ctx) {
   const { env, request } = ctx;
@@ -16,7 +16,7 @@ export async function onRequestPost(ctx) {
     if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
     if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
 
-    // KV binding (не env var)
+    // KV binding (not env var)
     if (!env.STRIPE_EVENTS_KV) return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
 
     const sig = request.headers.get("stripe-signature");
@@ -29,7 +29,7 @@ export async function onRequestPost(ctx) {
       payload: rawBody,
       header: sig,
       secret: env.STRIPE_WEBHOOK_SECRET,
-      toleranceSec: 5 * 60, // 5 минут
+      toleranceSec: 5 * 60, // 5 minutes
     });
     if (!ok) return json({ error: "Invalid signature" }, 400);
 
@@ -52,8 +52,7 @@ export async function onRequestPost(ctx) {
     }
 
     if (prev === "processing") {
-      // ✅ ВАЖНО: возвращаем НЕ 2xx, чтобы Stripe продолжал ретраи.
-      // Иначе может случиться: поставили processing, упали до списания, и Stripe “успешно доставил”.
+      // IMPORTANT: return non-2xx to force Stripe retries
       console.log(`[stripe-webhook] already processing -> ask Stripe to retry`, { eventId });
       return json({ received: true, processing: true }, 409);
     }
@@ -70,7 +69,7 @@ export async function onRequestPost(ctx) {
     const session = event?.data?.object || {};
     const sessionId = String(session?.id || "").trim();
 
-    // важно: списываем только если paid
+    // decrement only if paid
     const paymentStatus = String(session?.payment_status || "").toLowerCase();
     if (paymentStatus !== "paid") {
       console.log(`[stripe-webhook] not paid -> ignore`, { eventId, sessionId, paymentStatus });
@@ -139,6 +138,11 @@ export async function onRequestPost(ctx) {
           waitMs: 180,
         });
 
+        // ✅ FIX #1: if lock not acquired -> fail (Stripe will retry)
+        if (!token) {
+          throw new Error(`Lock not acquired for recordId=${it.recordId}`);
+        }
+
         try {
           console.log(`[stripe-webhook] decrement`, { recordId: it.recordId, qty: it.qty });
           await decrementStockByRecordIdSafe({
@@ -168,7 +172,7 @@ export async function onRequestPost(ctx) {
     }
   } catch (e) {
     console.error(`[stripe-webhook] fatal`, String(e?.message || e));
-    return json({ error: "Webhook error", details: String(e) }, 500);
+    return json({ error: "Webhook error", details: String(e?.message || e) }, 500);
   }
 }
 
@@ -270,9 +274,10 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
   const expected = toHex(mac);
 
-  // Stripe может прислать несколько v1 — ок
+  // Stripe can send multiple v1 signatures
   for (const p of v1Parts) {
-    const sig = p.slice(3);
+    const sig = p.slice(3).toLowerCase();
+    // ✅ FIX #2: normalize case
     if (safeEqual(expected, sig)) return true;
   }
   return false;
