@@ -122,7 +122,7 @@ export async function onRequestPost(ctx) {
         const token = await acquireLock({
           kv: env.STRIPE_EVENTS_KV,
           key: `lock:${it.recordId}`,
-          ttlSec: 25,
+          ttlSec: 120,
           retries: 12,
           waitMs: 180,
         });
@@ -188,7 +188,7 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
 
 // ---------------- KV lock (best-effort) ----------------
 
-async function acquireLock({ kv, key, ttlSec = 20, retries = 10, waitMs = 150 }) {
+async function acquireLock({ kv, key, ttlSec = 120, retries = 10, waitMs = 150 }) {
   const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   for (let i = 0; i < retries; i++) {
