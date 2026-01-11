@@ -45,13 +45,17 @@ export async function onRequestPost(ctx) {
     const EVT_KEY = `stripe_evt:${eventId}`;
 
     const prev = await env.STRIPE_EVENTS_KV.get(EVT_KEY);
+
     if (prev === "done") {
       console.log(`[stripe-webhook] duplicate ignored`, { eventId });
       return json({ received: true, duplicate: true });
     }
+
     if (prev === "processing") {
-      console.log(`[stripe-webhook] already processing`, { eventId });
-      return json({ received: true, processing: true });
+      // ✅ ВАЖНО: возвращаем НЕ 2xx, чтобы Stripe продолжал ретраи.
+      // Иначе может случиться: поставили processing, упали до списания, и Stripe “успешно доставил”.
+      console.log(`[stripe-webhook] already processing -> ask Stripe to retry`, { eventId });
+      return json({ received: true, processing: true }, 409);
     }
 
     // mark processing (TTL 30 minutes)
