@@ -2,24 +2,15 @@
 // POST /api/checkout
 // body: { currency: "EUR"|"USD", items: [{ pin: "G7N21g", qty: 1 }, ...] }
 
+export function onRequestOptions(ctx) {
+  const { request } = ctx;
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
+}
+
 export async function onRequestPost(ctx) {
   const { request, env } = ctx;
 
-  // --- CORS ---
-  const origin = request.headers.get("Origin") || "*";
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    // Если фронт и API на одном домене — credentials не нужны.
-    // Оставляем true только если реально используете cookies/auth через браузер.
-    "Access-Control-Allow-Credentials": "true",
-    "Vary": "Origin",
-  };
-
-  if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
+  const headers = corsHeaders(request);
 
   try {
     const body = await request.json().catch(() => ({}));
@@ -27,10 +18,7 @@ export async function onRequestPost(ctx) {
     const items = Array.isArray(body.items) ? body.items : [];
 
     if (!["EUR", "USD"].includes(currency)) {
-      return json({ ok: false, error: "Invalid currency" }, 400, corsHeaders);
-    }
-    if (!items.length) {
-      return json({ ok: false, error: "Cart is empty" }, 400, corsHeaders);
+      return json({ ok: false, error: "Invalid currency" }, 400, headers);
     }
 
     // --- ENV ---
@@ -39,24 +27,29 @@ export async function onRequestPost(ctx) {
 
     const AIRTABLE_TOKEN = env.AIRTABLE_TOKEN;
     const AIRTABLE_BASE_ID = env.AIRTABLE_BASE_ID;
-    const AIRTABLE_TABLE = env.AIRTABLE_TABLE_NAME;
+    const AIRTABLE_TABLE_NAME = env.AIRTABLE_TABLE_NAME;
 
-    if (!STRIPE_SECRET_KEY) return json({ ok: false, error: "STRIPE_SECRET_KEY is not set" }, 500, corsHeaders);
-    if (!AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500, corsHeaders);
-    if (!AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500, corsHeaders);
-    if (!AIRTABLE_TABLE) return json({ ok: false, error: "AIRTABLE_TABLE_NAME is not set" }, 500, corsHeaders);
+    if (!STRIPE_SECRET_KEY) return json({ ok: false, error: "STRIPE_SECRET_KEY is not set" }, 500, headers);
+    if (!AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500, headers);
+    if (!AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500, headers);
+    if (!AIRTABLE_TABLE_NAME) return json({ ok: false, error: "AIRTABLE_TABLE_NAME is not set" }, 500, headers);
 
     // --- normalize cart (sum qty by pin) ---
     const cartMap = new Map();
     for (const it of items) {
       const pin = String(it?.pin || "").trim();
       let qty = Math.floor(Number(it?.qty || 0));
+
       if (!pin) continue;
       if (!Number.isFinite(qty) || qty <= 0) continue;
       if (qty > 99) qty = 99;
+
       cartMap.set(pin, (cartMap.get(pin) || 0) + qty);
     }
-    if (!cartMap.size) return json({ ok: false, error: "Cart is empty" }, 400, corsHeaders);
+
+    if (!cartMap.size) {
+      return json({ ok: false, error: "Cart is empty" }, 400, headers);
+    }
 
     const pins = [...cartMap.keys()];
 
@@ -64,7 +57,7 @@ export async function onRequestPost(ctx) {
     const records = await airtableFetchByPins({
       token: AIRTABLE_TOKEN,
       baseId: AIRTABLE_BASE_ID,
-      table: AIRTABLE_TABLE,
+      table: AIRTABLE_TABLE_NAME,
       pins,
     });
 
@@ -97,19 +90,15 @@ export async function onRequestPost(ctx) {
       const qty = cartMap.get(pin);
       const p = byPin.get(pin);
 
-      if (!p) return json({ ok: false, error: `Product not found: ${pin}` }, 404, corsHeaders);
-      if (!(p.stock > 0)) return json({ ok: false, error: `Sold out: ${pin}` }, 409, corsHeaders);
+      if (!p) return json({ ok: false, error: `Product not found: ${pin}` }, 404, headers);
+      if (!(p.stock > 0)) return json({ ok: false, error: `Sold out: ${pin}` }, 409, headers);
       if (qty > p.stock) {
-        return json(
-          { ok: false, error: `Not enough stock for ${pin}. Available: ${p.stock}` },
-          409,
-          corsHeaders
-        );
+        return json({ ok: false, error: `Not enough stock for ${pin}. Available: ${p.stock}` }, 409, headers);
       }
 
       const unit = currency === "EUR" ? p.priceEUR : p.priceUSD;
       if (!Number.isFinite(unit) || unit <= 0) {
-        return json({ ok: false, error: `Missing price for ${pin} (${currency})` }, 500, corsHeaders);
+        return json({ ok: false, error: `Missing price for ${pin} (${currency})` }, 500, headers);
       }
 
       line_items.push({
@@ -126,9 +115,8 @@ export async function onRequestPost(ctx) {
       metaItems.push({ recordId: p.recordId, pin: p.pin, qty });
     }
 
-    // --- 3) Create Stripe Checkout Session ---
-    // ✅ Теперь используем ваши страницы success/canceled
-    // А они уже редиректят на /?success=1 и /?canceled=1 для тостов/обновления.
+    // ⚠️ Важно: Stripe metadata ограничена (≈500 символов на значение).
+    // Если у Вас корзина может быть очень большой, лучше хранить items в KV по session.id.
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
       payload: {
@@ -143,13 +131,37 @@ export async function onRequestPost(ctx) {
       },
     });
 
-    return json({ ok: true, url: session.url }, 200, corsHeaders);
+    return json({ ok: true, url: session.url }, 200, headers);
   } catch (e) {
-    return json({ ok: false, error: String(e?.message || e) }, 500, corsHeaders);
+    return json({ ok: false, error: String(e?.message || e) }, 500, headers);
   }
 }
 
 // ---------------- Helpers ----------------
+
+function corsHeaders(request) {
+  const origin = request.headers.get("Origin");
+
+  // Если запрос без Origin (например curl/server-to-server) — можно разрешить всем без credentials.
+  if (!origin) {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+  }
+
+  // Браузерный запрос — отражаем origin
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Vary": "Origin",
+    // Credentials включайте ТОЛЬКО если реально используете cookies.
+    // Если не используете cookies — лучше вообще убрать эту строку.
+    // "Access-Control-Allow-Credentials": "true",
+  };
+}
 
 function json(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
@@ -159,7 +171,6 @@ function json(obj, status = 200, headers = {}) {
 }
 
 async function airtableFetchByPins({ token, baseId, table, pins }) {
-  // OR({PIN Code}="X",{PIN Code}="Y")
   const or = pins.map((p) => `{PIN Code}="${String(p).replace(/"/g, '\\"')}"`).join(",");
   const formula = pins.length ? `OR(${or})` : "FALSE()";
 
