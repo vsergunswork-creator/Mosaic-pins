@@ -33,6 +33,12 @@ export async function onRequestPost(ctx) {
     if (!AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500, headers);
     if (!AIRTABLE_TABLE_NAME) return json({ ok: false, error: "AIRTABLE_TABLE_NAME is not set" }, 500, headers);
 
+    // Allowed countries (по умолчанию DE, LV, US)
+    const allowedCountries = String(env.ALLOWED_COUNTRIES || "DE,LV,US")
+      .split(",")
+      .map((x) => x.trim().toUpperCase())
+      .filter(Boolean);
+
     // --- normalize cart (sum qty by pin) ---
     const cartMap = new Map();
     for (const it of items) {
@@ -115,8 +121,6 @@ export async function onRequestPost(ctx) {
     }
 
     // --- metadata size safety ---
-    // Stripe metadata values имеют жёсткие лимиты.
-    // Чтобы не было ситуации "оплата прошла, а metadata.items не поместилась -> stock не спишется":
     const itemsStr = JSON.stringify(metaItems);
     if (itemsStr.length > 450) {
       return json(
@@ -131,54 +135,21 @@ export async function onRequestPost(ctx) {
     }
 
     // --- 3) Create Stripe Checkout Session ---
+    // ВАЖНО: shipping address + phone + customer_creation
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
       payload: {
         mode: "payment",
         line_items,
-
-        // ✅ добавили session_id в success_url (полезно для дебага/страницы success)
-        success_url: `${SITE_URL}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${SITE_URL}/success.html`,
         cancel_url: `${SITE_URL}/canceled.html`,
 
-        // ✅ важно для Orders: Stripe будет собирать адрес и телефон
-        billing_address_collection: "required",
-        shipping_address_collection: {
-          // ✅ добавили США
-          allowed_countries: [
-            "DE",
-            "US",
-            "FR",
-            "IT",
-            "ES",
-            "NL",
-            "BE",
-            "AT",
-            "PL",
-            "SE",
-            "DK",
-            "FI",
-            "IE",
-            "PT",
-            "CZ",
-            "SK",
-            "HU",
-            "RO",
-            "BG",
-            "GR",
-            "LV",
-            "LT",
-            "EE",
-          ],
-        },
-        phone_number_collection: { enabled: true },
-
-        // ✅ создаст Customer в Stripe (удобно для email/phone в customer_details)
+        // чтобы Stripe точно собирал email/phone/address:
         customer_creation: "always",
+        phone_number_collection: { enabled: true },
+        shipping_address_collection: { allowed_countries: allowedCountries },
 
-        // удобно для дебага в Stripe:
         client_reference_id: `mp-${Date.now()}`,
-
         metadata: {
           currency,
           items: itemsStr,
@@ -197,7 +168,6 @@ export async function onRequestPost(ctx) {
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
 
-  // Если запрос без Origin (curl/server-to-server) — можно разрешить всем без credentials.
   if (!origin) {
     return {
       "Access-Control-Allow-Origin": "*",
@@ -206,14 +176,11 @@ function corsHeaders(request) {
     };
   }
 
-  // Браузерный запрос — отражаем origin
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Vary": "Origin",
-    // Credentials включайте ТОЛЬКО если реально используете cookies.
-    // "Access-Control-Allow-Credentials": "true",
   };
 }
 
@@ -253,23 +220,21 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
     form.set("client_reference_id", String(payload.client_reference_id));
   }
 
-  // ✅ Orders data collection
-  if (payload.billing_address_collection) {
-    form.set("billing_address_collection", payload.billing_address_collection);
+  // customer_creation
+  if (payload.customer_creation) {
+    form.set("customer_creation", String(payload.customer_creation));
   }
 
+  // phone_number_collection[enabled]
+  if (payload.phone_number_collection?.enabled) {
+    form.set("phone_number_collection[enabled]", "true");
+  }
+
+  // shipping_address_collection[allowed_countries][i]
   if (payload.shipping_address_collection?.allowed_countries?.length) {
     payload.shipping_address_collection.allowed_countries.forEach((c, i) => {
       form.set(`shipping_address_collection[allowed_countries][${i}]`, String(c));
     });
-  }
-
-  if (payload.phone_number_collection?.enabled != null) {
-    form.set("phone_number_collection[enabled]", payload.phone_number_collection.enabled ? "true" : "false");
-  }
-
-  if (payload.customer_creation) {
-    form.set("customer_creation", String(payload.customer_creation));
   }
 
   if (payload.metadata) {
