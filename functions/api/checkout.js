@@ -26,18 +26,12 @@ export async function onRequestPost(ctx) {
 
     const AIRTABLE_TOKEN = env.AIRTABLE_TOKEN;
     const AIRTABLE_BASE_ID = env.AIRTABLE_BASE_ID;
-    const AIRTABLE_TABLE_NAME = env.AIRTABLE_TABLE_NAME;
+    const AIRTABLE_TABLE_NAME = env.AIRTABLE_TABLE_NAME; // Products
 
     if (!STRIPE_SECRET_KEY) return json({ ok: false, error: "STRIPE_SECRET_KEY is not set" }, 500, headers);
     if (!AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500, headers);
     if (!AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500, headers);
     if (!AIRTABLE_TABLE_NAME) return json({ ok: false, error: "AIRTABLE_TABLE_NAME is not set" }, 500, headers);
-
-    // Allowed countries (по умолчанию DE, LV, US)
-    const allowedCountries = String(env.ALLOWED_COUNTRIES || "DE,LV,US")
-      .split(",")
-      .map((x) => x.trim().toUpperCase())
-      .filter(Boolean);
 
     // --- normalize cart (sum qty by pin) ---
     const cartMap = new Map();
@@ -89,7 +83,7 @@ export async function onRequestPost(ctx) {
 
     // --- 2) Validate cart + build Stripe line_items ---
     const line_items = [];
-    const metaItems = []; // for webhook stock update
+    const metaItems = []; // for webhook: [{recordId,pin,qty}]
 
     for (const pin of pins) {
       const qty = cartMap.get(pin);
@@ -127,29 +121,41 @@ export async function onRequestPost(ctx) {
         {
           ok: false,
           error:
-            "Cart is too large for checkout metadata. Please reduce items count (or we need to store items in KV by session).",
+            "Cart is too large for checkout metadata. Please reduce items count (or store items in KV by session).",
         },
         413,
         headers
       );
     }
 
+    // --- Countries: Europe + USA + Canada ---
+    const allowedCountries = [
+      // USA + Canada
+      "US", "CA",
+
+      // EU + near-Europe
+      "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
+      "GB","NO","CH","IS","LI"
+    ];
+
     // --- 3) Create Stripe Checkout Session ---
-    // ВАЖНО: shipping address + phone + customer_creation
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
       payload: {
         mode: "payment",
         line_items,
+
+        // ✅ return pages (у Вас они уже есть)
         success_url: `${SITE_URL}/success.html`,
         cancel_url: `${SITE_URL}/canceled.html`,
 
-        // чтобы Stripe точно собирал email/phone/address:
-        customer_creation: "always",
-        phone_number_collection: { enabled: true },
-        shipping_address_collection: { allowed_countries: allowedCountries },
-
+        // ✅ чтобы в Stripe было легче искать
         client_reference_id: `mp-${Date.now()}`,
+
+        // ✅ собирать адрес доставки + телефон
+        shipping_address_collection: { allowed_countries: allowedCountries },
+        phone_number_collection: { enabled: true },
+
         metadata: {
           currency,
           items: itemsStr,
@@ -167,7 +173,6 @@ export async function onRequestPost(ctx) {
 
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
-
   if (!origin) {
     return {
       "Access-Control-Allow-Origin": "*",
@@ -175,7 +180,6 @@ function corsHeaders(request) {
       "Access-Control-Allow-Headers": "Content-Type",
     };
   }
-
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -220,21 +224,16 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
     form.set("client_reference_id", String(payload.client_reference_id));
   }
 
-  // customer_creation
-  if (payload.customer_creation) {
-    form.set("customer_creation", String(payload.customer_creation));
+  // ✅ shipping address collection
+  if (payload.shipping_address_collection?.allowed_countries?.length) {
+    payload.shipping_address_collection.allowed_countries.forEach((cc, i) => {
+      form.set(`shipping_address_collection[allowed_countries][${i}]`, String(cc));
+    });
   }
 
-  // phone_number_collection[enabled]
+  // ✅ phone collection
   if (payload.phone_number_collection?.enabled) {
     form.set("phone_number_collection[enabled]", "true");
-  }
-
-  // shipping_address_collection[allowed_countries][i]
-  if (payload.shipping_address_collection?.allowed_countries?.length) {
-    payload.shipping_address_collection.allowed_countries.forEach((c, i) => {
-      form.set(`shipping_address_collection[allowed_countries][${i}]`, String(c));
-    });
   }
 
   if (payload.metadata) {
