@@ -118,7 +118,6 @@ export async function onRequestPost(ctx) {
     // Stripe metadata values имеют жёсткие лимиты.
     // Чтобы не было ситуации "оплата прошла, а metadata.items не поместилась -> stock не спишется":
     const itemsStr = JSON.stringify(metaItems);
-    // Держим консервативно (на практике лимит зависит от API, но лучше не рисковать).
     if (itemsStr.length > 450) {
       return json(
         {
@@ -137,10 +136,49 @@ export async function onRequestPost(ctx) {
       payload: {
         mode: "payment",
         line_items,
-        success_url: `${SITE_URL}/success.html`,
+
+        // ✅ добавили session_id в success_url (полезно для дебага/страницы success)
+        success_url: `${SITE_URL}/success.html?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${SITE_URL}/canceled.html`,
+
+        // ✅ важно для Orders: Stripe будет собирать адрес и телефон
+        billing_address_collection: "required",
+        shipping_address_collection: {
+          // ✅ добавили США
+          allowed_countries: [
+            "DE",
+            "US",
+            "FR",
+            "IT",
+            "ES",
+            "NL",
+            "BE",
+            "AT",
+            "PL",
+            "SE",
+            "DK",
+            "FI",
+            "IE",
+            "PT",
+            "CZ",
+            "SK",
+            "HU",
+            "RO",
+            "BG",
+            "GR",
+            "LV",
+            "LT",
+            "EE",
+          ],
+        },
+        phone_number_collection: { enabled: true },
+
+        // ✅ создаст Customer в Stripe (удобно для email/phone в customer_details)
+        customer_creation: "always",
+
         // удобно для дебага в Stripe:
         client_reference_id: `mp-${Date.now()}`,
+
         metadata: {
           currency,
           items: itemsStr,
@@ -213,6 +251,25 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
 
   if (payload.client_reference_id) {
     form.set("client_reference_id", String(payload.client_reference_id));
+  }
+
+  // ✅ Orders data collection
+  if (payload.billing_address_collection) {
+    form.set("billing_address_collection", payload.billing_address_collection);
+  }
+
+  if (payload.shipping_address_collection?.allowed_countries?.length) {
+    payload.shipping_address_collection.allowed_countries.forEach((c, i) => {
+      form.set(`shipping_address_collection[allowed_countries][${i}]`, String(c));
+    });
+  }
+
+  if (payload.phone_number_collection?.enabled != null) {
+    form.set("phone_number_collection[enabled]", payload.phone_number_collection.enabled ? "true" : "false");
+  }
+
+  if (payload.customer_creation) {
+    form.set("customer_creation", String(payload.customer_creation));
   }
 
   if (payload.metadata) {
