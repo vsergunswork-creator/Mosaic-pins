@@ -1,35 +1,268 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Shipping Policy</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shipping • Mosaic Pins</title>
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --text:#e9eef7;
+      --muted:#a8b3c7;
+      --line:rgba(255,255,255,.08);
+      --shadow: 0 12px 30px rgba(0,0,0,.45);
+      --r:18px;
+
+      --overlay: rgba(0,0,0,.72);
+      --overlay2: rgba(0,0,0,.82);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--bg);
+      color:var(--text);
+      overflow:auto;
+      position:relative;
+      isolation:isolate;
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20vh -20vw;
+      z-index:-1;
+      pointer-events:none;
+      background:
+        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+        var(--bg);
+      filter: blur(18px) saturate(1.05);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    /* scrollbars */
+    *{scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);}
+    *::-webkit-scrollbar{width:10px;height:10px}
+    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
+    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
+    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: calc(18px + env(safe-area-inset-top)) 16px 24px;
+    }
+
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .topbar{
+      padding: 16px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.3px;}
+    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
+
+    .nav{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .nav a{
+      text-decoration:none;
+      color:var(--muted);
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid transparent;
+      background: rgba(0,0,0,.22);
+    }
+    .nav a:hover{color:var(--text); background: rgba(255,255,255,.06);}
+    .nav a.active{
+      color:var(--text);
+      border-color: rgba(34,197,94,.22);
+      background: rgba(34,197,94,.12);
+    }
+
+    .content{
+      padding: 18px;
+    }
+
+    h1{
+      margin: 0 0 10px;
+      font-size: 22px;
+      font-weight: 950;
+      letter-spacing:.2px;
+    }
+    .sub{
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .cards{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      margin-top: 10px;
+    }
+    @media (max-width:760px){
+      .cards{grid-template-columns:1fr}
+    }
+
+    .card{
+      border:1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(0,0,0,.22);
+      padding: 14px 14px;
+    }
+    .card h2{
+      margin:0 0 8px;
+      font-size: 14px;
+      font-weight: 950;
+    }
+    .card p, .card li{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .card ul{margin:10px 0 0 18px; padding:0;}
+    .pill{
+      display:inline-block;
+      margin-top:10px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-weight:900;
+      font-size: 12px;
+    }
+
+    .note{
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border:1px solid rgba(34,197,94,.22);
+      background: rgba(34,197,94,.10);
+      color: var(--text);
+    }
+    .note small{color: var(--muted); display:block; margin-top:6px}
+
+    .footer{
+      padding: 12px 18px;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.20);
+      color: var(--muted);
+      font-size: 12px;
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .footer a{color: var(--text); text-decoration:none; opacity:.9;}
+    .footer a:hover{opacity:1}
+    .sep{opacity:.35}
+  </style>
 </head>
+
 <body>
-  <main style="max-width: 800px; margin: 40px auto; font-family: Arial, sans-serif;">
-    <h1>Shipping Policy</h1>
+  <div class="wrap">
+    <div class="panel">
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span> Mosaic Pins</div>
+        <nav class="nav">
+          <a href="/index.html">Shop</a>
+          <a class="active" href="/shipping.html">Shipping</a>
+          <a href="/returns.html">Returns</a>
+        </nav>
+      </div>
 
-    <p>We process all orders within <strong>1–3 business days</strong> after payment is received.</p>
+      <div class="content">
+        <h1>Shipping</h1>
+        <p class="sub">
+          We ship mosaic pins worldwide. Below is a simple overview of processing time, delivery and tracking.
+        </p>
 
-    <p>
-      Shipping times may vary depending on the destination country and selected shipping method.
-      Estimated delivery times will be shown at checkout when available.
-    </p>
+        <div class="cards">
+          <div class="card">
+            <h2>Processing time</h2>
+            <p>
+              Orders are typically processed within <b>1–3 business days</b>.
+              During peak periods it may take a little longer.
+            </p>
+            <span class="pill">Handcrafted & carefully packed</span>
+          </div>
 
-    <p>
-      Once your order has been shipped, you will receive a
-      <strong>confirmation email with tracking information</strong>.
-    </p>
+          <div class="card">
+            <h2>Shipping & tracking</h2>
+            <p>
+              Shipping options and cost are calculated at checkout.
+              Whenever possible we provide a <b>tracking number</b>.
+            </p>
+            <ul>
+              <li>Tracking updates may appear with a delay.</li>
+              <li>Delivery time depends on destination and carrier.</li>
+            </ul>
+          </div>
 
-    <p>
-      We are not responsible for delays caused by postal services, customs,
-      or circumstances beyond our control.
-    </p>
+          <div class="card">
+            <h2>Delivery estimates</h2>
+            <ul>
+              <li><b>EU</b>: usually 3–10 business days</li>
+              <li><b>UK</b>: usually 5–12 business days</li>
+              <li><b>USA / Canada</b>: usually 7–18 business days</li>
+              <li><b>Worldwide</b>: usually 10–25 business days</li>
+            </ul>
+            <p>These are estimates, not guarantees.</p>
+          </div>
 
-    <p>
-      If you have questions about shipping, please contact us at:<br />
-      <strong>support@mosaipins.space</strong>
-    </p>
-  </main>
+          <div class="card">
+            <h2>Customs & import taxes</h2>
+            <p>
+              International orders may be subject to customs fees, VAT or import taxes.
+              These charges are the buyer’s responsibility.
+            </p>
+          </div>
+        </div>
+
+        <div class="note">
+          Need help with shipping?
+          <small>Contact: <a href="mailto:support@mosaipins.space" style="color:inherit; opacity:.95; text-decoration:none;">support@mosaipins.space</a></small>
+        </div>
+      </div>
+
+      <div class="footer">
+        <a href="/shipping.html">Shipping</a>
+        <span class="sep">|</span>
+        <a href="/returns.html">Returns & Refunds</a>
+        <span class="sep">|</span>
+        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // если пользователь пришёл со Stripe success/canceled на эти страницы — перекинем на главную с тостом
+    (function(){
+      const u = new URL(window.location.href);
+      const ok = u.searchParams.get("success")==="1";
+      const cn = u.searchParams.get("canceled")==="1";
+      if(ok || cn){
+        window.location.replace("/index.html?" + (ok ? "success=1" : "canceled=1"));
+      }
+    })();
+  </script>
 </body>
 </html>
