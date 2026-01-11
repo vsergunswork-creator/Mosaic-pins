@@ -3,7 +3,7 @@
 // слушаем checkout.session.completed
 // списываем Stock в Airtable (не ниже 0)
 // + idempotency через KV (STRIPE_EVENTS_KV)
-// + best-effort lock на recordId
+// + best-effort lock на recordId (уменьшаем race condition)
 // + логирование
 
 export async function onRequestPost(ctx) {
@@ -20,7 +20,7 @@ export async function onRequestPost(ctx) {
     if (!env.STRIPE_EVENTS_KV) return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
 
     const sig = request.headers.get("stripe-signature");
-    if (!sig) return json({ error: "Missing stripe-sign_toggleature" }, 400);
+    if (!sig) return json({ error: "Missing stripe-signature" }, 400);
 
     const rawBody = await request.text();
 
@@ -31,7 +31,6 @@ export async function onRequestPost(ctx) {
       secret: env.STRIPE_WEBHOOK_SECRET,
       toleranceSec: 5 * 60, // 5 минут
     });
-
     if (!ok) return json({ error: "Invalid signature" }, 400);
 
     const event = JSON.parse(rawBody);
@@ -40,11 +39,9 @@ export async function onRequestPost(ctx) {
 
     console.log(`[stripe-webhook] received`, { eventId, eventType });
 
-    if (!eventId) {
-      return json({ received: true, note: "Missing event.id" });
-    }
+    if (!eventId) return json({ received: true, note: "Missing event.id" });
 
-    // ---------- IDP: process each event only once ----------
+    // ---------- IDP (idempotency) ----------
     const EVT_KEY = `stripe_evt:${eventId}`;
 
     const prev = await env.STRIPE_EVENTS_KV.get(EVT_KEY);
@@ -57,23 +54,22 @@ export async function onRequestPost(ctx) {
       return json({ received: true, processing: true });
     }
 
+    // mark processing (TTL 30 minutes)
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "processing", { expirationTtl: 30 * 60 });
 
     // ---------- only handle checkout.session.completed ----------
     if (eventType !== "checkout.session.completed") {
-      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
+      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 }); // 30 days
       return json({ received: true, ignored: true });
     }
 
     const session = event?.data?.object || {};
     const sessionId = String(session?.id || "").trim();
 
-    // ✅ важно: не списываем, если не paid
+    // важно: списываем только если paid
     const paymentStatus = String(session?.payment_status || "").toLowerCase();
     if (paymentStatus !== "paid") {
       console.log(`[stripe-webhook] not paid -> ignore`, { eventId, sessionId, paymentStatus });
-      // Можно пометить done, чтобы не пытаться снова.
-      // Если хотите чтобы Stripe повторил позже — удаляйте EVT_KEY и возвращайте 500.
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, ignored: true, reason: "payment_status_not_paid" });
     }
@@ -81,8 +77,14 @@ export async function onRequestPost(ctx) {
     const meta = session?.metadata || {};
     const itemsJson = String(meta.items || "").trim();
 
+    console.log(`[stripe-webhook] meta`, {
+      eventId,
+      sessionId,
+      hasItems: Boolean(itemsJson),
+      itemsLen: itemsJson ? itemsJson.length : 0,
+    });
+
     if (!itemsJson) {
-      console.log(`[stripe-webhook] no metadata.items`, { eventId, sessionId });
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, note: "No metadata.items" });
     }
@@ -90,14 +92,14 @@ export async function onRequestPost(ctx) {
     let items;
     try {
       items = JSON.parse(itemsJson);
-    } catch {
+    } catch (e) {
       console.error(`[stripe-webhook] bad metadata.items JSON`, { eventId, sessionId });
+      // remove processing marker => Stripe retry
       await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
       return json({ error: "Bad metadata.items JSON" }, 400);
     }
 
     if (!Array.isArray(items) || !items.length) {
-      console.log(`[stripe-webhook] empty items`, { eventId, sessionId });
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, note: "Empty items" });
     }
@@ -113,16 +115,22 @@ export async function onRequestPost(ctx) {
     }
 
     const normalized = [...map.entries()].map(([recordId, qty]) => ({ recordId, qty }));
+    if (!normalized.length) {
+      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
+      return json({ received: true, note: "No valid recordId/qty in items" });
+    }
 
     console.log(`[stripe-webhook] processing`, { eventId, sessionId, items: normalized.length });
 
     // ---------- process decrements ----------
     try {
       for (const it of normalized) {
+        const lockKey = `lock:${it.recordId}`;
+
         const token = await acquireLock({
           kv: env.STRIPE_EVENTS_KV,
-          key: `lock:${it.recordId}`,
-          ttlSec: 120,
+          key: lockKey,
+          ttlSec: 120, // KV TTL must be >= 60
           retries: 12,
           waitMs: 180,
         });
@@ -137,17 +145,21 @@ export async function onRequestPost(ctx) {
             qty: it.qty,
           });
         } finally {
-          await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: `lock:${it.recordId}`, token });
+          await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: lockKey, token });
         }
       }
 
+      // mark done (30 days)
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
 
       console.log(`[stripe-webhook] done`, { eventId, sessionId });
       return json({ received: true });
     } catch (e) {
       console.error(`[stripe-webhook] processing failed`, { eventId, sessionId, error: String(e?.message || e) });
+
+      // remove marker so Stripe retries
       await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
+
       return json({ error: "Webhook processing failed", details: String(e?.message || e) }, 500);
     }
   } catch (e) {
@@ -161,6 +173,7 @@ export async function onRequestPost(ctx) {
 async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qty }) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
 
+  // 1) get current stock
   const r1 = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const rec = await r1.json().catch(() => ({}));
   if (!r1.ok) throw new Error(`Airtable get failed: ${r1.status} ${JSON.stringify(rec)}`);
@@ -173,6 +186,7 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
 
   const next = Math.max(0, safeCurrent - safeQty);
 
+  // 2) update stock
   const r2 = await fetch(url, {
     method: "PATCH",
     headers: {
@@ -189,6 +203,9 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
 // ---------------- KV lock (best-effort) ----------------
 
 async function acquireLock({ kv, key, ttlSec = 120, retries = 10, waitMs = 150 }) {
+  // KV TTL must be >= 60
+  if (ttlSec < 60) ttlSec = 60;
+
   const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   for (let i = 0; i < retries; i++) {
@@ -211,9 +228,7 @@ async function acquireLock({ kv, key, ttlSec = 120, retries = 10, waitMs = 150 }
 async function releaseLock({ kv, key, token }) {
   if (!token) return;
   const existing = await kv.get(key);
-  if (existing === token) {
-    await kv.delete(key);
-  }
+  if (existing === token) await kv.delete(key);
 }
 
 function sleep(ms) {
@@ -251,7 +266,7 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
   const expected = toHex(mac);
 
-  // Stripe может прислать несколько v1 — принимаем если совпало с любым
+  // Stripe может прислать несколько v1 — ок
   for (const p of v1Parts) {
     const sig = p.slice(3);
     if (safeEqual(expected, sig)) return true;
