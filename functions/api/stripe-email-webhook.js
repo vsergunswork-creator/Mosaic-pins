@@ -2,7 +2,8 @@
 // POST /api/stripe-email-webhook
 // слушаем checkout.session.completed
 // ✅ НЕ трогаем Airtable вообще (ни create, ни update)
-// ✅ отправляем письмо клиенту от support@mosaicpins.space (Reply-To на Gmail)
+// ✅ отправляем письмо клиенту от MAIL_FROM (например support@mosaicpins.space)
+// ✅ Reply-To на Gmail (MAIL_REPLY_TO)
 // идемпотентность: KV (STRIPE_EVENTS_KV) по eventId + по sessionId
 
 export async function onRequestPost(ctx) {
@@ -10,31 +11,33 @@ export async function onRequestPost(ctx) {
 
   try {
     // --- ENV checks ---
-    if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: "STRIPE_WEBHOOK_SECRET is not set" }, 500);
-    if (!env.STRIPE_EVENTS_KV) return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
+    if (!env.STRIPE_EMAIL_WEBHOOK_SECRET) {
+      return json({ error: "STRIPE_EMAIL_WEBHOOK_SECRET is not set" }, 500);
+    }
+    if (!env.STRIPE_EVENTS_KV) {
+      return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
+    }
 
-    // Для fallback биллинг-адреса из PaymentIntent (не обязателен, но полезен)
-    // Если не хотите вообще PI — можете убрать и эту проверку, и функцию stripeRetrievePaymentIntent ниже.
-    const STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY || "";
+    // optional: fallback billing address from PaymentIntent (если нужно)
+    const STRIPE_SECRET_KEY = String(env.STRIPE_SECRET_KEY || "").trim();
 
     const STORE_NAME = String(env.STORE_NAME || "Mosaic Pins");
     const STORE_URL = String(env.STORE_URL || "https://mosaicpins.space");
 
-    // ВАШЕ ПОЖЕЛАНИЕ: support@... (а не “orders@...” и не какие-то UGRADAR)
-    const MAIL_FROM = String(env.MAIL_FROM || "support@mosaicpins.space");
-    const MAIL_REPLY_TO = String(env.MAIL_REPLY_TO || "mosaicpinsspace@gmail.com");
-    const MAIL_BCC = String(env.MAIL_BCC || ""); // по желанию
+    const MAIL_FROM = String(env.MAIL_FROM || "support@mosaicpins.space").trim();
+    const MAIL_REPLY_TO = String(env.MAIL_REPLY_TO || "mosaicpinsspace@gmail.com").trim();
+    const MAIL_BCC = String(env.MAIL_BCC || "").trim(); // optional
 
     const sig = request.headers.get("stripe-signature");
     if (!sig) return json({ error: "Missing stripe-signature" }, 400);
 
     const rawBody = await request.text();
 
-    // --- verify signature ---
+    // --- verify signature (IMPORTANT: use STRIPE_EMAIL_WEBHOOK_SECRET) ---
     const ok = await verifyStripeSignature({
       payload: rawBody,
       header: sig,
-      secret: String(env.STRIPE_WEBHOOK_SECRET).trim(),
+      secret: String(env.STRIPE_EMAIL_WEBHOOK_SECRET).trim(),
       toleranceSec: 5 * 60,
     });
     if (!ok) return json({ error: "Invalid signature" }, 400);
@@ -45,12 +48,16 @@ export async function onRequestPost(ctx) {
 
     if (!eventId) return json({ received: true, note: "Missing event.id" });
 
-    // --- event idempotency ---
+    // --- event idempotency (eventId) ---
     const EVT_KEY = `stripe_evt_email:${eventId}`;
     const prev = await env.STRIPE_EVENTS_KV.get(EVT_KEY);
     if (prev === "done") return json({ received: true, duplicate: true });
 
-    // только checkout.session.completed
+    // set processing (чтобы при параллельных доставках не было гонки)
+    if (prev === "processing") return json({ received: true, processing: true }, 409);
+    await env.STRIPE_EVENTS_KV.put(EVT_KEY, "processing", { expirationTtl: 30 * 60 });
+
+    // only checkout.session.completed
     if (eventType !== "checkout.session.completed") {
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, ignored: true });
@@ -78,16 +85,14 @@ export async function onRequestPost(ctx) {
       return json({ received: true, note: "No customer email" });
     }
 
-    // --- address (ВАЖНО: приоритет как у Вас на скрине) ---
-    const addrFromCollected =
-      session?.collected_information?.shipping_details?.address || null;
-
-    const addrFromShipping =
-      session?.shipping_details?.address || null;
+    // --- address: PRIORITY = collected_information.shipping_details.address ---
+    const addrFromCollected = session?.collected_information?.shipping_details?.address || null;
+    const addrFromShipping = session?.shipping_details?.address || null;
 
     const paymentIntentId = String(session?.payment_intent || "").trim();
-
     let addrFromBilling = null;
+
+    // optional fallback (если по какой-то причине нет shipping в session)
     if (!addrFromCollected && !addrFromShipping && paymentIntentId && STRIPE_SECRET_KEY) {
       try {
         const pi = await stripeRetrievePaymentIntent({
@@ -112,10 +117,9 @@ export async function onRequestPost(ctx) {
     const line2 = addr?.line2 ? String(addr.line2).trim() : "";
     const shippingAddressLong = [line1, line2].filter(Boolean).join("\n");
 
-    // --- cart info from metadata (если есть) ---
+    // --- cart info from metadata.items (если есть) ---
     const meta = session?.metadata || {};
     const itemsJson = String(meta.items || "").trim();
-
     let items = [];
     if (itemsJson) {
       try {
@@ -123,8 +127,6 @@ export async function onRequestPost(ctx) {
         if (Array.isArray(parsed)) items = parsed;
       } catch (_) {}
     }
-
-    // items могут быть [{recordId,pin,qty}] — делаем простую нормализацию для письма
     const normalizedItems = normalizeItemsForEmail(items);
 
     const currency = String(session?.currency || "").toUpperCase() || "EUR";
@@ -168,7 +170,7 @@ export async function onRequestPost(ctx) {
       text,
     });
 
-    // mark sent
+    // mark done
     await env.STRIPE_EVENTS_KV.put(EMAIL_KEY, "1", { expirationTtl: 30 * 24 * 60 * 60 });
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
 
@@ -232,7 +234,9 @@ function buildOrderEmail({
     shipCity,
     shipState,
     shipCountry,
-  ].filter(Boolean).join(", ");
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const text =
 `Hello${customerName ? " " + customerName : ""}!
@@ -307,7 +311,7 @@ function normalizeItemsForEmail(items) {
   }
 
   return [...map.entries()].map(([key, qty]) => ({
-    title: key, // тут можно заменить на красивое название товара, если захотите (через Airtable lookup)
+    title: key, // можно заменить на красивое название (если захотите fetch из Airtable, но сейчас НЕ трогаем Airtable)
     qty,
   }));
 }
