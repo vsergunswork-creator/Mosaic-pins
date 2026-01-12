@@ -11,17 +11,15 @@ export async function onRequestPost(ctx) {
   try {
     // ---------- ENV checks ----------
     if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: "STRIPE_WEBHOOK_SECRET is not set" }, 500);
-    if (!env.STRIPE_SECRET_KEY) return json({ error: "STRIPE_SECRET_KEY is not set (needed for billing address fallback)" }, 500);
+    if (!env.STRIPE_SECRET_KEY)
+      return json({ error: "STRIPE_SECRET_KEY is not set (needed for billing address fallback)" }, 500);
 
     if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
     if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
     if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME (Products) is not set" }, 500);
 
     // Orders table name can be separate
-    const ORDERS_TABLE =
-      env.AIRTABLE_ORDERS_TABLE_NAME ||
-      env.AIRTABLE_ORDERS_TABLE ||
-      "Orders";
+    const ORDERS_TABLE = env.AIRTABLE_ORDERS_TABLE_NAME || env.AIRTABLE_ORDERS_TABLE || "Orders";
 
     // KV binding
     if (!env.STRIPE_EVENTS_KV) return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
@@ -50,7 +48,6 @@ export async function onRequestPost(ctx) {
     const eventType = String(event?.type || "").trim();
 
     console.log("[stripe-webhook] received", { eventId, eventType });
-
     if (!eventId) return json({ received: true, note: "Missing event.id" });
 
     // ---------- IDP ----------
@@ -139,31 +136,32 @@ export async function onRequestPost(ctx) {
     const amountTotal = Number.isFinite(amountTotalCents) ? amountTotalCents / 100 : 0;
 
     const createdSec = Number(session?.created ?? 0);
+    // Airtable Date обычно принимает ISO или YYYY-MM-DD — оставляем YYYY-MM-DD
     const createdAtISODate = createdSec
-      ? new Date(createdSec * 1000).toISOString().slice(0, 10) // YYYY-MM-DD
+      ? new Date(createdSec * 1000).toISOString().slice(0, 10)
       : new Date().toISOString().slice(0, 10);
 
+    // ✅ ВАЖНО: shipping лежит в collected_information (как у Вас на скрине)
+    const collectedShipping = session?.collected_information?.shipping_details || null;
+
     const customerName =
+      String(collectedShipping?.name || "").trim() ||
       String(session?.customer_details?.name || "").trim() ||
       String(session?.shipping_details?.name || "").trim() ||
       "";
 
-    const customerEmail =
-      String(session?.customer_details?.email || "").trim() ||
-      "";
-
-    const telefon =
-      String(session?.customer_details?.phone || "").trim() ||
-      "";
+    const customerEmail = String(session?.customer_details?.email || "").trim() || "";
+    const telefon = String(session?.customer_details?.phone || "").trim() || "";
 
     const paymentIntentId = String(session?.payment_intent || "").trim() || "";
     const stripeSessionId = sessionId;
 
-    // ---------- address: shipping_details -> fallback to billing_details ----------
-    const shippingFromSession = session?.shipping_details?.address || null;
+    // ---------- address: collected_information.shipping_details -> fallback -> billing_details ----------
+    const shippingFromCollected = collectedShipping?.address || null;
+    const shippingFromLegacy = session?.shipping_details?.address || null;
 
     let billingAddress = null;
-    if (!shippingFromSession && paymentIntentId) {
+    if (!shippingFromCollected && !shippingFromLegacy && paymentIntentId) {
       try {
         const pi = await stripeRetrievePaymentIntent({
           secretKey: env.STRIPE_SECRET_KEY,
@@ -174,11 +172,10 @@ export async function onRequestPost(ctx) {
         billingAddress = charge0?.billing_details?.address || null;
       } catch (e) {
         console.warn("[stripe-webhook] payment_intent retrieve failed", String(e?.message || e));
-        // не падаем — просто останется пусто
       }
     }
 
-    const addr = shippingFromSession || billingAddress;
+    const addr = shippingFromCollected || shippingFromLegacy || billingAddress;
 
     const shipCountry = addr?.country ? String(addr.country).trim() : "";
     const shipCity = addr?.city ? String(addr.city).trim() : "";
@@ -188,11 +185,22 @@ export async function onRequestPost(ctx) {
     const line1 = addr?.line1 ? String(addr.line1).trim() : "";
     const line2 = addr?.line2 ? String(addr.line2).trim() : "";
 
-    // Shipping Address (long text) — аккуратно (улица/дом + доп строка)
-    const shippingAddressLong = [line1, line2].filter(Boolean).join("\n");
+    // ✅ Shipping Address (long text) — аккуратно: Country, City, Postal, Address
+    // Формат:
+    // DE, Stralsund, 18437
+    // Tribseer Damm 50
+    // (line2)
+    // (state)
+    const shippingAddressLong = [
+      [shipCountry, shipCity, shipPostal].filter(Boolean).join(", "),
+      line1,
+      line2,
+      shipState,
+    ]
+      .filter((x) => String(x || "").trim())
+      .join("\n");
 
     // ---------- avoid duplicate order creation by Stripe Session ID ----------
-    // (если Stripe ретраит event)
     const existingOrderId = await airtableFindOrderByStripeSessionId({
       token: env.AIRTABLE_TOKEN,
       baseId: env.AIRTABLE_BASE_ID,
@@ -202,9 +210,9 @@ export async function onRequestPost(ctx) {
 
     if (!existingOrderId) {
       // ---------- create order in Airtable ----------
-      // ВАЖНО: имена полей строго как у вас в таблице
+      // Имена полей строго как у Вас в таблице
       const fields = {
-        "Order ID": stripeSessionId, // можно поменять на любой ваш формат
+        "Order ID": stripeSessionId,
         "Products": productRecordIds, // Link to Products (array of record IDs)
         "Quantity": totalQty,
         "Currency": currency,
@@ -316,7 +324,6 @@ async function airtableCreateRecord({ token, baseId, table, fields }) {
 }
 
 async function airtableFindOrderByStripeSessionId({ token, baseId, table, stripeSessionId }) {
-  // filterByFormula: {Stripe Session ID}="cs_..."
   const formula = `{Stripe Session ID}="${String(stripeSessionId).replace(/"/g, '\\"')}"`;
 
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
@@ -339,7 +346,6 @@ async function airtableFindOrderByStripeSessionId({ token, baseId, table, stripe
 async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qty }) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
 
-  // 1) get current stock
   const r1 = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const rec = await r1.json().catch(() => ({}));
   if (!r1.ok) throw new Error(`Airtable get failed: ${r1.status} ${JSON.stringify(rec)}`);
@@ -352,7 +358,6 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
 
   const next = Math.max(0, safeCurrent - safeQty);
 
-  // 2) update stock
   const r2 = await fetch(url, {
     method: "PATCH",
     headers: {
