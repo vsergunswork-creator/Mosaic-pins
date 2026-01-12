@@ -1,9 +1,10 @@
 // functions/api/stripe-webhook.js
 // POST /api/stripe-webhook
-// checkout.session.completed:
-// 1) decrement Stock in Products (Airtable)
-// 2) create Orders record (Airtable)
-// + idempotency via KV (STRIPE_EVENTS_KV)
+// 1) слушаем checkout.session.completed
+// 2) списываем Stock в Products (не ниже 0)
+// 3) создаём заказ в Airtable -> таблица Orders
+// 4) idempotency через KV (STRIPE_EVENTS_KV) + step-keys, чтобы НЕ списать stock/не создать order дважды
+// 5) best-effort lock на recordId
 
 export async function onRequestPost(ctx) {
   const { env, request } = ctx;
@@ -11,77 +12,110 @@ export async function onRequestPost(ctx) {
   try {
     // ---------- ENV checks ----------
     if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: "STRIPE_WEBHOOK_SECRET is not set" }, 500);
-    if (!env.STRIPE_SECRET_KEY) return json({ error: "STRIPE_SECRET_KEY is not set" }, 500); // ✅ нужно для дозапроса session
     if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
     if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
     if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
     if (!env.STRIPE_EVENTS_KV) return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
 
-    const ORDERS_TABLE = env.AIRTABLE_ORDERS_TABLE_NAME || "Orders";
+    const ORDERS_TABLE = env.AIRTABLE_ORDERS_TABLE_NAME || "Orders"; // ✅ ваша таблица Orders
 
     const sig = request.headers.get("stripe-signature");
     if (!sig) return json({ error: "Missing stripe-signature" }, 400);
 
+    // ВАЖНО: читаем СЫРОЕ тело
     const rawBody = await request.text();
 
+    // ---------- verify signature ----------
     const ok = await verifyStripeSignature({
       payload: rawBody,
       header: sig,
-      secret: env.STRIPE_WEBHOOK_SECRET,
+      secret: String(env.STRIPE_WEBHOOK_SECRET).trim(),
       toleranceSec: 5 * 60,
     });
-    if (!ok) return json({ error: "Invalid signature" }, 400);
+
+    if (!ok) {
+      console.log("[stripe-webhook] invalid signature", {
+        bodyLen: rawBody?.length || 0,
+        secretLen: String(env.STRIPE_WEBHOOK_SECRET || "").length,
+      });
+      return json({ error: "Invalid signature" }, 400);
+    }
 
     const event = JSON.parse(rawBody);
     const eventId = String(event?.id || "").trim();
     const eventType = String(event?.type || "").trim();
 
-    console.log(`[stripe-webhook] received`, { eventId, eventType });
+    console.log("[stripe-webhook] received", { eventId, eventType });
 
     if (!eventId) return json({ received: true, note: "Missing event.id" });
 
-    // ---------- Idempotency ----------
+    // ---------- IDP (idempotency) ----------
     const EVT_KEY = `stripe_evt:${eventId}`;
+    const STEP_STOCK_KEY = `stripe_evt:${eventId}:stock_done`;
+    const STEP_ORDER_KEY = `stripe_evt:${eventId}:order_done`;
 
     const prev = await env.STRIPE_EVENTS_KV.get(EVT_KEY);
-    if (prev === "done") return json({ received: true, duplicate: true });
+
+    if (prev === "done") {
+      console.log("[stripe-webhook] duplicate ignored", { eventId });
+      return json({ received: true, duplicate: true });
+    }
+
     if (prev === "processing") {
-      // лучше отдать 409, чтобы Stripe продолжал ретраи, если что-то упало в середине
+      // лучше вернуть НЕ 2xx -> Stripe будет ретраить
+      console.log("[stripe-webhook] already processing -> retry", { eventId });
       return json({ received: true, processing: true }, 409);
     }
 
+    // mark processing (TTL 30 min)
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "processing", { expirationTtl: 30 * 60 });
 
-    // ---------- Only handle checkout.session.completed ----------
+    // ---------- handle only checkout.session.completed ----------
     if (eventType !== "checkout.session.completed") {
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, ignored: true });
     }
 
-    let session = event?.data?.object || {};
+    const session = event?.data?.object || {};
     const sessionId = String(session?.id || "").trim();
 
-    // paid only
+    // списываем только если paid
     const paymentStatus = String(session?.payment_status || "").toLowerCase();
     if (paymentStatus !== "paid") {
+      console.log("[stripe-webhook] not paid -> ignore", { eventId, sessionId, paymentStatus });
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, ignored: true, reason: "payment_status_not_paid" });
     }
 
-    // ---------- items from metadata ----------
     const meta = session?.metadata || {};
     const itemsJson = String(meta.items || "").trim();
+
+    console.log("[stripe-webhook] meta", {
+      eventId,
+      sessionId,
+      hasItems: Boolean(itemsJson),
+      itemsLen: itemsJson ? itemsJson.length : 0,
+    });
+
     if (!itemsJson) {
-      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
-      return json({ received: true, note: "No metadata.items" });
+      // оплатили, но items нет -> мы не можем списать stock
+      // даём 500 чтобы Stripe ретраил, пока вы не почините checkout
+      await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
+      return json({ error: "Missing metadata.items" }, 500);
     }
 
     let items;
     try {
       items = JSON.parse(itemsJson);
     } catch {
-      await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
+      console.error("[stripe-webhook] bad metadata.items JSON", { eventId, sessionId });
+      await env.STRIPE_EVENTS_KV.delete(EVT_KEY); // Stripe retry
       return json({ error: "Bad metadata.items JSON" }, 400);
+    }
+
+    if (!Array.isArray(items) || !items.length) {
+      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
+      return json({ received: true, note: "Empty items" });
     }
 
     // normalize items by recordId
@@ -93,176 +127,181 @@ export async function onRequestPost(ctx) {
       if (!Number.isFinite(qty) || qty <= 0) continue;
       map.set(recordId, (map.get(recordId) || 0) + qty);
     }
+
     const normalized = [...map.entries()].map(([recordId, qty]) => ({ recordId, qty }));
     if (!normalized.length) {
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
-      return json({ received: true, note: "No valid recordId/qty" });
+      return json({ received: true, note: "No valid recordId/qty in items" });
     }
 
-    // ---------- Decrement stock ----------
-    for (const it of normalized) {
-      const lockKey = `lock:${it.recordId}`;
-      const token = await acquireLock({
-        kv: env.STRIPE_EVENTS_KV,
-        key: lockKey,
-        ttlSec: 120,
-        retries: 12,
-        waitMs: 180,
-      });
-
+    // ---------- STEP 1: decrement stock (idempotent step) ----------
+    const stockDone = await env.STRIPE_EVENTS_KV.get(STEP_STOCK_KEY);
+    if (stockDone !== "done") {
       try {
-        await decrementStockByRecordIdSafe({
+        for (const it of normalized) {
+          const lockKey = `lock:${it.recordId}`;
+
+          const token = await acquireLock({
+            kv: env.STRIPE_EVENTS_KV,
+            key: lockKey,
+            ttlSec: 120,
+            retries: 12,
+            waitMs: 180,
+          });
+
+          try {
+            console.log("[stripe-webhook] decrement", { recordId: it.recordId, qty: it.qty });
+            await decrementStockByRecordIdSafe({
+              token: env.AIRTABLE_TOKEN,
+              baseId: env.AIRTABLE_BASE_ID,
+              table: env.AIRTABLE_TABLE_NAME,
+              recordId: it.recordId,
+              qty: it.qty,
+            });
+          } finally {
+            await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: lockKey, token });
+          }
+        }
+
+        // mark stock step done (30 days)
+        await env.STRIPE_EVENTS_KV.put(STEP_STOCK_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
+        console.log("[stripe-webhook] stock step done", { eventId, sessionId });
+      } catch (e) {
+        console.error("[stripe-webhook] stock step failed", { eventId, sessionId, error: String(e?.message || e) });
+        await env.STRIPE_EVENTS_KV.delete(EVT_KEY); // allow Stripe retry
+        return json({ error: "Stock decrement failed", details: String(e?.message || e) }, 500);
+      }
+    } else {
+      console.log("[stripe-webhook] stock step already done", { eventId, sessionId });
+    }
+
+    // ---------- STEP 2: create/update Orders row (idempotent step) ----------
+    const orderDone = await env.STRIPE_EVENTS_KV.get(STEP_ORDER_KEY);
+    if (orderDone !== "done") {
+      try {
+        const orderPayload = buildOrderFields({
+          session,
+          normalizedItems: normalized,
+        });
+
+        // создаём запись в Orders (если хотите “upsert”, скажите — сделаем поиск по Stripe Session ID)
+        await airtableCreateRecord({
           token: env.AIRTABLE_TOKEN,
           baseId: env.AIRTABLE_BASE_ID,
-          table: env.AIRTABLE_TABLE_NAME,
-          recordId: it.recordId,
-          qty: it.qty,
+          table: ORDERS_TABLE,
+          fields: orderPayload,
         });
-      } finally {
-        await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: lockKey, token });
+
+        await env.STRIPE_EVENTS_KV.put(STEP_ORDER_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
+        console.log("[stripe-webhook] order step done", { eventId, sessionId });
+      } catch (e) {
+        console.error("[stripe-webhook] order step failed", { eventId, sessionId, error: String(e?.message || e) });
+        await env.STRIPE_EVENTS_KV.delete(EVT_KEY); // allow Stripe retry
+        return json({ error: "Order create failed", details: String(e?.message || e) }, 500);
       }
+    } else {
+      console.log("[stripe-webhook] order step already done", { eventId, sessionId });
     }
 
-    // ---------- Ensure we have full session (for address/phone/email) ----------
-    // Иногда webhook object урезан. Дозапросим session из Stripe API.
-    try {
-      session = await stripeGetCheckoutSession({
-        secretKey: env.STRIPE_SECRET_KEY,
-        sessionId,
-      });
-    } catch (e) {
-      console.warn(`[stripe-webhook] stripeGetCheckoutSession failed (continue)`, String(e?.message || e));
-      // продолжаем с тем что есть
-    }
-
-    // ---------- Create Orders record in Airtable ----------
-    try {
-      const orderFields = buildOrderFieldsFromSession({
-        session,
-        normalizedItems: normalized,
-      });
-
-      // Привязка Products (Linked record) — массив recordId из Products
-      // поле должно быть Link to another record -> Products
-      orderFields["Products"] = normalized.map((x) => x.recordId);
-      orderFields["Quantity"] = normalized.reduce((s, x) => s + (Number(x.qty) || 0), 0);
-
-      await airtableCreateRecord({
-        token: env.AIRTABLE_TOKEN,
-        baseId: env.AIRTABLE_BASE_ID,
-        table: ORDERS_TABLE,
-        fields: orderFields,
-      });
-    } catch (e) {
-      // Если сток списали, но Orders не создался — это важно.
-      // Возвращаем 500 => Stripe retry. Idempotency защитит от двойного списания.
-      console.error(`[stripe-webhook] orders create failed`, String(e?.message || e));
-      await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
-      return json({ error: "Orders create failed", details: String(e?.message || e) }, 500);
-    }
-
-    // done
+    // ---------- FINAL: mark whole event done ----------
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "done", { expirationTtl: 30 * 24 * 60 * 60 });
+    console.log("[stripe-webhook] done", { eventId, sessionId });
+
     return json({ received: true });
   } catch (e) {
-    console.error(`[stripe-webhook] fatal`, String(e?.message || e));
-    return json({ error: "Webhook error", details: String(e) }, 500);
+    console.error("[stripe-webhook] fatal", String(e?.message || e));
+    return json({ error: "Webhook error", details: String(e?.message || e) }, 500);
   }
 }
 
-// ---------------- Orders fields mapping ----------------
+// ---------------- Orders mapping ----------------
 
-function buildOrderFieldsFromSession({ session, normalizedItems }) {
-  const sid = String(session?.id || "");
-  const pi = String(session?.payment_intent || "");
-  const currency = String(session?.currency || "").toUpperCase() || "";
-  const amountTotal = Number(session?.amount_total ?? session?.amount_subtotal ?? 0);
+function buildOrderFields({ session, normalizedItems }) {
+  const sessionId = String(session?.id || "");
+  const paymentIntentId = String(session?.payment_intent || "");
+  const createdSec = Number(session?.created || 0);
+  const createdIso = createdSec ? new Date(createdSec * 1000).toISOString() : new Date().toISOString();
+
+  const currency = String(session?.currency || "").toUpperCase();
+  const amountTotal = Number(session?.amount_total || 0) / 100;
 
   const customer = session?.customer_details || {};
-  const email = String(customer?.email || session?.customer_email || "").trim();
+  const shipping = session?.shipping_details || {};
+  const shipAddr = shipping?.address || customer?.address || {};
+
+  const customerName = String(shipping?.name || customer?.name || "").trim();
+  const email = String(customer?.email || "").trim();
   const phone = String(customer?.phone || "").trim();
-  const name = String(customer?.name || "").trim();
 
-  // Адрес может быть в разных местах:
-  const shipping1 = session?.shipping_details || null;
-  const shipping2 = session?.collected_information?.shipping_details || null;
+  const country = String(shipAddr?.country || "").trim(); // e.g. "DE"
+  const city = String(shipAddr?.city || "").trim();
+  const postal = String(shipAddr?.postal_code || "").trim();
+  const region = String(shipAddr?.state || "").trim();
 
-  const addr =
-    shipping1?.address ||
-    shipping2?.address ||
-    customer?.address ||
-    null;
+  const line1 = String(shipAddr?.line1 || "").trim();
+  const line2 = String(shipAddr?.line2 || "").trim();
 
-  const shipName = String(shipping1?.name || shipping2?.name || name || "").trim();
-
-  const line1 = String(addr?.line1 || "").trim();
-  const line2 = String(addr?.line2 || "").trim();
-  const city = String(addr?.city || "").trim();
-  const postal = String(addr?.postal_code || "").trim();
-  const state = String(addr?.state || "").trim();
-  const country = String(addr?.country || "").trim(); // ISO code
-
-  const prettyAddress = compactAddress({
+  const fullShippingAddress = formatShippingAddress({
+    name: customerName,
     line1,
     line2,
     city,
-    state,
     postal,
+    region,
     country,
   });
 
-  // статусы
-  const orderStatus = "paid";
-  const refundStatus = "not_refunded";
+  const productRecordIds = normalizedItems.map((x) => x.recordId);
+  const totalQty = normalizedItems.reduce((s, x) => s + (Number(x.qty) || 0), 0);
 
-  const createdAtIso = session?.created
-    ? new Date(Number(session.created) * 1000).toISOString()
-    : new Date().toISOString();
-
-  // Products (link) и Quantity добавляются выше
+  // ✅ ВАЖНО: названия полей должны совпадать 1-в-1 с Airtable
   return {
-    "Order ID": sid || `order-${Date.now()}`,
-    "Stripe Session ID": sid || "",
-    "Payments Intent ID": pi || "",
-    "Customer Name": shipName || name || "",
-    "Customer Email": email || "",
-    "Telefon": phone || "",
+    "Order ID": sessionId || `order-${Date.now()}`,
+    "Products": productRecordIds, // Link to Products expects array of record IDs
+    "Quantity": totalQty,
 
-    "Currency": currency || "",
-    "Amount Total": Number.isFinite(amountTotal) ? (amountTotal / 100) : 0,
+    "Currency": currency || null,
+    "Order Status": "paid",
+    "Refund Status": "not_refunded",
 
-    "Order Status": orderStatus,
-    "Refund Status": refundStatus,
-    "Tracking Number": "",
+    "Customer Name": customerName || null,
+    "Shipping Address": fullShippingAddress || null,
 
-    "Created At": createdAtIso,
+    "Shipping Country": country || null,
+    "Shipping City": city || null,
+    "Shipping Postal Code": postal || null,
+    "Shipping State/Region": region || null,
 
-    // общий адрес строкой
-    "Shipping Address": prettyAddress,
+    "Customer Email": email || null,
+    "Telefon": phone || null,
 
-    // раздельно
-    "Shipping Country": country || "",
-    "Shipping City": city || "",
-    "Shipping Postal Code": postal || "",
-    "Shipping State/Region": state || "",
+    "Tracking Number": null,
+    "Created At": createdIso,
+    "Amount Total": Number.isFinite(amountTotal) ? amountTotal : null,
+
+    "Stripe Session ID": sessionId || null,
+    "Payment Intent ID": paymentIntentId || null,
   };
 }
 
-function compactAddress({ line1, line2, city, state, postal, country }) {
+function formatShippingAddress({ name, line1, line2, city, postal, region, country }) {
   const parts = [];
+
+  if (name) parts.push(name);
+
   const street = [line1, line2].filter(Boolean).join(", ");
   if (street) parts.push(street);
 
-  const locality = [postal, city].filter(Boolean).join(" ");
-  if (locality) parts.push(locality);
+  const cityLine = [postal, city].filter(Boolean).join(" ");
+  const regionLine = [region, country].filter(Boolean).join(", ");
 
-  if (state) parts.push(state);
-  if (country) parts.push(country);
+  const last = [cityLine, regionLine].filter(Boolean).join(" • ");
+  if (last) parts.push(last);
 
-  return parts.join(", ");
+  return parts.join("\n");
 }
 
-// ---------------- Airtable ----------------
+// ---------------- Airtable: create record ----------------
 
 async function airtableCreateRecord({ token, baseId, table, fields }) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
@@ -273,17 +312,22 @@ async function airtableCreateRecord({ token, baseId, table, fields }) {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ records: [{ fields }] }),
+    body: JSON.stringify({ fields }),
   });
 
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Airtable create failed: ${r.status} ${JSON.stringify(data)}`);
+  if (!r.ok) {
+    throw new Error(`Airtable create failed: ${r.status} ${JSON.stringify(data)}`);
+  }
   return data;
 }
+
+// ---------------- Airtable stock decrement ----------------
 
 async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qty }) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
 
+  // 1) get current stock
   const r1 = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const rec = await r1.json().catch(() => ({}));
   if (!r1.ok) throw new Error(`Airtable get failed: ${r1.status} ${JSON.stringify(rec)}`);
@@ -296,6 +340,7 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
 
   const next = Math.max(0, safeCurrent - safeQty);
 
+  // 2) update stock
   const r2 = await fetch(url, {
     method: "PATCH",
     headers: {
@@ -309,37 +354,27 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
   if (!r2.ok) throw new Error(`Airtable update failed: ${r2.status} ${JSON.stringify(data)}`);
 }
 
-// ---------------- Stripe (fetch session) ----------------
-
-async function stripeGetCheckoutSession({ secretKey, sessionId }) {
-  if (!sessionId) throw new Error("Missing sessionId");
-  const url = `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`;
-
-  const r = await fetch(url, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${secretKey}` },
-  });
-
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Stripe get session failed: ${data?.error?.message || r.statusText}`);
-  return data;
-}
-
 // ---------------- KV lock (best-effort) ----------------
 
 async function acquireLock({ kv, key, ttlSec = 120, retries = 10, waitMs = 150 }) {
   if (ttlSec < 60) ttlSec = 60;
+
   const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   for (let i = 0; i < retries; i++) {
     const existing = await kv.get(key);
+
     if (!existing) {
       await kv.put(key, token, { expirationTtl: ttlSec });
+
       const check = await kv.get(key);
       if (check === token) return token;
     }
+
     await sleep(waitMs + Math.floor(Math.random() * 80));
   }
+
+  console.warn("[stripe-webhook] lock not acquired", { key });
   return null;
 }
 
@@ -359,12 +394,14 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
   const parts = String(header).split(",").map((x) => x.trim());
   const tPart = parts.find((p) => p.startsWith("t="));
   const v1Parts = parts.filter((p) => p.startsWith("v1="));
+
   if (!tPart || !v1Parts.length) return false;
 
   const timestamp = tPart.slice(2);
 
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
+
   const nowSec = Math.floor(Date.now() / 1000);
   if (Math.abs(nowSec - ts) > toleranceSec) return false;
 
@@ -382,10 +419,12 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
   const expected = toHex(mac);
 
+  // Stripe может прислать несколько v1 — принимаем если совпало с любым
   for (const p of v1Parts) {
     const sig = p.slice(3);
     if (safeEqual(expected, sig)) return true;
   }
+
   return false;
 }
 
