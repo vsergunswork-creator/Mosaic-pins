@@ -1,9 +1,10 @@
 // functions/api/stripe-webhook.js
-// POST /api/stripe-webhook
+// POST /api/stripe-webhook  (ВАШЕ - НЕ ТРОГАЕМ по логике)
+// GET  /api/stripe-webhook?ship_check=1  (✅ NEW: cron-проверка Tracking Number -> email)
 // listens: checkout.session.completed
 // 1) UPSERT order in Airtable Orders (create or update by "Stripe Session ID")
 // 2) Decrement stock in Airtable Products (only once per Stripe event id)
-// Idempotency: KV (STRIPE_EVENTS_KV) with "processing" and "stock_done"
+// + ✅ NEW: ship_check endpoint to send "shipped" emails without Airtable Automations
 
 export async function onRequestPost(ctx) {
   const { env, request } = ctx;
@@ -17,10 +18,7 @@ export async function onRequestPost(ctx) {
     if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
     if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME (Products) is not set" }, 500);
 
-    const ORDERS_TABLE =
-      env.AIRTABLE_ORDERS_TABLE_NAME ||
-      env.AIRTABLE_ORDERS_TABLE ||
-      "Orders";
+    const ORDERS_TABLE = env.AIRTABLE_ORDERS_TABLE_NAME || env.AIRTABLE_ORDERS_TABLE || "Orders";
 
     if (!env.STRIPE_EVENTS_KV) return json({ error: "STRIPE_EVENTS_KV binding is not set" }, 500);
 
@@ -175,9 +173,9 @@ export async function onRequestPost(ctx) {
     // ВАЖНО: имена полей ровно как у Вас в Airtable
     const orderFields = {
       "Order ID": stripeSessionId,
-      "Products": productRecordIds,
-      "Quantity": totalQty,
-      "Currency": currency,
+      Products: productRecordIds,
+      Quantity: totalQty,
+      Currency: currency,
 
       "Order Status": "paid",
       "Refund Status": "not_refunded",
@@ -191,11 +189,11 @@ export async function onRequestPost(ctx) {
       "Shipping State/Region": shipState,
 
       "Customer Email": customerEmail,
-      "Telefon": telefon,
+      Telefon: telefon,
 
       "Tracking Number": "",
 
-      "Created At": createdAtISO, // ISO 8601 (самый надёжный формат для Airtable Date)
+      "Created At": createdAtISO, // ISO 8601
       "Amount Total": amountTotal,
 
       "Stripe Session ID": stripeSessionId,
@@ -221,10 +219,8 @@ export async function onRequestPost(ctx) {
     }
 
     // ---------- decrement stock ONLY ONCE ----------
-    // if Stripe event was already fully processed earlier, we must not decrement again
     const alreadyStockDone = prev === "stock_done";
     if (alreadyStockDone) {
-      // just finish (order upsert already happened)
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, upserted: true, stock: "skipped_already_done" });
     }
@@ -256,6 +252,146 @@ export async function onRequestPost(ctx) {
     return json({ received: true, upserted: true, stock: "decremented" });
   } catch (e) {
     return json({ error: "Webhook error", details: String(e?.message || e) }, 500);
+  }
+}
+
+/* =========================================================================================
+   ✅ NEW: Cron endpoint to auto-send "shipped" emails when Tracking Number is filled in Airtable
+   URL: GET /api/stripe-webhook?ship_check=1
+   Protect with: x-cron-secret header or ?secret=...
+========================================================================================= */
+export async function onRequestGet(ctx) {
+  const { env, request } = ctx;
+
+  try {
+    const url = new URL(request.url);
+    if (url.searchParams.get("ship_check") !== "1") {
+      return json({ ok: true, note: "use ?ship_check=1" }, 200);
+    }
+
+    // --- Security ---
+    const REQUIRED = String(env.CRON_SECRET || "").trim();
+    if (REQUIRED) {
+      const gotHeader = String(request.headers.get("x-cron-secret") || "").trim();
+      const gotQuery = String(url.searchParams.get("secret") || "").trim();
+      if (gotHeader !== REQUIRED && gotQuery !== REQUIRED) {
+        return json({ ok: false, error: "Unauthorized" }, 401);
+      }
+    }
+
+    // --- Required env ---
+    if (!env.STRIPE_EVENTS_KV) return json({ ok: false, error: "STRIPE_EVENTS_KV binding is not set" }, 500);
+    if (!env.AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500);
+    if (!env.AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500);
+
+    const ORDERS_TABLE = env.AIRTABLE_ORDERS_TABLE_NAME || env.AIRTABLE_ORDERS_TABLE || "Orders";
+
+    // Airtable fields (defaults = как у Вас)
+    const TRACKING_FIELD = String(env.AIRTABLE_TRACKING_FIELD || "Tracking Number");
+    const SHIPPED_FIELD = String(env.AIRTABLE_SHIPPED_FIELD || "Shipped Email Sent");
+
+    // Mail settings
+    const STORE_NAME = String(env.STORE_NAME || "Mosaic Pins");
+    const STORE_URL = String(env.STORE_URL || "https://mosaicpins.space");
+
+    const MAIL_FROM = String(env.MAIL_FROM || "support@mosaicpins.space").trim();
+    const MAIL_REPLY_TO = String(env.MAIL_REPLY_TO || "mosaicpinsspace@gmail.com").trim();
+    const MAIL_BCC = String(env.MAIL_BCC || "").trim(); // копия Вам
+
+    if (!MAIL_FROM) return json({ ok: false, error: "MAIL_FROM is not set" }, 500);
+
+    // --- Find orders where Tracking Number filled AND Shipped Email Sent is not checked ---
+    const formula = `AND({${TRACKING_FIELD}}!="", NOT({${SHIPPED_FIELD}}))`;
+
+    const records = await airtableFetchAll({
+      token: env.AIRTABLE_TOKEN,
+      baseId: env.AIRTABLE_BASE_ID,
+      table: ORDERS_TABLE,
+      filterByFormula: formula,
+      pageSize: 50,
+      maxPagesGuard: 10,
+    });
+
+    let sent = 0;
+    let skipped = 0;
+    const details = [];
+
+    for (const rec of records) {
+      const recordId = rec?.id;
+      const f = rec?.fields || {};
+      if (!recordId) continue;
+
+      const orderId = String(f["Order ID"] || f["Stripe Session ID"] || recordId);
+      const tracking = String(f[TRACKING_FIELD] || "").trim();
+      const customerEmail = String(f["Customer Email"] || "").trim();
+      const customerName = String(f["Customer Name"] || "").trim();
+
+      if (!tracking || !customerEmail) {
+        skipped++;
+        details.push({ recordId, orderId, skipped: true, reason: "missing_tracking_or_email" });
+        continue;
+      }
+
+      // Extra idempotency via KV (на случай ретраев/двух кронов)
+      const KV_KEY = `shipped_email_sent:${recordId}`;
+      const already = await env.STRIPE_EVENTS_KV.get(KV_KEY);
+      if (already) {
+        skipped++;
+        details.push({ recordId, orderId, skipped: true, reason: "kv_already_sent" });
+        continue;
+      }
+
+      const shippingAddress = String(f["Shipping Address"] || "").trim();
+      const shipCity = String(f["Shipping City"] || "").trim();
+      const shipPostal = String(f["Shipping Postal Code"] || "").trim();
+      const shipState = String(f["Shipping State/Region"] || "").trim();
+      const shipCountry = String(f["Shipping Country"] || "").trim();
+
+      const subject = `${STORE_NAME}: Your order has been shipped 🚚`;
+
+      const { html, text } = buildShippedEmail({
+        storeName: STORE_NAME,
+        storeUrl: STORE_URL,
+        customerName,
+        orderId,
+        trackingNumber: tracking,
+        shippingAddress,
+        shipCity,
+        shipPostal,
+        shipState,
+        shipCountry,
+      });
+
+      // Send
+      await sendEmailMailchannels({
+        from: MAIL_FROM,
+        to: customerEmail,
+        replyTo: MAIL_REPLY_TO || undefined,
+        bcc: MAIL_BCC || undefined,
+        subject,
+        html,
+        text,
+      });
+
+      // Mark Airtable checkbox TRUE
+      await airtablePatchRecord({
+        token: env.AIRTABLE_TOKEN,
+        baseId: env.AIRTABLE_BASE_ID,
+        table: ORDERS_TABLE,
+        recordId,
+        fields: { [SHIPPED_FIELD]: true },
+      });
+
+      // Mark KV idempotency
+      await env.STRIPE_EVENTS_KV.put(KV_KEY, "1", { expirationTtl: 30 * 24 * 60 * 60 });
+
+      sent++;
+      details.push({ recordId, orderId, sent: true });
+    }
+
+    return json({ ok: true, found: records.length, sent, skipped, details }, 200);
+  } catch (e) {
+    return json({ ok: false, error: String(e?.message || e) }, 500);
   }
 }
 
@@ -328,6 +464,52 @@ async function airtableFindOrderByStripeSessionId({ token, baseId, table, stripe
   return rec ? { id: rec.id, fields: rec.fields || {} } : null;
 }
 
+async function airtablePatchRecord({ token, baseId, table, recordId, fields }) {
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
+
+  const r = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ fields }),
+  });
+
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`Airtable patch failed: ${r.status} ${JSON.stringify(data)}`);
+  return data;
+}
+
+async function airtableFetchAll({ token, baseId, table, filterByFormula, pageSize = 100, maxPagesGuard = 60 }) {
+  const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
+
+  let all = [];
+  let offset = null;
+
+  for (let page = 0; page < maxPagesGuard; page++) {
+    const url = new URL(baseUrl);
+    url.searchParams.set("pageSize", String(pageSize));
+    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
+    if (offset) url.searchParams.set("offset", offset);
+
+    const r = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Airtable error: ${JSON.stringify(data)}`);
+
+    const records = Array.isArray(data.records) ? data.records : [];
+    all = all.concat(records);
+
+    offset = data.offset || null;
+    if (!offset) break;
+  }
+
+  return all;
+}
+
 // ---------------- Airtable stock decrement ----------------
 
 async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qty }) {
@@ -391,10 +573,124 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// ---------------- ✅ MailChannels send + template ----------------
+
+async function sendEmailMailchannels({ from, to, subject, html, text, replyTo, bcc }) {
+  const payload = {
+    personalizations: [
+      {
+        to: [{ email: to }],
+        ...(bcc ? { bcc: [{ email: bcc }] } : {}),
+      },
+    ],
+    from: { email: from },
+    subject,
+    content: [
+      { type: "text/plain", value: text || "" },
+      { type: "text/html", value: html || "" },
+    ],
+    ...(replyTo ? { reply_to: { email: replyTo } } : {}),
+  };
+
+  const r = await fetch("https://api.mailchannels.net/tx/v1/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const respText = await r.text().catch(() => "");
+  if (!r.ok) throw new Error(`Mail send failed: ${r.status} ${respText}`);
+}
+
+function buildShippedEmail({
+  storeName,
+  storeUrl,
+  customerName,
+  orderId,
+  trackingNumber,
+  shippingAddress,
+  shipCity,
+  shipPostal,
+  shipState,
+  shipCountry,
+}) {
+  const hello = customerName ? `Hello ${customerName}!` : "Hello!";
+
+  const addressBlock = formatAddress({
+    shippingAddress,
+    shipCity,
+    shipPostal,
+    shipState,
+    shipCountry,
+  });
+
+  const text = `${hello}
+
+Good news — your order has been shipped 🚚
+
+Order ID: ${orderId}
+Tracking Number: ${trackingNumber}
+
+Shipping address:
+${addressBlock || "-"}
+
+If you have any questions, just reply to this email.
+
+${storeUrl || storeName}
+`;
+
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.45;color:#111">
+  <h2 style="margin:0 0 12px">${escapeHtml(storeName)} — Order shipped 🚚</h2>
+  <p style="margin:0 0 10px">${escapeHtml(hello)}</p>
+
+  <p style="margin:0 0 12px">Good news — your order has been shipped.</p>
+
+  <div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#fafafa;margin:12px 0">
+    <div><b>Order ID:</b> ${escapeHtml(orderId)}</div>
+    <div style="margin-top:6px"><b>Tracking Number:</b> ${escapeHtml(trackingNumber)}</div>
+  </div>
+
+  <p style="margin:12px 0 6px"><b>Shipping address:</b></p>
+  <div style="white-space:pre-line;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fff">${escapeHtml(
+    addressBlock || "-"
+  )}</div>
+
+  <p style="margin:14px 0 8px">If you have any questions, just reply to this email.</p>
+
+  ${storeUrl ? `<p style="margin:0"><a href="${escapeHtml(storeUrl)}">${escapeHtml(storeUrl)}</a></p>` : ""}
+</div>`;
+
+  return { html, text };
+}
+
+function formatAddress({ shippingAddress, shipCity, shipPostal, shipState, shipCountry }) {
+  const lines = [];
+  if (shippingAddress) lines.push(String(shippingAddress).trim());
+
+  const cityLine = [shipPostal, shipCity].filter(Boolean).join(" ");
+  const regionLine = [shipState, shipCountry].filter(Boolean).join(" ");
+
+  if (cityLine) lines.push(cityLine);
+  if (regionLine) lines.push(regionLine);
+
+  return lines.filter(Boolean).join("\n").trim();
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // ---------------- Stripe signature verify ----------------
 
 async function verifyStripeSignature({ payload, header, secret, toleranceSec = 300 }) {
-  const parts = String(header).split(",").map((x) => x.trim());
+  const parts = String(header)
+    .split(",")
+    .map((x) => x.trim());
   const tPart = parts.find((p) => p.startsWith("t="));
   const v1Parts = parts.filter((p) => p.startsWith("v1="));
 
@@ -411,13 +707,9 @@ async function verifyStripeSignature({ payload, header, secret, toleranceSec = 3
   const signedPayload = `${timestamp}.${payload}`;
 
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
 
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
   const expected = toHex(mac);
