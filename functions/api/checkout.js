@@ -83,7 +83,7 @@ export async function onRequestPost(ctx) {
 
     // --- 2) Validate cart + build Stripe line_items ---
     const line_items = [];
-    const metaItems = []; // for webhook stock update
+    const metaItems = []; // for webhook stock update + Orders
 
     for (const pin of pins) {
       const qty = cartMap.get(pin);
@@ -128,15 +128,15 @@ export async function onRequestPost(ctx) {
       );
     }
 
-    // ✅ Allowed shipping countries: Europe (широко), USA, Canada
-    // Если хотите сузить список — скажите, я сделаю.
+    // ✅ Allowed shipping countries: ALL EUROPE + US + CA (широко)
+    // Если захотите исключить какие-то страны — скажите, уберу.
     const SHIPPING_COUNTRIES = [
       // EU
       "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
-      // EEA + UK + Switzerland + Norway + Iceland + Liechtenstein
+      // EEA / EFTA + UK + CH
       "NO","IS","LI","GB","CH",
-      // Balkans / nearby (часто Европа)
-      "AL","BA","ME","MK","RS","MD","UA",
+      // Europe (шире)
+      "AL","AD","AM","AZ","BA","BY","GE","MD","ME","MK","MC","RS","SM","TR","UA","VA","XK",
       // US/CA
       "US","CA"
     ];
