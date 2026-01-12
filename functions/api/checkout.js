@@ -139,6 +139,8 @@ export async function onRequestPost(ctx) {
       "US","CA"
     ];
 
+    // ✅ NEW: делаем адрес "обязательным" через shipping_options
+    // (это и есть фикс, чтобы shipping_details реально пришёл в webhook)
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
       payload: {
@@ -155,6 +157,20 @@ export async function onRequestPost(ctx) {
         // ✅ address + phone
         shipping_address_collection: { allowed_countries: SHIPPING_COUNTRIES },
         phone_number_collection: { enabled: true },
+
+        // ✅ IMPORTANT: without this Stripe may not persist shipping_details
+        shipping_options: [
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              fixed_amount: {
+                amount: 0, // free shipping
+                currency: currency.toLowerCase(),
+              },
+              display_name: "Standard shipping",
+            },
+          },
+        ],
       },
     });
 
@@ -236,6 +252,26 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
 
   if (payload.phone_number_collection?.enabled) {
     form.set(`phone_number_collection[enabled]`, "true");
+  }
+
+  // ✅ NEW: shipping_options (required to get shipping_details reliably)
+  if (Array.isArray(payload.shipping_options) && payload.shipping_options.length) {
+    payload.shipping_options.forEach((opt, i) => {
+      const srd = opt?.shipping_rate_data;
+      if (!srd) return;
+
+      // type + display_name
+      if (srd.type) form.set(`shipping_options[${i}][shipping_rate_data][type]`, String(srd.type));
+      if (srd.display_name) form.set(`shipping_options[${i}][shipping_rate_data][display_name]`, String(srd.display_name));
+
+      // fixed_amount
+      if (srd.fixed_amount?.amount != null) {
+        form.set(`shipping_options[${i}][shipping_rate_data][fixed_amount][amount]`, String(srd.fixed_amount.amount));
+      }
+      if (srd.fixed_amount?.currency) {
+        form.set(`shipping_options[${i}][shipping_rate_data][fixed_amount][currency]`, String(srd.fixed_amount.currency));
+      }
+    });
   }
 
   (payload.line_items || []).forEach((li, i) => {
