@@ -1,16 +1,24 @@
+// index.js (Cloudflare Worker)
+// - Scheduled cron runs runShipCheck()
+// - Manual test: https://YOUR-WORKER-URL/run?secret=CRON_SECRET
+// - Reads Orders from Airtable where Tracking Number != '' AND Shipped Email Sent is NOT checked
+// - Sends email via MailChannels (uses X-Api-Key header if MAILCHANNELS_API_KEY is set)
+// - Marks Shipped Email Sent = true in Airtable
+
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runShipCheck(env));
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // ручной запуск: /run?secret=XXX
+    // Manual run for testing:
+    // https://YOUR-WORKER-URL/run?secret=XXX
     if (url.pathname === "/run") {
       const secret = url.searchParams.get("secret") || "";
       if (!env.CRON_SECRET || secret !== env.CRON_SECRET) {
-        return json({ ok: false, error: "Unauthorized (bad CRON_SECRET)" }, 401);
+        return json({ ok: false, error: "Unauthorized" }, 401);
       }
 
       try {
@@ -29,17 +37,16 @@ async function runShipCheck(env) {
   // ---------- REQUIRED ENV ----------
   must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
   must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
-
-  // MailChannels
   must(env.MAIL_FROM, "MAIL_FROM");
   must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
-  must(env.MAILCHANNELS_API_KEY, "MAILCHANNELS_API_KEY");
 
+  // Orders table (default: Orders)
   const ORDERS_TABLE =
     env.AIRTABLE_ORDERS_TABLE_NAME ||
     env.AIRTABLE_ORDERS_TABLE ||
     "Orders";
 
+  // Field names (defaults match your Airtable)
   const TRACKING_FIELD = env.AIRTABLE_TRACKING_FIELD || "Tracking Number";
   const SHIPPED_FIELD = env.AIRTABLE_SHIPPED_FIELD || "Shipped Email Sent";
 
@@ -47,10 +54,7 @@ async function runShipCheck(env) {
   const NAME_FIELD = env.AIRTABLE_CUSTOMER_NAME_FIELD || "Customer Name";
   const ORDER_ID_FIELD = env.AIRTABLE_ORDER_ID_FIELD || "Order ID";
 
-  const STORE_NAME = env.STORE_NAME || "Mosaic Pins";
-  const MAIL_BCC = (env.MAIL_BCC || "").trim();
-
-  // tracking != '' AND NOT(shipped)
+  // ---------- FIND ORDERS READY ----------
   const formula = `AND({${TRACKING_FIELD}}!='', NOT({${SHIPPED_FIELD}}))`;
 
   const list = await airtableList({
@@ -75,43 +79,55 @@ async function runShipCheck(env) {
 
     if (!email || !tracking) {
       skipped++;
-      results.push({ id: rec.id, skipped: true, reason: "missing email or tracking" });
+      results.push({
+        id: rec.id,
+        orderId,
+        status: "skipped",
+        reason: "missing_email_or_tracking",
+      });
       continue;
     }
 
-    // 1) send email
-    await sendEmailMailchannels(env, {
-      from: env.MAIL_FROM,
-      to: email,
-      replyTo: env.MAIL_REPLY_TO,
-      bcc: MAIL_BCC,
-      subject: `${STORE_NAME}: Your order has been shipped 🚚`,
-      text:
-`Hello ${name || ""}
+    try {
+      await sendEmailMailchannels({
+        env,
+        from: env.MAIL_FROM,
+        to: email,
+        replyTo: env.MAIL_REPLY_TO,
+        bcc: env.MAIL_BCC || "",
+        subject: `${env.STORE_NAME || "Mosaic Pins"}: Your order has been shipped 🚚`,
+        text: `Hello ${name || ""}
 
 Your order ${orderId} has been shipped 🚚
 Tracking number: ${tracking}
 
 Thank you for your purchase!
 `,
-      html:
-`<p>Hello ${escapeHtml(name || "")},</p>
+        html: `<p>Hello ${escapeHtml(name || "")},</p>
 <p>Your order <b>${escapeHtml(orderId)}</b> has been shipped 🚚</p>
 <p><b>Tracking number:</b> ${escapeHtml(tracking)}</p>
 <p>Thank you for your purchase!</p>`,
-    });
+      });
 
-    // 2) mark checkbox in Airtable
-    await airtableUpdate({
-      token: env.AIRTABLE_TOKEN,
-      baseId: env.AIRTABLE_BASE_ID,
-      table: ORDERS_TABLE,
-      recordId: rec.id,
-      fields: { [SHIPPED_FIELD]: true },
-    });
+      await airtableUpdate({
+        token: env.AIRTABLE_TOKEN,
+        baseId: env.AIRTABLE_BASE_ID,
+        table: ORDERS_TABLE,
+        recordId: rec.id,
+        fields: { [SHIPPED_FIELD]: true },
+      });
 
-    sent++;
-    results.push({ id: rec.id, sent: true, email, tracking });
+      sent++;
+      results.push({ id: rec.id, orderId, status: "sent", to: email });
+    } catch (e) {
+      skipped++;
+      results.push({
+        id: rec.id,
+        orderId,
+        status: "error",
+        error: String(e?.message || e),
+      });
+    }
   }
 
   return {
@@ -158,14 +174,16 @@ async function airtableUpdate({ token, baseId, table, recordId, fields }) {
 
 /* ---------------- MailChannels ---------------- */
 
-async function sendEmailMailchannels(env, { from, to, replyTo, bcc, subject, text, html }) {
+async function sendEmailMailchannels({ env, from, to, replyTo, bcc, subject, text, html }) {
+  const personalizations = [
+    {
+      to: [{ email: to }],
+      ...(bcc ? { bcc: [{ email: bcc }] } : {}),
+    },
+  ];
+
   const payload = {
-    personalizations: [
-      {
-        to: [{ email: to }],
-        ...(bcc ? { bcc: [{ email: bcc }] } : {}),
-      },
-    ],
+    personalizations,
     from: { email: from },
     reply_to: { email: replyTo },
     subject,
@@ -175,20 +193,24 @@ async function sendEmailMailchannels(env, { from, to, replyTo, bcc, subject, tex
     ],
   };
 
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  // ✅ If you use MailChannels API key auth, add it here:
+  // Add secret in Worker: MAILCHANNELS_API_KEY
+  if (env.MAILCHANNELS_API_KEY) {
+    headers["X-Api-Key"] = env.MAILCHANNELS_API_KEY;
+  }
+
   const r = await fetch("https://api.mailchannels.net/tx/v1/send", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Api-Key": env.MAILCHANNELS_API_KEY, // ✅ важно
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 
   const body = await r.text().catch(() => "");
-  if (!r.ok) {
-    // ✅ покажет точную причину (403/401/..)
-    throw new Error(`MailChannels failed: ${r.status} ${body}`);
-  }
+  if (!r.ok) throw new Error(`MailChannels failed: ${r.status} ${body}`);
 }
 
 /* ---------------- Utils ---------------- */
@@ -198,7 +220,7 @@ function must(v, name) {
 }
 
 function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj, null, 2), {
+  return new Response(JSON.stringify(obj), {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8" },
   });
