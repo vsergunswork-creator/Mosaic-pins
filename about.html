@@ -14,8 +14,6 @@
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
 
-      --overlay: rgba(0,0,0,.72);
-      --overlay2: rgba(0,0,0,.82);
       --panel: rgba(0,0,0,.28);
       --panelHover: rgba(255,255,255,.05);
     }
@@ -32,6 +30,7 @@
       isolation:isolate;
     }
 
+    /* ✅ единый фон как на главной */
     body::before{
       content:"";
       position:fixed;
@@ -47,10 +46,8 @@
       will-change: transform;
     }
 
-    *{
-      scrollbar-width: thin;
-      scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
-    }
+    /* scrollbars */
+    *{ scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25); }
     *::-webkit-scrollbar{width:10px;height:10px}
     *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
     *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
@@ -58,6 +55,7 @@
 
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
 
+    /* ===== Sidebar (same style) ===== */
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
@@ -126,42 +124,7 @@
       background: linear-gradient(0deg, rgba(11,13,17,.95), rgba(11,13,17,0));
     }
 
-    .sb-section{
-      padding:14px 12px 10px;
-      display:flex; align-items:center; justify-content:space-between;
-      color:var(--muted);
-      font-size:12px;
-      letter-spacing:.6px;
-      text-transform:uppercase;
-    }
-
-    .sb-card{
-      margin:0 6px 10px;
-      padding:12px;
-      border-radius:16px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.22);
-    }
-    .sb-card h3{
-      margin:0 0 6px;
-      font-size:13px;
-      font-weight:950;
-      letter-spacing:.2px;
-    }
-    .sb-card p{
-      margin:0;
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.4;
-      white-space:pre-line;
-    }
-    .sb-card a{
-      color:var(--text);
-      text-decoration:none;
-      opacity:.9;
-    }
-    .sb-card a:hover{opacity:1}
-
+    /* ===== Main (same shell) ===== */
     .main{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       border:1px solid var(--line);
@@ -172,6 +135,7 @@
       flex-direction:column;
       min-width:0;
     }
+
     .topbar{
       padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
       display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -179,239 +143,163 @@
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
       flex:0 0 auto;
     }
-    .top-left{display:flex; align-items:center; gap:10px; min-width:0}
-    .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .h-title{font-weight:900; font-size:18px; margin:0;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
 
-    .top-right{display:flex; align-items:center; gap:10px}
-    .cartBtn{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:999px;
-      background:rgba(0,0,0,.28);
-      border:1px solid var(--line);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:900;
-      white-space:nowrap;
-      min-height:44px;
-      line-height:1.1;
-    }
-    .cartBtn:hover{background:rgba(255,255,255,.06)}
-    .cartBadge{
-      padding:4px 8px;
-      border-radius:999px;
-      background:rgba(34,197,94,.18);
-      border:1px solid rgba(34,197,94,.25);
-      color:var(--text);
-      font-size:12px;
-      font-weight:900;
-      line-height:1;
-      min-width:24px;
-      text-align:center;
-    }
+    .content{padding:0; overflow:auto; min-height:0;}
 
-    .content{padding:18px; overflow:auto; min-height:0;}
-
-    /* ===== ABOUT PAGE BLOCKS ===== */
+    /* ===== HERO (less dark overlay) ===== */
     .hero{
-      border-radius:18px;
-      border:1px solid var(--line);
-      overflow:hidden;
-      background:rgba(0,0,0,.22);
       position:relative;
       min-height: 260px;
-      box-shadow: var(--shadow);
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      background-size: cover;
+      background-position: center;
+      display:flex;
+      align-items:flex-end;
     }
-    .heroImg{
-      position:absolute; inset:0;
-      background-size:cover;
-      background-position:center;
-      filter: saturate(1.05);
-      transform: scale(1.02);
-    }
-    .heroOverlay{
-      position:absolute; inset:0;
-      background:
-        linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.80)),
-        radial-gradient(900px 380px at 30% 10%, rgba(34,197,94,.18), transparent 60%),
-        radial-gradient(900px 380px at 70% 20%, rgba(96,165,250,.14), transparent 60%);
+    .hero::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: linear-gradient(
+        180deg,
+        rgba(0,0,0,.08),
+        rgba(0,0,0,.18)
+      ); /* ✅ намного меньше затемнение */
     }
     .heroInner{
       position:relative;
-      padding: 22px 22px 18px;
-      display:flex;
-      flex-direction:column;
-      justify-content:flex-end;
-      gap:10px;
-      min-height: 260px;
+      z-index:1;
+      padding: 18px;
+      width:100%;
     }
     .heroTitle{
-      margin:0;
+      margin:0 0 6px;
       font-size: 28px;
       font-weight: 950;
       letter-spacing: .2px;
-      line-height: 1.05;
+      text-shadow: 0 10px 26px rgba(0,0,0,.45);
     }
     .heroSubtitle{
       margin:0;
+      color: rgba(233,238,247,.92);
+      font-size: 14px;
+      max-width: 780px;
+      line-height: 1.45;
+      text-shadow: 0 10px 26px rgba(0,0,0,.45);
+    }
+
+    /* ===== ABOUT FIRST ===== */
+    .aboutWrap{
+      padding: 18px;
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      background: rgba(0,0,0,.22);
+      box-shadow: var(--shadow);
+      margin: 18px;
+    }
+    .aboutText h2{
+      margin:0 0 10px;
+      font-size: 22px;
+      font-weight: 950;
+      letter-spacing: .2px;
+    }
+    .aboutBody{
       color: var(--muted);
       font-size: 14px;
-      line-height: 1.4;
-      max-width: 72ch;
+      line-height: 1.65;
       white-space: pre-line;
     }
 
-    .aboutWrap{
-      margin-top: 14px;
-      display:grid;
-      grid-template-columns: 1.2fr .8fr;
-      gap: 14px;
-      align-items:start;
-    }
-    .panel{
-      border-radius:18px;
+    /* ===== BIG GALLERY BELOW ===== */
+    .galleryWrap{
+      margin: 0 18px 18px;
+      padding: 18px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.22);
+      border-radius: var(--r);
+      background: rgba(0,0,0,.22);
       box-shadow: var(--shadow);
-      overflow:hidden;
     }
-    .panelHead{
-      padding:14px 16px 12px;
-      border-bottom:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    .galleryHead{
       display:flex;
-      align-items:center;
+      align-items:flex-end;
       justify-content:space-between;
-      gap:10px;
+      gap:12px;
+      margin-bottom: 12px;
     }
-    .panelTitle{
+    .galleryHead h2{
       margin:0;
-      font-weight:950;
-      letter-spacing:.2px;
-      font-size:14px;
+      font-size: 22px;
+      font-weight: 950;
     }
-    .panelBody{
-      padding: 14px 16px 16px;
+    .galleryHint{
       color: var(--muted);
-      font-size: 13px;
-      line-height: 1.55;
-      white-space: pre-line;
-    }
-    .hint{
       font-size: 12px;
-      color: var(--muted);
-      opacity:.9;
     }
 
-    /* ===== CAROUSEL ===== */
-    .carousel{
-      position:relative;
-      padding: 14px 16px 16px;
-    }
-    .viewport{
+    .carousel{ position:relative; }
+    .carViewport{
       overflow:hidden;
-      border-radius:16px;
+      border-radius: 16px;
       border:1px solid var(--line);
       background: rgba(0,0,0,.20);
-      padding: 14px;
     }
-    .track{
+    .carTrack{
       display:flex;
       gap:14px;
+      padding: 14px;
       transition: transform .22s ease;
       will-change: transform;
     }
 
-    /* 3 cards visible */
+    /* ✅ big slides: 1.3-ish visible on desktop */
     .slide{
-      flex: 0 0 calc((100% - 28px) / 3);
-      border-radius:16px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.04);
+      flex: 0 0 72%;
+      border-radius: 18px;
+      border: 1px solid var(--line);
       overflow:hidden;
+      background: rgba(255,255,255,.04);
+      aspect-ratio: 16/10;
       position:relative;
-      transform: scale(.92);
-      opacity:.86;
-      transition: transform .22s ease, opacity .22s ease, filter .22s ease;
-      cursor:pointer;
-      aspect-ratio: 1 / 1;
+      transform: scale(.96);
+      opacity:.92;
+      transition: transform .22s ease, opacity .22s ease, background .22s ease;
     }
     .slide.is-center{
-      transform: scale(1.12);
+      transform: scale(1.06);
       opacity:1;
       z-index:2;
-      filter: saturate(1.05);
       background: rgba(255,255,255,.06);
     }
     .slide img{
       width:100%;
       height:100%;
-      object-fit:cover;
+      object-fit: cover;
       display:block;
     }
 
     .carBtn{
       position:absolute;
-      top: 50%;
+      top:50%;
       transform: translateY(-50%);
-      width:44px;height:44px;
-      border-radius:999px;
+      width:44px;
+      height:44px;
+      border-radius: 14px;
       border:1px solid var(--line);
-      background: rgba(0,0,0,.35);
+      background: rgba(0,0,0,.45);
       color: var(--text);
       cursor:pointer;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-weight:950;
-      backdrop-filter: blur(10px);
-      user-select:none;
+      font-weight: 900;
+      backdrop-filter: blur(8px);
+      z-index:3;
     }
-    .carBtn:hover{ background: rgba(255,255,255,.06); }
-    .carBtn:disabled{ opacity:.35; cursor:not-allowed; }
-    .carPrev{ left: 10px; }
-    .carNext{ right: 10px; }
+    .carBtn:hover{background: rgba(255,255,255,.08);}
+    .carPrev{left: 10px;}
+    .carNext{right: 10px;}
 
-    .dots{
-      display:flex;
-      justify-content:center;
-      gap:8px;
-      padding-top: 12px;
-    }
-    .dotBtn{
-      width:8px;height:8px;border-radius:999px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.10);
-      cursor:pointer;
-      opacity:.75;
-    }
-    .dotBtn.active{
-      background: rgba(34,197,94,.35);
-      border-color: rgba(34,197,94,.35);
-      opacity:1;
-    }
-
-    /* Mobile layout */
-    @media (max-width:980px){
-      body{overflow:auto}
-      .app{grid-template-columns:1fr; height:auto; min-height:100vh}
-      .sidebar{display:none}
-      .main{height:auto; min-height:100vh}
-      .content{padding:14px}
-      .aboutWrap{grid-template-columns:1fr; }
-      .heroInner{min-height: 240px}
-      .slide{flex: 0 0 calc((100% - 14px) / 2);} /* 2 visible on small */
-      .carPrev,.carNext{display:none;} /* на мобилке свайпом */
-    }
-    @media (max-width:520px){
-      .slide{flex: 0 0 100%;} /* 1 visible on very small */
-      .heroTitle{font-size:24px}
-    }
-
-    /* ✅ footer */
+    /* footer */
     .siteFooter{
       padding: 12px 18px;
       border-top: 1px solid var(--line);
@@ -423,31 +311,23 @@
       flex-wrap:wrap;
       flex: 0 0 auto;
     }
-    .siteFooter a{
-      color: var(--text);
-      text-decoration:none;
-      opacity:.9;
-    }
+    .siteFooter a{ color: var(--text); text-decoration:none; opacity:.9; }
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
 
-    .toast{
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      background: rgba(0,0,0,.65);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px 14px;
-      color: var(--text);
-      box-shadow: var(--shadow);
-      max-width: 360px;
-      display:none;
-      z-index:999;
-      backdrop-filter: blur(10px);
+    /* responsive */
+    @media (max-width:980px){
+      body{overflow:auto}
+      .app{grid-template-columns:1fr; height:auto; min-height:100vh}
+      .sidebar{display:none}
+      .main{height:auto; min-height:100vh}
+      .content{padding:0}
+      .aboutWrap, .galleryWrap{margin: 14px; padding: 14px;}
+      .slide{flex: 0 0 100%; aspect-ratio: 4/3;}
+      .carBtn{display:none;}
+      .hero{min-height: 220px;}
+      .heroTitle{font-size: 24px;}
     }
-    .toast.show{display:block}
-    .toast small{color:var(--muted)}
   </style>
 </head>
 
@@ -467,80 +347,55 @@
       </nav>
 
       <div class="sb-scroll">
-        <div class="sb-section"><span>Info</span><span class="pill">mosaicipns.space</span></div>
-
-        <div class="sb-card">
-          <h3>Contact</h3>
-          <p>
-            <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
-          </p>
-        </div>
-
-        <div class="sb-card">
-          <h3>Tip</h3>
-          <p>Text and photos on this page are loaded from Airtable (easy to edit).</p>
+        <div style="padding:12px;color:var(--muted);font-size:12px;line-height:1.45;">
+          Content loads from Airtable via <b>/api/content?key=about</b>
         </div>
       </div>
     </aside>
 
     <main class="main">
       <div class="topbar">
-        <div class="top-left">
-          <div>
-            <h1 class="h-title" id="topTitle">About</h1>
-            <div class="sub" id="topSub">Mosaic Pins Space</div>
-          </div>
+        <div>
+          <h1 class="h-title">Mosaic Pins Space</h1>
+          <div class="sub">About</div>
         </div>
-
-        <div class="top-right">
-          <button class="cartBtn" id="openCart" type="button" title="Cart">
-            🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
-          </button>
-        </div>
+        <div style="color:var(--muted);font-size:12px;">Same style • Airtable content</div>
       </div>
 
       <div class="content">
         <!-- HERO -->
         <section class="hero" id="hero">
-          <div class="heroImg" id="heroImg"></div>
-          <div class="heroOverlay"></div>
           <div class="heroInner">
-            <h2 class="heroTitle" id="heroTitle">Mosaic Pins Space</h2>
-            <p class="heroSubtitle" id="heroSubtitle">Loading…</p>
+            <h2 class="heroTitle" id="heroTitle">Mosaic Pins</h2>
+            <p class="heroSubtitle" id="heroSubtitle">High-quality handcrafted mosaic pins for knife handles</p>
           </div>
         </section>
 
-        <div class="aboutWrap">
-          <!-- ABOUT TEXT -->
-          <section class="panel">
-            <div class="panelHead">
-              <h3 class="panelTitle">About us</h3>
-              <div class="hint">Editable in Airtable</div>
-            </div>
-            <div class="panelBody" id="aboutBody">
-              Loading…
-            </div>
-          </section>
+        <!-- ABOUT FIRST -->
+        <section class="aboutWrap">
+          <div class="aboutText">
+            <h2 id="aboutTitle">About us</h2>
+            <div class="aboutBody" id="aboutBody">Loading…</div>
+          </div>
+        </section>
 
-          <!-- GALLERY -->
-          <section class="panel">
-            <div class="panelHead">
-              <h3 class="panelTitle">Gallery</h3>
-              <div class="hint" id="galHint">—</div>
+        <!-- BIG GALLERY BELOW -->
+        <section class="galleryWrap">
+          <div class="galleryHead">
+            <h2>Gallery</h2>
+            <div class="galleryHint">Click image to focus • Use arrows (desktop)</div>
+          </div>
+
+          <div class="carousel">
+            <button class="carBtn carPrev" id="carPrev" type="button">‹</button>
+
+            <div class="carViewport" id="carViewport">
+              <div class="carTrack" id="carTrack"></div>
             </div>
 
-            <div class="carousel">
-              <button class="carBtn carPrev" id="prevBtn" type="button" aria-label="Previous">‹</button>
-              <button class="carBtn carNext" id="nextBtn" type="button" aria-label="Next">›</button>
-
-              <div class="viewport" id="viewport">
-                <div class="track" id="track"></div>
-              </div>
-
-              <div class="dots" id="dots"></div>
-            </div>
-          </section>
-        </div>
+            <button class="carBtn carNext" id="carNext" type="button">›</button>
+          </div>
+        </section>
       </div>
 
       <footer class="siteFooter">
@@ -548,255 +403,126 @@
         <span class="sep">|</span>
         <a href="/returns">Returns & Refunds</a>
         <span class="sep">|</span>
-        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
       </footer>
     </main>
   </div>
 
-  <!-- Cart Drawer (минимально, как на главной — открывает / показывает что в localStorage) -->
-  <div class="toast" id="toast">
-    <div style="font-weight:800" id="toastTitle">Notice</div>
-    <small id="toastMsg">—</small>
-  </div>
+  <script>
+    const API_CONTENT = "/api/content?key=about";
 
-<script>
-  const API_CONTENT = "/api/content?key=";
+    let gallery = [];
+    let activeIndex = 0;
 
-  const CART_KEY = "mp_cart";
-  function readCart(){
-    try{
-      const raw = localStorage.getItem(CART_KEY);
-      const arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
-    }catch(_){ return []; }
-  }
-  function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
+    const elHero = document.getElementById("hero");
+    const elHeroTitle = document.getElementById("heroTitle");
+    const elHeroSubtitle = document.getElementById("heroSubtitle");
 
-  const elCartBadge = document.getElementById("cartBadge");
-  const elOpenCart = document.getElementById("openCart");
+    const elAboutBody = document.getElementById("aboutBody");
 
-  const elToast = document.getElementById("toast");
-  const elToastTitle = document.getElementById("toastTitle");
-  const elToastMsg = document.getElementById("toastMsg");
+    const elViewport = document.getElementById("carViewport");
+    const elTrack = document.getElementById("carTrack");
+    const elPrev = document.getElementById("carPrev");
+    const elNext = document.getElementById("carNext");
 
-  function toast(title, msg){
-    elToastTitle.textContent = title;
-    elToastMsg.textContent = msg;
-    elToast.classList.add("show");
-    setTimeout(()=> elToast.classList.remove("show"), 2600);
-  }
-
-  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
-  updateCartBadge();
-
-  // Просто открываем корзину как на главной (если хотите — сделаем drawer как в index)
-  elOpenCart.addEventListener("click", () => {
-    const c = readCart();
-    if (!c.length) return toast("Cart", "Your cart is empty");
-    toast("Cart", `Items: ${cartCount()}`);
-  });
-
-  // ====== Airtable content load ======
-  const heroImg = document.getElementById("heroImg");
-  const heroTitle = document.getElementById("heroTitle");
-  const heroSubtitle = document.getElementById("heroSubtitle");
-  const aboutBody = document.getElementById("aboutBody");
-  const topTitle = document.getElementById("topTitle");
-  const topSub = document.getElementById("topSub");
-
-  const track = document.getElementById("track");
-  const dots = document.getElementById("dots");
-  const galHint = document.getElementById("galHint");
-  const prevBtn = document.getElementById("prevBtn");
-  const nextBtn = document.getElementById("nextBtn");
-  const viewport = document.getElementById("viewport");
-
-  let gallery = [];
-  let index = 0;
-  let stepPx = 0;
-
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-  }
-
-  function setHeroBg(url){
-    if (!url) return;
-    heroImg.style.backgroundImage = `url("${url}")`;
-  }
-
-  async function fetchContent(key){
-    const r = await fetch(API_CONTENT + encodeURIComponent(key), { cache:"no-store" });
-    const data = await r.json().catch(()=> ({}));
-    if (!r.ok) throw new Error(data?.error || "Content load failed");
-    return data?.content || null;
-  }
-
-  async function loadAbout(){
-    try{
-      // сначала пробуем "about", если Airtable Key "About" — тогда fallback
-      let c = await fetchContent("about").catch(()=>null);
-      if (!c) c = await fetchContent("About");
-
-      if (!c) throw new Error("Not found");
-
-      topTitle.textContent = "About";
-      topSub.textContent = c.heroTitle ? c.heroTitle : "Mosaic Pins Space";
-
-      heroTitle.textContent = c.heroTitle || "Mosaic Pins Space";
-      heroSubtitle.textContent = c.heroSubtitle || "";
-      aboutBody.textContent = c.aboutBody || "";
-
-      setHeroBg(c.heroImage);
-
-      gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
-      galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
-
-      buildCarousel();
-    }catch(e){
-      heroSubtitle.textContent = "Failed to load content.";
-      aboutBody.textContent = "Please check /api/content?key=about and Airtable permissions.";
-      toast("About", String(e?.message || e));
-    }
-  }
-
-  function buildCarousel(){
-    track.innerHTML = "";
-    dots.innerHTML = "";
-    index = Math.min(index, Math.max(0, gallery.length - 1));
-
-    if (!gallery.length){
-      track.innerHTML = `<div style="color:var(--muted); padding:10px;">No gallery images.</div>`;
-      prevBtn.disabled = true;
-      nextBtn.disabled = true;
-      return;
+    function escapeHtml(s){
+      return String(s||"").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
     }
 
-    // slides
-    gallery.forEach((url, i) => {
-      const div = document.createElement("div");
-      div.className = "slide";
-      div.setAttribute("data-i", String(i));
-      div.innerHTML = `<img src="${url}" alt="Gallery ${i+1}" loading="lazy" />`;
-      div.addEventListener("click", () => goTo(i));
-      track.appendChild(div);
+    function renderCarousel(){
+      elTrack.innerHTML = (gallery || []).map((url, i) => `
+        <div class="slide ${i===activeIndex ? "is-center":""}" data-i="${i}">
+          <img src="${escapeHtml(url)}" alt="Gallery image ${i+1}" loading="lazy">
+        </div>
+      `).join("");
 
-      const d = document.createElement("button");
-      d.type = "button";
-      d.className = "dotBtn";
-      d.setAttribute("aria-label", `Go to ${i+1}`);
-      d.addEventListener("click", () => goTo(i));
-      dots.appendChild(d);
+      [...elTrack.querySelectorAll(".slide")].forEach(s => {
+        s.addEventListener("click", () => {
+          activeIndex = Number(s.getAttribute("data-i")) || 0;
+          applyCarousel();
+        });
+      });
+
+      applyCarousel();
+    }
+
+    function applyCarousel(){
+      const slides = [...elTrack.querySelectorAll(".slide")];
+      slides.forEach((s,i)=> s.classList.toggle("is-center", i===activeIndex));
+
+      const first = slides[0];
+      if (!first) return;
+
+      const slideW = first.getBoundingClientRect().width;
+      const gap = 14;
+      const viewportW = elViewport.getBoundingClientRect().width;
+
+      const offset = Math.max(0, activeIndex) * (slideW + gap);
+      const centered = Math.max(0, offset - (viewportW - slideW)/2);
+
+      elTrack.style.transform = `translateX(${-centered}px)`;
+    }
+
+    function next(){
+      if (!gallery.length) return;
+      activeIndex = Math.min(gallery.length - 1, activeIndex + 1);
+      applyCarousel();
+    }
+    function prev(){
+      if (!gallery.length) return;
+      activeIndex = Math.max(0, activeIndex - 1);
+      applyCarousel();
+    }
+
+    elNext?.addEventListener("click", next);
+    elPrev?.addEventListener("click", prev);
+    window.addEventListener("resize", () => applyCarousel());
+
+    async function loadAbout(){
+      const r = await fetch(API_CONTENT, { cache: "no-store" });
+      const data = await r.json().catch(()=> ({}));
+      if (!r.ok || !data?.content) throw new Error(data?.error || "Content load failed");
+
+      const c = data.content;
+
+      // hero
+      if (c.heroImage && elHero){
+        elHero.style.backgroundImage = `url("${c.heroImage}")`;
+      }
+      if (elHeroTitle) elHeroTitle.textContent = c.heroTitle || "Mosaic Pins";
+      if (elHeroSubtitle) elHeroSubtitle.textContent = c.heroSubtitle || "";
+
+      // about body
+      elAboutBody.textContent = c.aboutBody || "";
+
+      // gallery
+      gallery = Array.isArray(c.gallery) ? c.gallery : [];
+      activeIndex = 0;
+      renderCarousel();
+    }
+
+    loadAbout().catch(err => {
+      console.error(err);
+      elAboutBody.textContent = "Failed to load content. Please try again later.";
     });
 
-    measureStep();
-    applyCarousel();
-    updateBtns();
-    updateDots();
-    updateCenterClass();
-  }
+    // nav highlight (same logic)
+    (function navActive(){
+      const path = window.location.pathname || "/";
+      const navShop = document.getElementById("navShop");
+      const navAbout = document.getElementById("navAbout");
+      const navShipping = document.getElementById("navShipping");
+      const navReturns = document.getElementById("navReturns");
 
-  function measureStep(){
-    const first = track.querySelector(".slide");
-    if (!first) return;
-    // step = slide width + gap
-    const slideW = first.getBoundingClientRect().width;
-    const styles = getComputedStyle(track);
-    const gap = parseFloat(styles.columnGap || styles.gap || "14") || 14;
-    stepPx = slideW + gap;
-  }
+      [navShop, navAbout, navShipping, navReturns].forEach(a => a && a.classList.remove("active"));
 
-  function applyCarousel(){
-    if (!gallery.length) return;
-    // сдвигаем так, чтобы текущий index был в центре (слева виден index-1, справа index+1)
-    // центр-слот — это второй из 3 => смещение на (index - 1)
-    const offset = Math.max(0, index - 1) * stepPx;
-    track.style.transform = `translateX(${-offset}px)`;
-    updateCenterClass();
-    updateDots();
-    updateBtns();
-  }
-
-  function updateCenterClass(){
-    const slides = [...track.querySelectorAll(".slide")];
-    slides.forEach(s => s.classList.remove("is-center"));
-    const center = slides[index];
-    if (center) center.classList.add("is-center");
-  }
-
-  function updateDots(){
-    const ds = [...dots.querySelectorAll(".dotBtn")];
-    ds.forEach((d,i)=> d.classList.toggle("active", i === index));
-  }
-
-  function updateBtns(){
-    prevBtn.disabled = (index <= 0);
-    nextBtn.disabled = (index >= gallery.length - 1);
-  }
-
-  function goTo(i){
-    index = Math.max(0, Math.min(gallery.length - 1, i));
-    applyCarousel();
-  }
-  function prev(){ goTo(index - 1); }
-  function next(){ goTo(index + 1); }
-
-  prevBtn.addEventListener("click", prev);
-  nextBtn.addEventListener("click", next);
-
-  // swipe support
-  (function enableSwipe(){
-    let startX = 0;
-    let dx = 0;
-    let dragging = false;
-
-    viewport.addEventListener("touchstart", (e)=>{
-      if (!e.touches?.length) return;
-      dragging = true;
-      startX = e.touches[0].clientX;
-      dx = 0;
-    }, {passive:true});
-
-    viewport.addEventListener("touchmove", (e)=>{
-      if (!dragging || !e.touches?.length) return;
-      dx = e.touches[0].clientX - startX;
-    }, {passive:true});
-
-    viewport.addEventListener("touchend", ()=>{
-      if (!dragging) return;
-      dragging = false;
-      if (Math.abs(dx) < 30) return;
-      if (dx > 0) prev(); else next();
-    }, {passive:true});
-  })();
-
-  // keyboard support
-  window.addEventListener("keydown", (e)=>{
-    if (e.key === "ArrowLeft") prev();
-    if (e.key === "ArrowRight") next();
-  });
-
-  window.addEventListener("resize", ()=>{
-    measureStep();
-    applyCarousel();
-  });
-
-  // nav active (на всякий случай, если будет переиспользование)
-  (function navActive(){
-    const path = window.location.pathname || "/";
-    const navShop = document.getElementById("navShop");
-    const navAbout = document.getElementById("navAbout");
-    const navShipping = document.getElementById("navShipping");
-    const navReturns = document.getElementById("navReturns");
-    [navShop, navAbout, navShipping, navReturns].forEach(a => a && a.classList.remove("active"));
-    if (path.startsWith("/shipping")) navShipping?.classList.add("active");
-    else if (path.startsWith("/returns")) navReturns?.classList.add("active");
-    else if (path.startsWith("/about")) navAbout?.classList.add("active");
-    else navShop?.classList.add("active");
-  })();
-
-  loadAbout();
-</script>
+      if (path.startsWith("/shipping")) navShipping?.classList.add("active");
+      else if (path.startsWith("/returns")) navReturns?.classList.add("active");
+      else if (path.startsWith("/about")) navAbout?.classList.add("active");
+      else navShop?.classList.add("active");
+    })();
+  </script>
 </body>
 </html>
