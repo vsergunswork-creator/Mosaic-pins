@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>About — Mosaic Pins</title>
+
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --text:#e9eef7;
+      --muted:#a8b3c7;
+      --line:rgba(255,255,255,.08);
+      --shadow: 0 12px 30px rgba(0,0,0,.45);
+      --r:18px;
+
+      --overlay: rgba(0,0,0,.72);
+      --overlay2: rgba(0,0,0,.82);
+      --panel: rgba(0,0,0,.28);
+      --panelHover: rgba(255,255,255,.05);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--bg);
+      color:var(--text);
+      overflow:hidden;
+      position:relative;
+      isolation:isolate;
+    }
+
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20vh -20vw;
+      z-index:-1;
+      pointer-events:none;
+      background:
+        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+        var(--bg);
+      filter: blur(18px) saturate(1.05);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    *{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
+    }
+    *::-webkit-scrollbar{width:10px;height:10px}
+    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
+    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
+    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+
+    .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
+
+    .sidebar{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .sb-top{
+      padding:18px 18px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      flex:0 0 auto;
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
+    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
+    .pill{
+      padding:8px 10px; border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .sb-nav{padding:6px; display:grid; gap:6px; flex:0 0 auto;}
+    .nav-item{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      color:var(--muted);
+      text-decoration:none;
+      border:1px solid transparent;
+    }
+    .nav-item:hover{background:rgba(255,255,255,.05); color:var(--text);}
+    .nav-item.active{
+      background:rgba(34,197,94,.12);
+      border-color: rgba(34,197,94,.22);
+      color:var(--text);
+    }
+
+    .sb-scroll{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:auto;
+      padding:6px 6px 10px;
+      position:relative;
+    }
+    .sb-scroll:before,
+    .sb-scroll:after{
+      content:"";
+      position:sticky;
+      left:0; right:0;
+      height:14px;
+      pointer-events:none;
+      z-index:2;
+      display:block;
+    }
+    .sb-scroll:before{
+      top:0;
+      background: linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,0));
+    }
+    .sb-scroll:after{
+      bottom:0;
+      background: linear-gradient(0deg, rgba(11,13,17,.95), rgba(11,13,17,0));
+    }
+
+    .sb-section{
+      padding:14px 12px 10px;
+      display:flex; align-items:center; justify-content:space-between;
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+    }
+
+    .sb-card{
+      margin:0 6px 10px;
+      padding:12px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+    }
+    .sb-card h3{
+      margin:0 0 6px;
+      font-size:13px;
+      font-weight:950;
+      letter-spacing:.2px;
+    }
+    .sb-card p{
+      margin:0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.4;
+      white-space:pre-line;
+    }
+    .sb-card a{
+      color:var(--text);
+      text-decoration:none;
+      opacity:.9;
+    }
+    .sb-card a:hover{opacity:1}
+
+    .main{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+    }
+    .topbar{
+      padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+      flex:0 0 auto;
+    }
+    .top-left{display:flex; align-items:center; gap:10px; min-width:0}
+    .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .sub{color:var(--muted); font-size:12px; margin-top:4px}
+
+    .top-right{display:flex; align-items:center; gap:10px}
+    .cartBtn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.28);
+      border:1px solid var(--line);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+      min-height:44px;
+      line-height:1.1;
+    }
+    .cartBtn:hover{background:rgba(255,255,255,.06)}
+    .cartBadge{
+      padding:4px 8px;
+      border-radius:999px;
+      background:rgba(34,197,94,.18);
+      border:1px solid rgba(34,197,94,.25);
+      color:var(--text);
+      font-size:12px;
+      font-weight:900;
+      line-height:1;
+      min-width:24px;
+      text-align:center;
+    }
+
+    .content{padding:18px; overflow:auto; min-height:0;}
+
+    /* ===== ABOUT PAGE BLOCKS ===== */
+    .hero{
+      border-radius:18px;
+      border:1px solid var(--line);
+      overflow:hidden;
+      background:rgba(0,0,0,.22);
+      position:relative;
+      min-height: 260px;
+      box-shadow: var(--shadow);
+    }
+    .heroImg{
+      position:absolute; inset:0;
+      background-size:cover;
+      background-position:center;
+      filter: saturate(1.05);
+      transform: scale(1.02);
+    }
+    .heroOverlay{
+      position:absolute; inset:0;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.80)),
+        radial-gradient(900px 380px at 30% 10%, rgba(34,197,94,.18), transparent 60%),
+        radial-gradient(900px 380px at 70% 20%, rgba(96,165,250,.14), transparent 60%);
+    }
+    .heroInner{
+      position:relative;
+      padding: 22px 22px 18px;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-end;
+      gap:10px;
+      min-height: 260px;
+    }
+    .heroTitle{
+      margin:0;
+      font-size: 28px;
+      font-weight: 950;
+      letter-spacing: .2px;
+      line-height: 1.05;
+    }
+    .heroSubtitle{
+      margin:0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+      max-width: 72ch;
+      white-space: pre-line;
+    }
+
+    .aboutWrap{
+      margin-top: 14px;
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 14px;
+      align-items:start;
+    }
+    .panel{
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .panelHead{
+      padding:14px 16px 12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .panelTitle{
+      margin:0;
+      font-weight:950;
+      letter-spacing:.2px;
+      font-size:14px;
+    }
+    .panelBody{
+      padding: 14px 16px 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-line;
+    }
+    .hint{
+      font-size: 12px;
+      color: var(--muted);
+      opacity:.9;
+    }
+
+    /* ===== CAROUSEL ===== */
+    .carousel{
+      position:relative;
+      padding: 14px 16px 16px;
+    }
+    .viewport{
+      overflow:hidden;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.20);
+      padding: 14px;
+    }
+    .track{
+      display:flex;
+      gap:14px;
+      transition: transform .22s ease;
+      will-change: transform;
+    }
+
+    /* 3 cards visible */
+    .slide{
+      flex: 0 0 calc((100% - 28px) / 3);
+      border-radius:16px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      overflow:hidden;
+      position:relative;
+      transform: scale(.92);
+      opacity:.86;
+      transition: transform .22s ease, opacity .22s ease, filter .22s ease;
+      cursor:pointer;
+      aspect-ratio: 1 / 1;
+    }
+    .slide.is-center{
+      transform: scale(1.12);
+      opacity:1;
+      z-index:2;
+      filter: saturate(1.05);
+      background: rgba(255,255,255,.06);
+    }
+    .slide img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    .carBtn{
+      position:absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width:44px;height:44px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.35);
+      color: var(--text);
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:950;
+      backdrop-filter: blur(10px);
+      user-select:none;
+    }
+    .carBtn:hover{ background: rgba(255,255,255,.06); }
+    .carBtn:disabled{ opacity:.35; cursor:not-allowed; }
+    .carPrev{ left: 10px; }
+    .carNext{ right: 10px; }
+
+    .dots{
+      display:flex;
+      justify-content:center;
+      gap:8px;
+      padding-top: 12px;
+    }
+    .dotBtn{
+      width:8px;height:8px;border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.10);
+      cursor:pointer;
+      opacity:.75;
+    }
+    .dotBtn.active{
+      background: rgba(34,197,94,.35);
+      border-color: rgba(34,197,94,.35);
+      opacity:1;
+    }
+
+    /* Mobile layout */
+    @media (max-width:980px){
+      body{overflow:auto}
+      .app{grid-template-columns:1fr; height:auto; min-height:100vh}
+      .sidebar{display:none}
+      .main{height:auto; min-height:100vh}
+      .content{padding:14px}
+      .aboutWrap{grid-template-columns:1fr; }
+      .heroInner{min-height: 240px}
+      .slide{flex: 0 0 calc((100% - 14px) / 2);} /* 2 visible on small */
+      .carPrev,.carNext{display:none;} /* на мобилке свайпом */
+    }
+    @media (max-width:520px){
+      .slide{flex: 0 0 100%;} /* 1 visible on very small */
+      .heroTitle{font-size:24px}
+    }
+
+    /* ✅ footer */
+    .siteFooter{
+      padding: 12px 18px;
+      border-top: 1px solid var(--line);
+      background: rgba(0,0,0,.20);
+      color: var(--muted);
+      font-size: 12px;
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      flex: 0 0 auto;
+    }
+    .siteFooter a{
+      color: var(--text);
+      text-decoration:none;
+      opacity:.9;
+    }
+    .siteFooter a:hover{opacity:1}
+    .siteFooter .sep{opacity:.35}
+
+    .toast{
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      background: rgba(0,0,0,.65);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: var(--text);
+      box-shadow: var(--shadow);
+      max-width: 360px;
+      display:none;
+      z-index:999;
+      backdrop-filter: blur(10px);
+    }
+    .toast.show{display:block}
+    .toast small{color:var(--muted)}
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="brand"><span class="dot"></span> Mosaic Pins</div>
+        <div class="pill">About</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/" id="navShop">Shop</a>
+        <a class="nav-item active" href="/about" id="navAbout">About</a>
+        <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
+        <a class="nav-item" href="/returns" id="navReturns">Returns</a>
+      </nav>
+
+      <div class="sb-scroll">
+        <div class="sb-section"><span>Info</span><span class="pill">mosaicipns.space</span></div>
+
+        <div class="sb-card">
+          <h3>Contact</h3>
+          <p>
+            <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+          </p>
+        </div>
+
+        <div class="sb-card">
+          <h3>Tip</h3>
+          <p>Text and photos on this page are loaded from Airtable (easy to edit).</p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="top-left">
+          <div>
+            <h1 class="h-title" id="topTitle">About</h1>
+            <div class="sub" id="topSub">Mosaic Pins Space</div>
+          </div>
+        </div>
+
+        <div class="top-right">
+          <button class="cartBtn" id="openCart" type="button" title="Cart">
+            🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- HERO -->
+        <section class="hero" id="hero">
+          <div class="heroImg" id="heroImg"></div>
+          <div class="heroOverlay"></div>
+          <div class="heroInner">
+            <h2 class="heroTitle" id="heroTitle">Mosaic Pins Space</h2>
+            <p class="heroSubtitle" id="heroSubtitle">Loading…</p>
+          </div>
+        </section>
+
+        <div class="aboutWrap">
+          <!-- ABOUT TEXT -->
+          <section class="panel">
+            <div class="panelHead">
+              <h3 class="panelTitle">About us</h3>
+              <div class="hint">Editable in Airtable</div>
+            </div>
+            <div class="panelBody" id="aboutBody">
+              Loading…
+            </div>
+          </section>
+
+          <!-- GALLERY -->
+          <section class="panel">
+            <div class="panelHead">
+              <h3 class="panelTitle">Gallery</h3>
+              <div class="hint" id="galHint">—</div>
+            </div>
+
+            <div class="carousel">
+              <button class="carBtn carPrev" id="prevBtn" type="button" aria-label="Previous">‹</button>
+              <button class="carBtn carNext" id="nextBtn" type="button" aria-label="Next">›</button>
+
+              <div class="viewport" id="viewport">
+                <div class="track" id="track"></div>
+              </div>
+
+              <div class="dots" id="dots"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="siteFooter">
+        <a href="/shipping">Shipping</a>
+        <span class="sep">|</span>
+        <a href="/returns">Returns & Refunds</a>
+        <span class="sep">|</span>
+        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Cart Drawer (минимально, как на главной — открывает / показывает что в localStorage) -->
+  <div class="toast" id="toast">
+    <div style="font-weight:800" id="toastTitle">Notice</div>
+    <small id="toastMsg">—</small>
+  </div>
+
+<script>
+  const API_CONTENT = "/api/content?key=";
+
+  const CART_KEY = "mp_cart";
+  function readCart(){
+    try{
+      const raw = localStorage.getItem(CART_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    }catch(_){ return []; }
+  }
+  function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
+
+  const elCartBadge = document.getElementById("cartBadge");
+  const elOpenCart = document.getElementById("openCart");
+
+  const elToast = document.getElementById("toast");
+  const elToastTitle = document.getElementById("toastTitle");
+  const elToastMsg = document.getElementById("toastMsg");
+
+  function toast(title, msg){
+    elToastTitle.textContent = title;
+    elToastMsg.textContent = msg;
+    elToast.classList.add("show");
+    setTimeout(()=> elToast.classList.remove("show"), 2600);
+  }
+
+  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
+  updateCartBadge();
+
+  // Просто открываем корзину как на главной (если хотите — сделаем drawer как в index)
+  elOpenCart.addEventListener("click", () => {
+    const c = readCart();
+    if (!c.length) return toast("Cart", "Your cart is empty");
+    toast("Cart", `Items: ${cartCount()}`);
+  });
+
+  // ====== Airtable content load ======
+  const heroImg = document.getElementById("heroImg");
+  const heroTitle = document.getElementById("heroTitle");
+  const heroSubtitle = document.getElementById("heroSubtitle");
+  const aboutBody = document.getElementById("aboutBody");
+  const topTitle = document.getElementById("topTitle");
+  const topSub = document.getElementById("topSub");
+
+  const track = document.getElementById("track");
+  const dots = document.getElementById("dots");
+  const galHint = document.getElementById("galHint");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const viewport = document.getElementById("viewport");
+
+  let gallery = [];
+  let index = 0;
+  let stepPx = 0;
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  function setHeroBg(url){
+    if (!url) return;
+    heroImg.style.backgroundImage = `url("${url}")`;
+  }
+
+  async function fetchContent(key){
+    const r = await fetch(API_CONTENT + encodeURIComponent(key), { cache:"no-store" });
+    const data = await r.json().catch(()=> ({}));
+    if (!r.ok) throw new Error(data?.error || "Content load failed");
+    return data?.content || null;
+  }
+
+  async function loadAbout(){
+    try{
+      // сначала пробуем "about", если Airtable Key "About" — тогда fallback
+      let c = await fetchContent("about").catch(()=>null);
+      if (!c) c = await fetchContent("About");
+
+      if (!c) throw new Error("Not found");
+
+      topTitle.textContent = "About";
+      topSub.textContent = c.heroTitle ? c.heroTitle : "Mosaic Pins Space";
+
+      heroTitle.textContent = c.heroTitle || "Mosaic Pins Space";
+      heroSubtitle.textContent = c.heroSubtitle || "";
+      aboutBody.textContent = c.aboutBody || "";
+
+      setHeroBg(c.heroImage);
+
+      gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
+      galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
+
+      buildCarousel();
+    }catch(e){
+      heroSubtitle.textContent = "Failed to load content.";
+      aboutBody.textContent = "Please check /api/content?key=about and Airtable permissions.";
+      toast("About", String(e?.message || e));
+    }
+  }
+
+  function buildCarousel(){
+    track.innerHTML = "";
+    dots.innerHTML = "";
+    index = Math.min(index, Math.max(0, gallery.length - 1));
+
+    if (!gallery.length){
+      track.innerHTML = `<div style="color:var(--muted); padding:10px;">No gallery images.</div>`;
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      return;
+    }
+
+    // slides
+    gallery.forEach((url, i) => {
+      const div = document.createElement("div");
+      div.className = "slide";
+      div.setAttribute("data-i", String(i));
+      div.innerHTML = `<img src="${url}" alt="Gallery ${i+1}" loading="lazy" />`;
+      div.addEventListener("click", () => goTo(i));
+      track.appendChild(div);
+
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "dotBtn";
+      d.setAttribute("aria-label", `Go to ${i+1}`);
+      d.addEventListener("click", () => goTo(i));
+      dots.appendChild(d);
+    });
+
+    measureStep();
+    applyCarousel();
+    updateBtns();
+    updateDots();
+    updateCenterClass();
+  }
+
+  function measureStep(){
+    const first = track.querySelector(".slide");
+    if (!first) return;
+    // step = slide width + gap
+    const slideW = first.getBoundingClientRect().width;
+    const styles = getComputedStyle(track);
+    const gap = parseFloat(styles.columnGap || styles.gap || "14") || 14;
+    stepPx = slideW + gap;
+  }
+
+  function applyCarousel(){
+    if (!gallery.length) return;
+    // сдвигаем так, чтобы текущий index был в центре (слева виден index-1, справа index+1)
+    // центр-слот — это второй из 3 => смещение на (index - 1)
+    const offset = Math.max(0, index - 1) * stepPx;
+    track.style.transform = `translateX(${-offset}px)`;
+    updateCenterClass();
+    updateDots();
+    updateBtns();
+  }
+
+  function updateCenterClass(){
+    const slides = [...track.querySelectorAll(".slide")];
+    slides.forEach(s => s.classList.remove("is-center"));
+    const center = slides[index];
+    if (center) center.classList.add("is-center");
+  }
+
+  function updateDots(){
+    const ds = [...dots.querySelectorAll(".dotBtn")];
+    ds.forEach((d,i)=> d.classList.toggle("active", i === index));
+  }
+
+  function updateBtns(){
+    prevBtn.disabled = (index <= 0);
+    nextBtn.disabled = (index >= gallery.length - 1);
+  }
+
+  function goTo(i){
+    index = Math.max(0, Math.min(gallery.length - 1, i));
+    applyCarousel();
+  }
+  function prev(){ goTo(index - 1); }
+  function next(){ goTo(index + 1); }
+
+  prevBtn.addEventListener("click", prev);
+  nextBtn.addEventListener("click", next);
+
+  // swipe support
+  (function enableSwipe(){
+    let startX = 0;
+    let dx = 0;
+    let dragging = false;
+
+    viewport.addEventListener("touchstart", (e)=>{
+      if (!e.touches?.length) return;
+      dragging = true;
+      startX = e.touches[0].clientX;
+      dx = 0;
+    }, {passive:true});
+
+    viewport.addEventListener("touchmove", (e)=>{
+      if (!dragging || !e.touches?.length) return;
+      dx = e.touches[0].clientX - startX;
+    }, {passive:true});
+
+    viewport.addEventListener("touchend", ()=>{
+      if (!dragging) return;
+      dragging = false;
+      if (Math.abs(dx) < 30) return;
+      if (dx > 0) prev(); else next();
+    }, {passive:true});
+  })();
+
+  // keyboard support
+  window.addEventListener("keydown", (e)=>{
+    if (e.key === "ArrowLeft") prev();
+    if (e.key === "ArrowRight") next();
+  });
+
+  window.addEventListener("resize", ()=>{
+    measureStep();
+    applyCarousel();
+  });
+
+  // nav active (на всякий случай, если будет переиспользование)
+  (function navActive(){
+    const path = window.location.pathname || "/";
+    const navShop = document.getElementById("navShop");
+    const navAbout = document.getElementById("navAbout");
+    const navShipping = document.getElementById("navShipping");
+    const navReturns = document.getElementById("navReturns");
+    [navShop, navAbout, navShipping, navReturns].forEach(a => a && a.classList.remove("active"));
+    if (path.startsWith("/shipping")) navShipping?.classList.add("active");
+    else if (path.startsWith("/returns")) navReturns?.classList.add("active");
+    else if (path.startsWith("/about")) navAbout?.classList.add("active");
+    else navShop?.classList.add("active");
+  })();
+
+  loadAbout();
+</script>
+</body>
+</html>
