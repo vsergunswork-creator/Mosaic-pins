@@ -13,16 +13,11 @@ export default {
       if (!env.CRON_SECRET || secret !== env.CRON_SECRET) {
         return json({ ok: false, error: "Unauthorized" }, 401);
       }
-
-      try {
-        const out = await runShipCheck(env);
-        return json({ ok: true, ...out }, 200);
-      } catch (e) {
-        return json({ ok: false, error: String(e?.message || e) }, 500);
-      }
+      const out = await runShipCheck(env);
+      return json({ ok: true, ...out });
     }
 
-    return json({ ok: true, info: "Use /run?secret=... to test" }, 200);
+    return json({ ok: true, info: "Use /run?secret=... to test" });
   },
 };
 
@@ -31,17 +26,9 @@ async function runShipCheck(env) {
   must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
   must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
 
-  // Email settings (MailChannels)
-  must(env.MAILCHANNELS_API_KEY, "MAILCHANNELS_API_KEY"); // ✅ ВАЖНО
-  must(env.MAIL_FROM, "MAIL_FROM");
-  // reply-to может быть пустым, но лучше задать
-  // must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
-
   // Таблица заказов (у Вас именно Orders)
   const ORDERS_TABLE =
-    env.AIRTABLE_ORDERS_TABLE_NAME ||
-    env.AIRTABLE_ORDERS_TABLE ||
-    "Orders";
+    env.AIRTABLE_ORDERS_TABLE_NAME || env.AIRTABLE_ORDERS_TABLE || "Orders";
 
   // Названия полей в Orders (как у Вас на скринах)
   const TRACKING_FIELD = env.AIRTABLE_TRACKING_FIELD || "Tracking Number";
@@ -50,6 +37,12 @@ async function runShipCheck(env) {
   const EMAIL_FIELD = env.AIRTABLE_CUSTOMER_EMAIL_FIELD || "Customer Email";
   const NAME_FIELD = env.AIRTABLE_CUSTOMER_NAME_FIELD || "Customer Name";
   const ORDER_ID_FIELD = env.AIRTABLE_ORDER_ID_FIELD || "Order ID";
+
+  // Email settings (MailChannels)
+  must(env.MAIL_FROM, "MAIL_FROM");
+  must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
+  // MAIL_BCC optional
+  // STORE_NAME optional
 
   // ---------- FIND ORDERS READY ----------
   // tracking != '' AND NOT(shipped)
@@ -69,7 +62,6 @@ async function runShipCheck(env) {
 
   let sent = 0;
   let skipped = 0;
-  const details = [];
 
   for (const rec of list.records || []) {
     const f = rec.fields || {};
@@ -81,31 +73,32 @@ async function runShipCheck(env) {
 
     if (!email || !tracking) {
       skipped++;
-      details.push({ recordId: rec.id, skipped: true, reason: "missing_email_or_tracking" });
       continue;
     }
 
     // Send email via MailChannels
     await sendEmailMailchannels({
-      apiKey: env.MAILCHANNELS_API_KEY,       // ✅ ВАЖНО
-      from: String(env.MAIL_FROM).trim(),
+      from: env.MAIL_FROM,
       to: email,
-      replyTo: String(env.MAIL_REPLY_TO || "").trim(),
-      bcc: String(env.MAIL_BCC || "").trim(),
+      replyTo: env.MAIL_REPLY_TO,
+      bcc: env.MAIL_BCC || "",
       subject: `${env.STORE_NAME || "Mosaic Pins"}: Your order has been shipped 🚚`,
-      text:
-`Hello ${name || ""}
+      text: `Hello ${name || ""}
 
 Your order ${orderId} has been shipped 🚚
 Tracking number: ${tracking}
 
 Thank you for your purchase!
 `,
-      html:
-`<p>Hello ${escapeHtml(name || "")},</p>
-<p>Your order <b>${escapeHtml(orderId)}</b> has been shipped 🚚</p>
-<p><b>Tracking number:</b> ${escapeHtml(tracking)}</p>
-<p>Thank you for your purchase!</p>`,
+      html: `
+Hello ${escapeHtml(name || "")},
+
+Your order **${escapeHtml(orderId)}** has been shipped 🚚
+
+**Tracking number:** ${escapeHtml(tracking)}
+
+Thank you for your purchase!
+`,
     });
 
     // Mark shipped flag
@@ -118,7 +111,6 @@ Thank you for your purchase!
     });
 
     sent++;
-    details.push({ recordId: rec.id, sent: true, to: email, orderId });
   }
 
   return {
@@ -126,14 +118,21 @@ Thank you for your purchase!
     found: (list.records || []).length,
     sent,
     skipped,
-    details,
   };
 }
 
 /* ---------------- Airtable helpers ---------------- */
 
-async function airtableList({ token, baseId, table, filterByFormula, maxRecords = 10 }) {
-  const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
+async function airtableList({
+  token,
+  baseId,
+  table,
+  filterByFormula,
+  maxRecords = 10,
+}) {
+  const url = new URL(
+    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`
+  );
   if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
   url.searchParams.set("maxRecords", String(maxRecords));
 
@@ -142,12 +141,15 @@ async function airtableList({ token, baseId, table, filterByFormula, maxRecords 
   });
 
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Airtable list failed: ${r.status} ${JSON.stringify(data)}`);
+  if (!r.ok)
+    throw new Error(`Airtable list failed: ${r.status} ${JSON.stringify(data)}`);
   return data;
 }
 
 async function airtableUpdate({ token, baseId, table, recordId, fields }) {
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(
+    table
+  )}/${recordId}`;
 
   const r = await fetch(url, {
     method: "PATCH",
@@ -159,35 +161,37 @@ async function airtableUpdate({ token, baseId, table, recordId, fields }) {
   });
 
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Airtable update failed: ${r.status} ${JSON.stringify(data)}`);
+  if (!r.ok)
+    throw new Error(
+      `Airtable update failed: ${r.status} ${JSON.stringify(data)}`
+    );
   return data;
 }
 
 /* ---------------- MailChannels ---------------- */
 
-async function sendEmailMailchannels({ apiKey, from, to, replyTo, bcc, subject, text, html }) {
+async function sendEmailMailchannels({ from, to, replyTo, bcc, subject, text, html }) {
+  const personalizations = [
+    {
+      to: [{ email: to }],
+      ...(bcc ? { bcc: [{ email: bcc }] } : {}),
+    },
+  ];
+
   const payload = {
-    personalizations: [
-      {
-        to: [{ email: to }],
-        ...(bcc ? { bcc: [{ email: bcc }] } : {}),
-      },
-    ],
+    personalizations,
     from: { email: from },
-    subject: String(subject || ""),
+    reply_to: { email: replyTo },
+    subject,
     content: [
-      { type: "text/plain", value: String(text || "") },
-      { type: "text/html", value: String(html || "") },
+      { type: "text/plain", value: text },
+      { type: "text/html", value: html },
     ],
-    ...(replyTo ? { reply_to: { email: replyTo } } : {}),
   };
 
   const r = await fetch("https://api.mailchannels.net/tx/v1/send", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Api-Key": apiKey, // ✅ ВАЖНО: иначе будет 401
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
@@ -209,10 +213,10 @@ function json(obj, status = 200) {
 }
 
 function escapeHtml(s) {
-  return String(s || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return String(s)
+    .replaceAll("&", "&")
+    .replaceAll("<", "<")
+    .replaceAll(">", ">")
+    .replaceAll('"', '"""')
+    .replaceAll("'", "'");
 }
