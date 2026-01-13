@@ -7,7 +7,6 @@ export default {
     // ручной запуск для теста:
     // https://YOUR-WORKER-URL/run?secret=XXX
     const url = new URL(request.url);
-
     if (url.pathname === "/run") {
       const secret = url.searchParams.get("secret") || "";
       if (!env.CRON_SECRET || secret !== env.CRON_SECRET) {
@@ -28,7 +27,9 @@ async function runShipCheck(env) {
 
   // Таблица заказов (у Вас именно Orders)
   const ORDERS_TABLE =
-    env.AIRTABLE_ORDERS_TABLE_NAME || env.AIRTABLE_ORDERS_TABLE || "Orders";
+    env.AIRTABLE_ORDERS_TABLE_NAME ||
+    env.AIRTABLE_ORDERS_TABLE ||
+    "Orders";
 
   // Названия полей в Orders (как у Вас на скринах)
   const TRACKING_FIELD = env.AIRTABLE_TRACKING_FIELD || "Tracking Number";
@@ -83,22 +84,19 @@ async function runShipCheck(env) {
       replyTo: env.MAIL_REPLY_TO,
       bcc: env.MAIL_BCC || "",
       subject: `${env.STORE_NAME || "Mosaic Pins"}: Your order has been shipped 🚚`,
-      text: `Hello ${name || ""}
+      text:
+`Hello ${name || ""}
 
 Your order ${orderId} has been shipped 🚚
 Tracking number: ${tracking}
 
 Thank you for your purchase!
 `,
-      html: `
-Hello ${escapeHtml(name || "")},
-
-Your order **${escapeHtml(orderId)}** has been shipped 🚚
-
-**Tracking number:** ${escapeHtml(tracking)}
-
-Thank you for your purchase!
-`,
+      html:
+`<p>Hello ${escapeHtml(name || "")},</p>
+<p>Your order <b>${escapeHtml(orderId)}</b> has been shipped 🚚</p>
+<p><b>Tracking number:</b> ${escapeHtml(tracking)}</p>
+<p>Thank you for your purchase!</p>`,
     });
 
     // Mark shipped flag
@@ -123,16 +121,8 @@ Thank you for your purchase!
 
 /* ---------------- Airtable helpers ---------------- */
 
-async function airtableList({
-  token,
-  baseId,
-  table,
-  filterByFormula,
-  maxRecords = 10,
-}) {
-  const url = new URL(
-    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`
-  );
+async function airtableList({ token, baseId, table, filterByFormula, maxRecords = 10 }) {
+  const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
   if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
   url.searchParams.set("maxRecords", String(maxRecords));
 
@@ -141,15 +131,12 @@ async function airtableList({
   });
 
   const data = await r.json().catch(() => ({}));
-  if (!r.ok)
-    throw new Error(`Airtable list failed: ${r.status} ${JSON.stringify(data)}`);
+  if (!r.ok) throw new Error(`Airtable list failed: ${r.status} ${JSON.stringify(data)}`);
   return data;
 }
 
 async function airtableUpdate({ token, baseId, table, recordId, fields }) {
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(
-    table
-  )}/${recordId}`;
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
 
   const r = await fetch(url, {
     method: "PATCH",
@@ -161,10 +148,7 @@ async function airtableUpdate({ token, baseId, table, recordId, fields }) {
   });
 
   const data = await r.json().catch(() => ({}));
-  if (!r.ok)
-    throw new Error(
-      `Airtable update failed: ${r.status} ${JSON.stringify(data)}`
-    );
+  if (!r.ok) throw new Error(`Airtable update failed: ${r.status} ${JSON.stringify(data)}`);
   return data;
 }
 
@@ -214,9 +198,9 @@ function json(obj, status = 200) {
 
 function escapeHtml(s) {
   return String(s)
-    .replaceAll("&", "&")
-    .replaceAll("<", "<")
-    .replaceAll(">", ">")
-    .replaceAll('"', '"""')
-    .replaceAll("'", "'");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
