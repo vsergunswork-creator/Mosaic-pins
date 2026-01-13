@@ -1,23 +1,24 @@
 // functions/api/content.js
 // GET /api/content?key=about
 // Reads content from Airtable table (default: SiteContent)
+// Uses separate token: AIRTABLE_TOKEN_CONTENT (NOT main AIRTABLE_TOKEN)
 
 export async function onRequestGet({ env, request }) {
   try {
-    // ---------- ENV checks ----------
-    if (!env.AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500);
-    if (!env.AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500);
+    // ✅ separate token for content table
+    if (!env.AIRTABLE_TOKEN_CONTENT)
+      return json({ error: "AIRTABLE_TOKEN_CONTENT is not set" }, 500);
 
-    // Table name (you set it in Cloudflare Pages -> Variables)
-    const table = String(env.AIRTABLE_CONTENT_TABLE || "SiteContent").trim();
+    if (!env.AIRTABLE_BASE_ID)
+      return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
+
+    const table = String(env.AIRTABLE_CONTENT_TABLE || "SiteContent");
 
     const url = new URL(request.url);
     const key = String(url.searchParams.get("key") || "").trim();
-    if (!key) return json({ ok: false, error: "Missing key. Example: /api/content?key=about" }, 400);
+    if (!key) return json({ error: "Missing key" }, 400);
 
-    // Airtable formula:
-    // find record where Key="about" AND Active = checked
-    const formula = `AND({Key}="${escapeForFormula(key)}", {Active}=TRUE())`;
+    const formula = `AND({Key}="${escapeForFormula(key)}",{Active}=TRUE())`;
 
     const apiUrl = new URL(
       `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`
@@ -26,14 +27,17 @@ export async function onRequestGet({ env, request }) {
     apiUrl.searchParams.set("filterByFormula", formula);
 
     const r = await fetch(apiUrl.toString(), {
-      headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` },
+      headers: {
+        Authorization: `Bearer ${env.AIRTABLE_TOKEN_CONTENT}`,
+      },
     });
 
     const data = await r.json().catch(() => ({}));
+
+    // ❗ если Airtable вернул ошибку — покажем полностью
     if (!r.ok) {
       return json(
         {
-          ok: false,
           error: "Airtable request failed",
           status: r.status,
           details: data,
@@ -43,12 +47,15 @@ export async function onRequestGet({ env, request }) {
     }
 
     const rec = data?.records?.[0];
-    if (!rec) return json({ ok: false, error: "Not found (check Key and Active checkbox)" }, 404);
+    if (!rec) return json({ error: "Not found" }, 404);
 
     const f = rec.fields || {};
 
-    // Attachments in Airtable come as array of objects: [{url, filename, ...}]
-    const heroImage = Array.isArray(f["Hero Image"]) ? (f["Hero Image"][0]?.url || "") : "";
+    // ✅ attachments: берём url
+    const heroImage = Array.isArray(f["Hero Image"])
+      ? String(f["Hero Image"][0]?.url || "")
+      : "";
+
     const gallery = Array.isArray(f["Gallery"])
       ? f["Gallery"].map((x) => x?.url).filter(Boolean)
       : [];
@@ -62,12 +69,16 @@ export async function onRequestGet({ env, request }) {
       gallery,
     };
 
-    // for debugging (optional):
-    // return json({ ok: true, from: "content.js", content }, 200, { "Cache-Control": "no-store" });
-
-    return json({ ok: true, content }, 200, { "Cache-Control": "public, max-age=60" });
+    return json(
+      { ok: true, content },
+      200,
+      { "Cache-Control": "public, max-age=60" }
+    );
   } catch (e) {
-    return json({ ok: false, error: "Server error", details: String(e?.message || e) }, 500);
+    return json(
+      { error: "Server error", details: String(e?.message || e) },
+      500
+    );
   }
 }
 
@@ -78,6 +89,9 @@ function escapeForFormula(value) {
 function json(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...extraHeaders },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...extraHeaders,
+    },
   });
 }
