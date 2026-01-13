@@ -4,14 +4,14 @@ export default {
   },
 
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-
     // ручной запуск для теста:
     // https://YOUR-WORKER-URL/run?secret=XXX
+    const url = new URL(request.url);
+
     if (url.pathname === "/run") {
       const secret = url.searchParams.get("secret") || "";
       if (!env.CRON_SECRET || secret !== env.CRON_SECRET) {
-        return json({ ok: false, error: "Unauthorized (bad CRON_SECRET)" }, 401);
+        return json({ ok: false, error: "Unauthorized" }, 401);
       }
 
       try {
@@ -30,17 +30,20 @@ async function runShipCheck(env) {
   // ---------- REQUIRED ENV ----------
   must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
   must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
-  must(env.MAILCHANNELS_API_KEY, "MAILCHANNELS_API_KEY"); // ✅ обязательно
-  must(env.MAIL_FROM, "MAIL_FROM");
-  must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
 
-  // Таблица заказов (у Вас Orders)
+  // Email settings (MailChannels)
+  must(env.MAILCHANNELS_API_KEY, "MAILCHANNELS_API_KEY"); // ✅ ВАЖНО
+  must(env.MAIL_FROM, "MAIL_FROM");
+  // reply-to может быть пустым, но лучше задать
+  // must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
+
+  // Таблица заказов (у Вас именно Orders)
   const ORDERS_TABLE =
     env.AIRTABLE_ORDERS_TABLE_NAME ||
     env.AIRTABLE_ORDERS_TABLE ||
     "Orders";
 
-  // Названия полей в Orders
+  // Названия полей в Orders (как у Вас на скринах)
   const TRACKING_FIELD = env.AIRTABLE_TRACKING_FIELD || "Tracking Number";
   const SHIPPED_FIELD = env.AIRTABLE_SHIPPED_FIELD || "Shipped Email Sent";
 
@@ -50,7 +53,11 @@ async function runShipCheck(env) {
 
   // ---------- FIND ORDERS READY ----------
   // tracking != '' AND NOT(shipped)
-  const formula = `AND({${TRACKING_FIELD}}!='',NOT({${SHIPPED_FIELD}}))`;
+  const formula =
+    `AND(` +
+    `{${TRACKING_FIELD}}!='',` +
+    `NOT({${SHIPPED_FIELD}})` +
+    `)`;
 
   const list = await airtableList({
     token: env.AIRTABLE_TOKEN,
@@ -74,36 +81,31 @@ async function runShipCheck(env) {
 
     if (!email || !tracking) {
       skipped++;
-      details.push({ id: rec.id, skipped: true, reason: "missing email or tracking" });
+      details.push({ recordId: rec.id, skipped: true, reason: "missing_email_or_tracking" });
       continue;
     }
 
-    const subject = `${env.STORE_NAME || "Mosaic Pins"}: Your order has been shipped 🚚`;
-
-    const text =
+    // Send email via MailChannels
+    await sendEmailMailchannels({
+      apiKey: env.MAILCHANNELS_API_KEY,       // ✅ ВАЖНО
+      from: String(env.MAIL_FROM).trim(),
+      to: email,
+      replyTo: String(env.MAIL_REPLY_TO || "").trim(),
+      bcc: String(env.MAIL_BCC || "").trim(),
+      subject: `${env.STORE_NAME || "Mosaic Pins"}: Your order has been shipped 🚚`,
+      text:
 `Hello ${name || ""}
 
 Your order ${orderId} has been shipped 🚚
 Tracking number: ${tracking}
 
 Thank you for your purchase!
-`;
-
-    const html =
+`,
+      html:
 `<p>Hello ${escapeHtml(name || "")},</p>
 <p>Your order <b>${escapeHtml(orderId)}</b> has been shipped 🚚</p>
 <p><b>Tracking number:</b> ${escapeHtml(tracking)}</p>
-<p>Thank you for your purchase!</p>`;
-
-    // Send email via MailChannels (✅ с X-Api-Key)
-    await sendEmailMailchannels(env, {
-      from: env.MAIL_FROM,
-      to: email,
-      replyTo: env.MAIL_REPLY_TO,
-      bcc: env.MAIL_BCC || "",
-      subject,
-      text,
-      html,
+<p>Thank you for your purchase!</p>`,
     });
 
     // Mark shipped flag
@@ -116,7 +118,7 @@ Thank you for your purchase!
     });
 
     sent++;
-    details.push({ id: rec.id, sent: true, to: email });
+    details.push({ recordId: rec.id, sent: true, to: email, orderId });
   }
 
   return {
@@ -163,7 +165,7 @@ async function airtableUpdate({ token, baseId, table, recordId, fields }) {
 
 /* ---------------- MailChannels ---------------- */
 
-async function sendEmailMailchannels(env, { from, to, replyTo, bcc, subject, text, html }) {
+async function sendEmailMailchannels({ apiKey, from, to, replyTo, bcc, subject, text, html }) {
   const payload = {
     personalizations: [
       {
@@ -172,34 +174,31 @@ async function sendEmailMailchannels(env, { from, to, replyTo, bcc, subject, tex
       },
     ],
     from: { email: from },
-    reply_to: { email: replyTo },
-    subject,
+    subject: String(subject || ""),
     content: [
-      { type: "text/plain", value: text || "" },
-      { type: "text/html", value: html || "" },
+      { type: "text/plain", value: String(text || "") },
+      { type: "text/html", value: String(html || "") },
     ],
+    ...(replyTo ? { reply_to: { email: replyTo } } : {}),
   };
 
   const r = await fetch("https://api.mailchannels.net/tx/v1/send", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Api-Key": String(env.MAILCHANNELS_API_KEY).trim(), // ✅ ключ обязателен
+      "X-Api-Key": apiKey, // ✅ ВАЖНО: иначе будет 401
     },
     body: JSON.stringify(payload),
   });
 
   const body = await r.text().catch(() => "");
-  if (!r.ok) {
-    // чтобы было видно что именно вернул MailChannels
-    throw new Error(`MailChannels failed: ${r.status} ${body}`);
-  }
+  if (!r.ok) throw new Error(`MailChannels failed: ${r.status} ${body}`);
 }
 
 /* ---------------- Utils ---------------- */
 
 function must(v, name) {
-  if (!v || !String(v).trim()) throw new Error(`${name} missing`);
+  if (!v) throw new Error(`${name} missing`);
 }
 
 function json(obj, status = 200) {
