@@ -4,15 +4,17 @@ export default {
   },
 
   async fetch(request, env, ctx) {
-    // ручной запуск для теста:
-    // https://YOUR-WORKER-URL/run?secret=XXX
     const url = new URL(request.url);
 
+    // ручной запуск:
+    // https://YOUR-WORKER-URL/run?secret=XXX
     if (url.pathname === "/run") {
       const secret = url.searchParams.get("secret") || "";
+
       if (!env.CRON_SECRET || secret !== env.CRON_SECRET) {
         return json({ ok: false, error: "Unauthorized" }, 401);
       }
+
       try {
         const out = await runShipCheck(env);
         return json({ ok: true, ...out });
@@ -30,6 +32,12 @@ async function runShipCheck(env) {
   must(env.AIRTABLE_TOKEN, "AIRTABLE_TOKEN");
   must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
 
+  must(env.MAIL_FROM, "MAIL_FROM");
+  must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
+
+  // обязательно для MailChannels API (чтобы убрать 401)
+  must(env.MAILCHANNELS_API_KEY, "MAILCHANNELS_API_KEY");
+
   // Таблица заказов (у Вас именно Orders)
   const ORDERS_TABLE =
     env.AIRTABLE_ORDERS_TABLE_NAME ||
@@ -43,13 +51,6 @@ async function runShipCheck(env) {
   const EMAIL_FIELD = env.AIRTABLE_CUSTOMER_EMAIL_FIELD || "Customer Email";
   const NAME_FIELD = env.AIRTABLE_CUSTOMER_NAME_FIELD || "Customer Name";
   const ORDER_ID_FIELD = env.AIRTABLE_ORDER_ID_FIELD || "Order ID";
-
-  // Email settings (MailChannels)
-  must(env.MAIL_FROM, "MAIL_FROM");
-  must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
-
-  // MailChannels API Key (чтобы не было 401)
-  must(env.MAILCHANNELS_API_KEY, "MAILCHANNELS_API_KEY");
 
   // ---------- FIND ORDERS READY ----------
   // tracking != '' AND NOT(shipped)
@@ -90,16 +91,14 @@ async function runShipCheck(env) {
       replyTo: env.MAIL_REPLY_TO,
       bcc: env.MAIL_BCC || "",
       subject: `${env.STORE_NAME || "Mosaic Pins"}: Your order has been shipped 🚚`,
-      text:
-`Hello ${name || ""}
+      text: `Hello ${name || ""}
 
 Your order ${orderId} has been shipped 🚚
 Tracking number: ${tracking}
 
 Thank you for your purchase!
 `,
-      html:
-`<p>Hello ${escapeHtml(name || "")},</p>
+      html: `<p>Hello ${escapeHtml(name || "")},</p>
 <p>Your order <b>${escapeHtml(orderId)}</b> has been shipped 🚚</p>
 <p><b>Tracking number:</b> ${escapeHtml(tracking)}</p>
 <p>Thank you for your purchase!</p>`,
@@ -183,8 +182,7 @@ async function sendEmailMailchannels(env, { from, to, replyTo, bcc, subject, tex
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // ВАЖНО: без этого будет 401 Authorization Required
-      "X-Api-Key": env.MAILCHANNELS_API_KEY,
+      "X-Api-Key": env.MAILCHANNELS_API_KEY, // ✅ ВОТ ЭТО УБИРАЕТ 401
     },
     body: JSON.stringify(payload),
   });
