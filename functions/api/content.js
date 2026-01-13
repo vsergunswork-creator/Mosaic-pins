@@ -4,17 +4,24 @@
 
 export async function onRequestGet({ env, request }) {
   try {
-    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
-    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
+    // ---------- ENV checks ----------
+    if (!env.AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500);
+    if (!env.AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500);
 
-    const table = String(env.AIRTABLE_CONTENT_TABLE || "SiteContent");
+    // Table name (you set it in Cloudflare Pages -> Variables)
+    const table = String(env.AIRTABLE_CONTENT_TABLE || "SiteContent").trim();
+
     const url = new URL(request.url);
     const key = String(url.searchParams.get("key") || "").trim();
-    if (!key) return json({ error: "Missing key" }, 400);
+    if (!key) return json({ ok: false, error: "Missing key. Example: /api/content?key=about" }, 400);
 
+    // Airtable formula:
+    // find record where Key="about" AND Active = checked
     const formula = `AND({Key}="${escapeForFormula(key)}", {Active}=TRUE())`;
 
-    const apiUrl = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`);
+    const apiUrl = new URL(
+      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(table)}`
+    );
     apiUrl.searchParams.set("maxRecords", "1");
     apiUrl.searchParams.set("filterByFormula", formula);
 
@@ -23,15 +30,28 @@ export async function onRequestGet({ env, request }) {
     });
 
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "Airtable error", details: data }, 400);
+    if (!r.ok) {
+      return json(
+        {
+          ok: false,
+          error: "Airtable request failed",
+          status: r.status,
+          details: data,
+        },
+        400
+      );
+    }
 
     const rec = data?.records?.[0];
-    if (!rec) return json({ error: "Not found" }, 404);
+    if (!rec) return json({ ok: false, error: "Not found (check Key and Active checkbox)" }, 404);
 
     const f = rec.fields || {};
 
+    // Attachments in Airtable come as array of objects: [{url, filename, ...}]
     const heroImage = Array.isArray(f["Hero Image"]) ? (f["Hero Image"][0]?.url || "") : "";
-    const gallery = Array.isArray(f["Gallery"]) ? f["Gallery"].map(x => x?.url).filter(Boolean) : [];
+    const gallery = Array.isArray(f["Gallery"])
+      ? f["Gallery"].map((x) => x?.url).filter(Boolean)
+      : [];
 
     const content = {
       key: String(f["Key"] || key),
@@ -42,9 +62,12 @@ export async function onRequestGet({ env, request }) {
       gallery,
     };
 
-    return json({ content }, 200, { "Cache-Control": "public, max-age=60" });
+    // for debugging (optional):
+    // return json({ ok: true, from: "content.js", content }, 200, { "Cache-Control": "no-store" });
+
+    return json({ ok: true, content }, 200, { "Cache-Control": "public, max-age=60" });
   } catch (e) {
-    return json({ error: "Server error", details: String(e?.message || e) }, 500);
+    return json({ ok: false, error: "Server error", details: String(e?.message || e) }, 500);
   }
 }
 
