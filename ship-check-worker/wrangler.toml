@@ -1,0 +1,10 @@
+name = "mosaic-ship-check"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+# CRON: каждые 15 минут
+[triggers]
+crons = ["*/15 * * * *"]
+
+# если у Вас одна учётка/аккаунт — можно не указывать
+# account_id = "...."
