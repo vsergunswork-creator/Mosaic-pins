@@ -2,20 +2,9 @@ name = "mosaic-ship-check"
 main = "index.js"
 compatibility_date = "2025-01-01"
 
+# CRON: каждые 15 минут
 [triggers]
 crons = ["*/15 * * * *"]
 
-[vars]
-AIRTABLE_BASE_ID = "appXXXXXXXXXXXXXX"
-AIRTABLE_ORDERS_TABLE = "Orders"
-
-AIRTABLE_TRACKING_FIELD = "Tracking Number"
-AIRTABLE_SHIPPED_FIELD = "Shipped Email Sent"
-
-AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
-AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
-AIRTABLE_ORDER_ID_FIELD = "Order ID"
-
-MAIL_FROM = "support@mosaicpins.space"
-MAIL_REPLY_TO = "mosaicpinsspace@gmail.com"
-STORE_NAME = "Mosaic Pins"
+# если у Вас одна учётка/аккаунт — можно не указывать
+# account_id = "...."
