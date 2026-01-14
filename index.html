@@ -694,7 +694,6 @@
         <a class="nav-item" href="/about" id="navAbout">About</a>
         <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
         <a class="nav-item" href="/returns" id="navReturns">Returns</a>
-        <!-- ✅ ADDED -->
         <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
       </nav>
 
@@ -757,10 +756,13 @@
         <div class="grid" id="grid"></div>
       </div>
 
+      <!-- ✅ footer: added Reviews -->
       <footer class="siteFooter">
         <a href="/shipping">Shipping</a>
         <span class="sep">|</span>
         <a href="/returns">Returns & Refunds</a>
+        <span class="sep">|</span>
+        <a href="/reviews">Reviews</a>
         <span class="sep">|</span>
         <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
       </footer>
@@ -773,7 +775,6 @@
     <a class="mNavItem" href="/about" id="mNavAbout">About</a>
     <a class="mNavItem" href="/shipping" id="mNavShipping">Shipping</a>
     <a class="mNavItem" href="/returns" id="mNavReturns">Returns</a>
-    <!-- ✅ ADDED -->
     <a class="mNavItem" href="/reviews" id="mNavReviews">Reviews</a>
   </nav>
 
@@ -1287,10 +1288,11 @@
       }
     }
 
+    // ✅ CHANGED: bigger -> smaller
     const diameters = [...diameterMap.values()].sort((a,b)=>{
-      const an = (a.num == null ? Infinity : a.num);
-      const bn = (b.num == null ? Infinity : b.num);
-      if (an !== bn) return an - bn;
+      const an = (a.num == null ? -Infinity : a.num);
+      const bn = (b.num == null ? -Infinity : b.num);
+      if (an !== bn) return bn - an;
       return String(a.display).localeCompare(String(b.display));
     });
 
