@@ -463,6 +463,7 @@
       color: var(--text);
       text-decoration:none;
       opacity:.9;
+      pointer-events:auto; /* ✅ ensure links are clickable */
     }
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
@@ -594,6 +595,10 @@
       <nav class="sb-nav">
         <a class="nav-item" href="/" id="navShop">Shop</a>
         <a class="nav-item active" href="/about" id="navAbout">About</a>
+
+        <!-- ✅ ADDED: Reviews -->
+        <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
+
         <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
         <a class="nav-item" href="/returns" id="navReturns">Returns</a>
       </nav>
@@ -668,8 +673,15 @@
       <footer class="siteFooter">
         <a href="/shipping">Shipping</a>
         <span class="sep">|</span>
+
         <a href="/returns">Returns & Refunds</a>
         <span class="sep">|</span>
+
+        <!-- ✅ ADDED: Reviews -->
+        <a href="/reviews">Reviews</a>
+        <span class="sep">|</span>
+
+        <!-- ✅ mailto already correct; clickability fixed by pointer-events:auto above -->
         <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
       </footer>
     </main>
@@ -981,11 +993,15 @@
     const path = window.location.pathname || "/";
     const navShop = document.getElementById("navShop");
     const navAbout = document.getElementById("navAbout");
+    const navReviews = document.getElementById("navReviews");
     const navShipping = document.getElementById("navShipping");
     const navReturns = document.getElementById("navReturns");
-    [navShop, navAbout, navShipping, navReturns].forEach(a => a && a.classList.remove("active"));
+
+    [navShop, navAbout, navReviews, navShipping, navReturns].forEach(a => a && a.classList.remove("active"));
+
     if (path.startsWith("/shipping")) navShipping?.classList.add("active");
     else if (path.startsWith("/returns")) navReturns?.classList.add("active");
+    else if (path.startsWith("/reviews")) navReviews?.classList.add("active");
     else if (path.startsWith("/about")) navAbout?.classList.add("active");
     else navShop?.classList.add("active");
   })();
