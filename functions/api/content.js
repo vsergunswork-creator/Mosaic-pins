@@ -50,12 +50,29 @@ export async function onRequestGet({ env, request }) {
 
     const f = rec.fields || {};
 
-    const heroImage = Array.isArray(f["Hero Image"]) ? (f["Hero Image"][0]?.url || "") : "";
+    const heroAttachment = Array.isArray(f["Hero Image"]) ? f["Hero Image"][0] : null;
+    const heroImage = heroAttachment?.url || "";
+
+    // ✅ IMPORTANT: Airtable attachments часто содержат width/height
+    const heroImageWidth =
+      Number(heroAttachment?.width) ||
+      Number(heroAttachment?.thumbnails?.large?.width) ||
+      Number(heroAttachment?.thumbnails?.full?.width) ||
+      0;
+
+    const heroImageHeight =
+      Number(heroAttachment?.height) ||
+      Number(heroAttachment?.thumbnails?.large?.height) ||
+      Number(heroAttachment?.thumbnails?.full?.height) ||
+      0;
+
     const gallery = Array.isArray(f["Gallery"]) ? f["Gallery"].map((x) => x?.url).filter(Boolean) : [];
 
     const content = {
       key: String(f["Key"] || key),
       heroImage,
+      heroImageWidth,
+      heroImageHeight,
       heroTitle: String(f["Hero Title"] || ""),
       heroSubtitle: String(f["Hero Subtitle"] || ""),
       aboutBody: String(f["About Body"] || ""),
