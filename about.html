@@ -224,17 +224,22 @@
       position:relative;
       box-shadow: var(--shadow);
 
-      /* ✅ Подгон шапки под баннер */
-      aspect-ratio: 16 / 6;     /* десктоп: баннер */
+      /* ✅ главный фикс: контейнер под пропорции баннера */
+      aspect-ratio: 16 / 6;
       height: auto;
     }
 
     .heroImg{
-      position:absolute; inset:0;
-      background-size:cover;
-      background-position:center;
+      position:absolute;
+      inset:0;
+
+      /* ✅ НЕ режем баннер */
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
+
       filter: saturate(1.05);
-      transform: none; /* ✅ убрали scale(1.02), чтобы не резало */
+      transform: none;
     }
 
     .heroOverlay{
@@ -252,6 +257,7 @@
       flex-direction:column;
       justify-content:flex-end;
       gap:10px;
+      min-height: 100%;
     }
 
     /* ✅ скрываем заголовок на фото полностью */
@@ -407,10 +413,10 @@
       .carPrev,.carNext{display:none;}
     }
 
-    /* ✅ мобилка: делаем шапку ещё ниже, чтобы совпало с баннером */
+    /* ✅ Мобилка: контейнер почти ровно как баннер */
     @media (max-width:520px){
       .hero{
-        aspect-ratio: 16 / 7; /* можно 16/8 если хотите повыше */
+        aspect-ratio: 16 / 5;
       }
       .slide{flex: 0 0 100%;}
     }
