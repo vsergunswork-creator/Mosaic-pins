@@ -39,8 +39,6 @@
       color:var(--text);
       overflow:hidden;
       overscroll-behavior: none;
-      position:relative;
-      isolation:isolate;
     }
 
     *{
@@ -59,17 +57,13 @@
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
-
-      display:flex;
-      flex-direction:column;
-      min-height:0;
     }
-    .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex:0 0 auto;}
+    .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
     .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
     .pill{padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); font-size:12px; white-space:nowrap;}
 
-    .sb-nav{padding:6px; display:grid; gap:6px; flex:0 0 auto;}
+    .sb-nav{padding:6px; display:grid; gap:6px;}
     .nav-item{
       display:flex; align-items:center; gap:10px;
       padding:10px 12px; border-radius:12px;
@@ -92,7 +86,6 @@
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
       flex-wrap:wrap;
-      flex:0 0 auto;
     }
     .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
@@ -107,8 +100,6 @@
       font-size:13px;
       outline:none;
       white-space:nowrap;
-      min-height:44px;
-      line-height:1.1;
     }
 
     .cartBtn{
@@ -124,8 +115,6 @@
       font-weight:900;
       white-space:nowrap;
       text-decoration:none;
-      min-height:44px;
-      line-height:1.1;
     }
     .cartBtn:hover{background:rgba(255,255,255,.06)}
     .cartBadge{
@@ -141,25 +130,6 @@
       text-align:center;
     }
 
-    .backBtn{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:999px;
-      background:rgba(0,0,0,.28);
-      border:1px solid var(--line);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:900;
-      white-space:nowrap;
-      text-decoration:none;
-      min-height:44px;
-      line-height:1.1;
-      opacity:.92;
-    }
-    .backBtn:hover{background:rgba(255,255,255,.06); opacity:1}
-
     .content{
       padding:18px;
       overflow:auto;
@@ -172,7 +142,7 @@
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap:16px;
-      align-items:stretch; /* ✅ IMPORTANT: stretch to same height */
+      align-items:start;
     }
 
     @media (max-width:980px){
@@ -186,7 +156,6 @@
         overflow:auto;
         padding-bottom: calc(14px + max(44px, env(safe-area-inset-bottom, 0px)) + 56px);
       }
-      .main{padding-bottom: calc(76px + env(safe-area-inset-bottom));}
     }
 
     .panel{
@@ -194,22 +163,12 @@
       background:rgba(0,0,0,.22);
       border-radius:16px;
       overflow:hidden;
-      min-height:0; /* ✅ allow child to size */
     }
 
-    /* ✅ Gallery fills panel height and lets hero stretch */
-    .gallery{
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      height:100%;
-      min-height:0;
-    }
+    .gallery{padding:12px; display:grid; gap:10px;}
 
     .hero{
-      flex:1 1 auto;        /* ✅ stretch to match right panel height */
-      min-height:320px;     /* ✅ safety */
+      aspect-ratio: 1/1;
       border-radius:14px;
       overflow:hidden;
       background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(96,165,250,.10));
@@ -225,10 +184,9 @@
       transform-style: preserve-3d;
       will-change: transform;
     }
-
     .carousel{
       width:100%;
-      height:100%;          /* ✅ player fills hero height */
+      height:100%;
       overflow-x:auto;
       overflow-y:hidden;
       display:flex;
@@ -286,7 +244,7 @@
       display:none;
     }
 
-    .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px; flex:0 0 auto;}
+    .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px;}
     .t{
       width:72px; height:72px; border-radius:12px;
       border:1px solid var(--line);
@@ -297,17 +255,6 @@
     }
     .t.active{outline:2px solid rgba(34,197,94,.45); opacity:1}
     .t img{width:100%; height:100%; object-fit:cover; display:block;}
-
-    /* ✅ Mobile keeps your “player height” feeling */
-    @media (max-width:980px){
-      .carousel{
-        height: clamp(280px, 46vh, 380px);
-      }
-      .hero{
-        flex: 0 0 auto;
-        min-height: 0;
-      }
-    }
 
     .details{padding:16px;}
     .kicker{color:var(--muted); font-size:12px}
@@ -553,61 +500,6 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    .siteFooter{
-      padding: 12px 18px;
-      border-top: 1px solid var(--line);
-      background: rgba(0,0,0,.20);
-      color: var(--muted);
-      font-size: 12px;
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      flex: 0 0 auto;
-    }
-    .siteFooter a{color: var(--text); text-decoration:none; opacity:.9;}
-    .siteFooter a:hover{opacity:1}
-    .siteFooter .sep{opacity:.35}
-
-    .mobileNav{ display:none; }
-    @media (max-width:980px){
-      .mobileNav{
-        display:flex;
-        position:fixed;
-        left:12px;
-        right:12px;
-        bottom: calc(12px + env(safe-area-inset-bottom));
-        z-index:1200;
-
-        padding:8px;
-        gap:8px;
-        border-radius: 18px;
-        border:1px solid var(--line);
-        background: rgba(0,0,0,.45);
-        backdrop-filter: blur(10px);
-        box-shadow: var(--shadow);
-      }
-      .mNavItem{
-        flex:1 1 0;
-        text-decoration:none;
-        color:var(--muted);
-        border:1px solid transparent;
-        background: rgba(255,255,255,.03);
-        border-radius:14px;
-        padding:10px 10px;
-        text-align:center;
-        font-weight:900;
-        font-size:12px;
-        letter-spacing:.2px;
-        user-select:none;
-      }
-      .mNavItem:hover{background: rgba(255,255,255,.06); color:var(--text);}
-      .mNavItem.active{
-        background:rgba(34,197,94,.14);
-        border-color: rgba(34,197,94,.22);
-        color:var(--text);
-      }
-    }
-
     @media (prefers-reduced-motion: reduce){
       .hero-inner{will-change:auto}
     }
@@ -623,10 +515,6 @@
 
       <nav class="sb-nav">
         <a class="nav-item" href="/" id="navShop">← Back to shop</a>
-        <a class="nav-item" href="/about" id="navAbout">About</a>
-        <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
-        <a class="nav-item" href="/returns" id="navReturns">Returns</a>
-        <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
         <a class="nav-item active" href="#" id="navProduct">Product</a>
       </nav>
     </aside>
@@ -639,8 +527,6 @@
         </div>
 
         <div class="topRight">
-          <a class="backBtn" href="/" id="backTopShop" title="Back to shop">← Back to shop</a>
-
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
@@ -702,26 +588,8 @@
           </aside>
         </div>
       </div>
-
-      <footer class="siteFooter">
-        <a href="/shipping">Shipping</a>
-        <span class="sep">|</span>
-        <a href="/returns">Returns & Refunds</a>
-        <span class="sep">|</span>
-        <a href="/reviews">Reviews</a>
-        <span class="sep">|</span>
-        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
-      </footer>
     </main>
   </div>
-
-  <nav class="mobileNav" aria-label="Mobile navigation">
-    <a class="mNavItem" href="/" id="mNavShop">Shop</a>
-    <a class="mNavItem" href="/about" id="mNavAbout">About</a>
-    <a class="mNavItem" href="/shipping" id="mNavShipping">Shipping</a>
-    <a class="mNavItem" href="/returns" id="mNavReturns">Returns</a>
-    <a class="mNavItem" href="/reviews" id="mNavReviews">Reviews</a>
-  </nav>
 
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
@@ -930,11 +798,16 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+
+  // пока оставим “later”
   elCartCheckout.addEventListener("click", () => toast("Checkout", "Cart checkout: next step ✅"));
-  el("currency").addEventListener("change", () => { renderCart(); });
+
+  el("currency").addEventListener("change", () => {
+    renderCart();
+  });
 
   /* =========================
-     PRODUCT PAGE (carousel)
+     PRODUCT PAGE
   ========================== */
   const hero = el("hero");
   const heroInner = el("heroInner");
@@ -959,7 +832,7 @@
   function syncThumbs(){
     const thumbs = el("thumbs");
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
+    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
     if (active) active.classList.add("active");
   }
 
@@ -1111,7 +984,10 @@
     if (!Number.isFinite(qty) || qty <= 0) qty = 1;
 
     const stock = Number(p.stock ?? 0);
-    if (stock <= 0){ toast("Cart", "Sold out"); return; }
+    if (stock <= 0){
+      toast("Cart", "Sold out");
+      return;
+    }
 
     const cart = readCart();
     const idx = cart.findIndex(x => String(x.pin) === String(p.pin));
@@ -1247,6 +1123,7 @@
       addToCart(p, quantity);
     });
 
+    // ✅ BUY NOW = Stripe checkout for this ONE item
     buyBtn.addEventListener("click", async () => {
       const quantity = clampQty(qtyInput.value, stock);
       if (stock <= 0) return;
