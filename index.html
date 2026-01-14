@@ -638,10 +638,8 @@
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
 
-    /* ✅ MOBILE NAV (shows About on mobile) */
-    .mobileNav{
-      display:none;
-    }
+    /* ✅ MOBILE NAV */
+    .mobileNav{ display:none; }
     @media (max-width:980px){
       .mobileNav{
         display:flex;
@@ -696,6 +694,8 @@
         <a class="nav-item" href="/about" id="navAbout">About</a>
         <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
         <a class="nav-item" href="/returns" id="navReturns">Returns</a>
+        <!-- ✅ ADDED -->
+        <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
       </nav>
 
       <div class="sb-scroll">
@@ -767,12 +767,14 @@
     </main>
   </div>
 
-  <!-- ✅ Mobile bottom navigation (shows About on mobile) -->
+  <!-- ✅ Mobile bottom navigation -->
   <nav class="mobileNav" aria-label="Mobile navigation">
     <a class="mNavItem" href="/" id="mNavShop">Shop</a>
     <a class="mNavItem" href="/about" id="mNavAbout">About</a>
     <a class="mNavItem" href="/shipping" id="mNavShipping">Shipping</a>
     <a class="mNavItem" href="/returns" id="mNavReturns">Returns</a>
+    <!-- ✅ ADDED -->
+    <a class="mNavItem" href="/reviews" id="mNavReviews">Reviews</a>
   </nav>
 
   <!-- Mobile Filters Sheet -->
@@ -1408,7 +1410,7 @@
     }
   })();
 
-  // ✅ active state for BOTH desktop sidebar and mobile bottom nav
+  // ✅ active state for BOTH desktop sidebar and mobile bottom nav (with Reviews)
   (function navActive(){
     const path = window.location.pathname || "/";
 
@@ -1422,17 +1424,35 @@
     setActive("navAbout", false);
     setActive("navShipping", false);
     setActive("navReturns", false);
+    setActive("navReviews", false);
 
     // mobile
     setActive("mNavShop", false);
     setActive("mNavAbout", false);
     setActive("mNavShipping", false);
     setActive("mNavReturns", false);
+    setActive("mNavReviews", false);
 
-    if (path.startsWith("/shipping")) { setActive("navShipping", true); setActive("mNavShipping", true); }
-    else if (path.startsWith("/returns")) { setActive("navReturns", true); setActive("mNavReturns", true); }
-    else if (path.startsWith("/about")) { setActive("navAbout", true); setActive("mNavAbout", true); }
-    else { setActive("navShop", true); setActive("mNavShop", true); }
+    if (path.startsWith("/reviews")) {
+      setActive("navReviews", true);
+      setActive("mNavReviews", true);
+    }
+    else if (path.startsWith("/shipping")) {
+      setActive("navShipping", true);
+      setActive("mNavShipping", true);
+    }
+    else if (path.startsWith("/returns")) {
+      setActive("navReturns", true);
+      setActive("mNavReturns", true);
+    }
+    else if (path.startsWith("/about")) {
+      setActive("navAbout", true);
+      setActive("mNavAbout", true);
+    }
+    else {
+      setActive("navShop", true);
+      setActive("mNavShop", true);
+    }
   })();
 </script>
 </body>
