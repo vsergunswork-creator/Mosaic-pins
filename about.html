@@ -47,14 +47,24 @@
       will-change: transform;
     }
 
+    /* ✅ nicer dark scrollbars (как на главной) */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
     }
     *::-webkit-scrollbar{width:10px;height:10px}
-    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
-    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
-    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+    *::-webkit-scrollbar-track{
+      background:rgba(0,0,0,.25);
+      border-radius:999px
+    }
+    *::-webkit-scrollbar-thumb{
+      background:rgba(255,255,255,.18);
+      border-radius:999px;
+      border:2px solid rgba(0,0,0,.25)
+    }
+    *::-webkit-scrollbar-thumb:hover{
+      background:rgba(255,255,255,.25)
+    }
 
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
 
@@ -171,6 +181,7 @@
       display:flex;
       flex-direction:column;
       min-width:0;
+      min-height:0;
     }
     .topbar{
       padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
@@ -213,7 +224,13 @@
       text-align:center;
     }
 
-    .content{padding:18px; overflow:auto; min-height:0;}
+    /* ✅ ВАЖНО: контент растягивается, footer прижимается вниз */
+    .content{
+      padding:18px;
+      overflow:auto;
+      min-height:0;
+      flex: 1 1 auto;
+    }
 
     /* ===== ABOUT PAGE BLOCKS ===== */
     .hero{
@@ -227,14 +244,13 @@
     }
     .heroImg{
       position:absolute; inset:0;
-      background-size:cover;          /* ✅ ДЕСКТОП: как было */
-      background-position:center;     /* ✅ ДЕСКТОП: как было */
+      background-size:contain;
       background-repeat:no-repeat;
+      background-position:center;
       filter: saturate(1.05);
-      transform: scale(1.02);
+      transform: scale(1.0);
     }
 
-    /* лёгкая подложка, без сильного затемнения */
     .heroOverlay{
       position:absolute; inset:0;
       background:
@@ -253,7 +269,6 @@
       min-height: 260px;
     }
 
-    /* ✅ скрываем заголовок на фото полностью */
     .heroTitle{ display:none; }
 
     .heroSubtitle{
@@ -266,12 +281,13 @@
       text-shadow: 0 10px 26px rgba(0,0,0,.45);
     }
 
+    /* ✅ ОДИНАКОВАЯ ВЫСОТА ДВУХ ПАНЕЛЕЙ */
     .aboutWrap{
       margin-top: 14px;
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap: 14px;
-      align-items:start;
+      align-items: stretch;          /* ✅ тянем обе колонки одинаково */
     }
     .panel{
       border-radius:18px;
@@ -279,6 +295,9 @@
       background:rgba(0,0,0,.22);
       box-shadow: var(--shadow);
       overflow:hidden;
+      display:flex;                  /* ✅ делаем панель flex */
+      flex-direction:column;         /* ✅ header сверху, контент растёт */
+      min-height: 0;
     }
     .panelHead{
       padding:14px 16px 12px;
@@ -288,6 +307,7 @@
       align-items:center;
       justify-content:space-between;
       gap:10px;
+      flex: 0 0 auto;
     }
     .panelTitle{
       margin:0;
@@ -301,6 +321,8 @@
       font-size: 13px;
       line-height: 1.55;
       white-space: pre-line;
+      flex: 1 1 auto;               /* ✅ растягиваем body */
+      min-height: 0;
     }
     .hint{
       font-size: 12px;
@@ -312,6 +334,10 @@
     .carousel{
       position:relative;
       padding: 14px 16px 16px;
+      flex: 1 1 auto;               /* ✅ чтобы галерея заняла высоту */
+      min-height: 0;
+      display:flex;
+      flex-direction:column;
     }
     .viewport{
       overflow:hidden;
@@ -319,6 +345,8 @@
       border:1px solid var(--line);
       background: rgba(0,0,0,.20);
       padding: 14px;
+      flex: 1 1 auto;               /* ✅ viewport растягивается */
+      min-height: 0;
     }
     .track{
       display:flex;
@@ -370,6 +398,7 @@
       font-weight:950;
       backdrop-filter: blur(10px);
       user-select:none;
+      z-index:3;
     }
     .carBtn:hover{ background: rgba(255,255,255,.06); }
     .carBtn:disabled{ opacity:.35; cursor:not-allowed; }
@@ -381,6 +410,7 @@
       justify-content:center;
       gap:8px;
       padding-top: 12px;
+      flex: 0 0 auto;
     }
     .dotBtn{
       width:8px;height:8px;border-radius:999px;
@@ -402,30 +432,17 @@
       .main{height:auto; min-height:100vh}
       .content{padding:14px}
       .aboutWrap{grid-template-columns:1fr; }
-
-      /* ✅ МОБИЛКА: контейнер под картинку + НЕ режем */
-      .hero{
-        min-height: 0;                 /* убираем фикс */
-        aspect-ratio: 16 / 7;          /* запасной красивый ratio */
-      }
-      .heroInner{
-        min-height: 0;
-        padding: 14px 14px 12px;
-      }
-      .heroImg{
-        background-size: contain;      /* НЕ режем по бокам */
-        background-position: center;
-        transform: none;              /* чтобы не увеличивало и не резало */
-      }
-
+      .heroInner{min-height: 240px}
       .slide{flex: 0 0 calc((100% - 14px) / 2);}
       .carPrev,.carNext{display:none;}
     }
     @media (max-width:520px){
       .slide{flex: 0 0 100%;}
-      .hero{border-radius: 16px;}
+      .hero{min-height: 210px}
+      .heroInner{min-height: 210px}
     }
 
+    /* ✅ footer: всегда в самом низу main */
     .siteFooter{
       padding: 12px 18px;
       border-top: 1px solid var(--line);
@@ -436,6 +453,7 @@
       gap:12px;
       flex-wrap:wrap;
       flex: 0 0 auto;
+      margin-top: auto; /* ✅ прижимает вниз */
     }
     .siteFooter a{
       color: var(--text);
@@ -577,16 +595,14 @@
       </nav>
 
       <div class="sb-scroll">
-        <div class="sb-section"><span>Info</span><span class="pill">mosaicipns.space</span></div>
+        <div class="sb-section"><span>Info</span><span class="pill">mosaicpins.space</span></div>
 
         <div class="sb-card">
           <h3>Contact</h3>
           <p>
-            <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+            <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
           </p>
         </div>
-
-        <!-- ✅ Tip block removed -->
       </div>
     </aside>
 
@@ -652,7 +668,7 @@
         <span class="sep">|</span>
         <a href="/returns">Returns & Refunds</a>
         <span class="sep">|</span>
-        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
       </footer>
     </main>
   </div>
@@ -715,7 +731,6 @@
   });
 
   // Airtable content load
-  const hero = document.getElementById("hero");
   const heroImg = document.getElementById("heroImg");
   const heroTitle = document.getElementById("heroTitle");
   const heroSubtitle = document.getElementById("heroSubtitle");
@@ -770,18 +785,6 @@
 
       setHeroBg(c.heroImage);
 
-      // ✅ ТОЛЬКО МОБИЛКА: подгоняем контейнер под реальный размер картинки
-      // (на десктопе ничего не меняем)
-      if (window.matchMedia("(max-width: 980px)").matches) {
-        const w = Number(c.heroImageWidth || 0);
-        const h = Number(c.heroImageHeight || 0);
-        if (w > 0 && h > 0) {
-          hero.style.aspectRatio = `${w} / ${h}`;
-        } else {
-          hero.style.aspectRatio = "16 / 7";
-        }
-      }
-
       gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
       galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
 
@@ -810,9 +813,7 @@
       div.className = "slide";
       div.setAttribute("data-i", String(i));
       div.innerHTML = `<img src="${url}" alt="Gallery ${i+1}" loading="lazy" />`;
-
       div.addEventListener("click", () => openLightbox(i));
-
       track.appendChild(div);
 
       const d = document.createElement("button");
@@ -866,7 +867,7 @@
   }
 
   function goTo(i){
-    index = Math.max(0, Math.min(gallery.length - 1, i));
+    index = Math.max(0, Math.min(gallery.length - 1, Number(i)||0));
     applyCarousel();
   }
   function prev(){ goTo(index - 1); }
