@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reviews — Mosaic Pins</title>
+
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --text:#e9eef7;
+      --muted:#a8b3c7;
+      --line:rgba(255,255,255,.08);
+      --shadow: 0 12px 30px rgba(0,0,0,.45);
+      --r:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--bg);
+      color:var(--text);
+      overflow:hidden;
+      position:relative;
+      isolation:isolate;
+    }
+
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20vh -20vw;
+      z-index:-1;
+      pointer-events:none;
+      background:
+        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+        var(--bg);
+      filter: blur(18px) saturate(1.05);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    /* dark scrollbars */
+    *{
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
+    }
+    *::-webkit-scrollbar{width:10px;height:10px}
+    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
+    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
+    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+
+    .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
+
+    .sidebar{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .sb-top{
+      padding:18px 18px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      flex:0 0 auto;
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
+    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
+    .pill{
+      padding:8px 10px; border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .sb-nav{padding:6px; display:grid; gap:6px; flex:0 0 auto;}
+    .nav-item{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      color:var(--muted);
+      text-decoration:none;
+      border:1px solid transparent;
+    }
+    .nav-item:hover{background:rgba(255,255,255,.05); color:var(--text);}
+    .nav-item.active{
+      background:rgba(34,197,94,.12);
+      border-color: rgba(34,197,94,.22);
+      color:var(--text);
+    }
+
+    .sb-scroll{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:auto;
+      padding:6px 6px 10px;
+      position:relative;
+    }
+    .sb-scroll:before,.sb-scroll:after{
+      content:"";
+      position:sticky;
+      left:0; right:0;
+      height:14px;
+      pointer-events:none;
+      z-index:2;
+      display:block;
+    }
+    .sb-scroll:before{top:0;background: linear-gradient(180deg, rgba(11,13,17,.95), rgba(11,13,17,0));}
+    .sb-scroll:after{bottom:0;background: linear-gradient(0deg, rgba(11,13,17,.95), rgba(11,13,17,0));}
+
+    .sb-card{
+      margin:0 6px 10px;
+      padding:12px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+    }
+    .sb-card h3{margin:0 0 6px; font-size:13px; font-weight:950;}
+    .sb-card p{margin:0; color:var(--muted); font-size:12px; line-height:1.4; white-space:pre-line;}
+    .sb-card a{color:var(--text); text-decoration:none; opacity:.9;}
+    .sb-card a:hover{opacity:1}
+
+    .main{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+    }
+
+    .topbar{
+      padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+      flex:0 0 auto;
+    }
+    .top-left{min-width:0}
+    .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .sub{color:var(--muted); font-size:12px; margin-top:4px}
+
+    .content{padding:18px; overflow:auto; min-height:0;}
+
+    .hero{
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+      box-shadow: var(--shadow);
+      padding:16px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .hero .right{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .select{
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      outline:none;
+      min-height:44px;
+    }
+    .btn{
+      border:none; cursor:pointer;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.28);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:900;
+      min-height:44px;
+    }
+    .btn:hover{background:rgba(255,255,255,.06)}
+
+    .grid{
+      margin-top:14px;
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:14px;
+    }
+    @media (max-width:1200px){ .grid{grid-template-columns:repeat(2,1fr)} }
+    @media (max-width:680px){ .grid{grid-template-columns:1fr} }
+
+    .card{
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .cardHead{
+      padding:14px 16px 10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .who{
+      display:flex; gap:10px; align-items:center; min-width:0;
+    }
+    .avatar{
+      width:42px;height:42px;border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.28);
+      overflow:hidden;
+      flex:0 0 auto;
+      display:flex;align-items:center;justify-content:center;
+      color:var(--muted);
+      font-weight:900;
+    }
+    .avatar img{width:100%;height:100%;object-fit:cover;display:block;}
+    .nameWrap{min-width:0}
+    .name{
+      margin:0;
+      font-weight:950;
+      font-size:13px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .meta{
+      margin:3px 0 0;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .stars{
+      white-space:nowrap;
+      font-size:14px;
+      letter-spacing:1px;
+      color: rgba(233,238,247,.92);
+      opacity:.95;
+      flex:0 0 auto;
+    }
+
+    .cardBody{
+      padding:14px 16px 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-line;
+    }
+
+    .photos{
+      padding:0 16px 16px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .ph{
+      width:84px;height:84px;border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.28);
+      overflow:hidden;
+      cursor:pointer;
+    }
+    .ph img{width:100%;height:100%;object-fit:cover;display:block;}
+
+    .siteFooter{
+      padding: 12px 18px;
+      border-top: 1px solid var(--line);
+      background: rgba(0,0,0,.20);
+      color: var(--muted);
+      font-size: 12px;
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      flex: 0 0 auto;
+    }
+    .siteFooter a{color: var(--text); text-decoration:none; opacity:.9;}
+    .siteFooter a:hover{opacity:1}
+    .siteFooter .sep{opacity:.35}
+
+    /* Mobile layout */
+    @media (max-width:980px){
+      body{overflow:auto}
+      .app{grid-template-columns:1fr; height:auto; min-height:100vh}
+      .sidebar{display:none}
+      .main{height:auto; min-height:100vh}
+      .content{padding:14px}
+    }
+
+    /* Lightbox */
+    .lightboxBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.78);
+      display:none;
+      z-index:2000;
+      backdrop-filter: blur(6px);
+    }
+    .lightboxBack.show{display:block}
+    .lightbox{
+      position:fixed;
+      inset:0;
+      display:none;
+      z-index:2001;
+      place-items:center;
+      padding: 18px;
+    }
+    .lightbox.show{display:grid}
+
+    .lightboxCard{
+      width: min(980px, 96vw);
+      max-height: 86vh;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.55);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .lightboxImg{
+      width:100%;
+      height: 86vh;
+      max-height: 86vh;
+      object-fit: contain;
+      display:block;
+      background: rgba(0,0,0,.35);
+      touch-action: pan-y;
+    }
+    .lbTop{
+      position:absolute;
+      top:10px; left:10px; right:10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      pointer-events:none;
+    }
+    .lbPill{
+      pointer-events:none;
+      padding:8px 10px;
+      border-radius:999px;
+      background:rgba(0,0,0,.45);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-size:12px;
+      backdrop-filter: blur(10px);
+    }
+    .lbClose{
+      pointer-events:auto;
+      border:none;
+      cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.45);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .lbClose:hover{background:rgba(255,255,255,.08)}
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="brand"><span class="dot"></span> Mosaic Pins</div>
+        <div class="pill">Reviews</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/" id="navShop">Shop</a>
+        <a class="nav-item" href="/about" id="navAbout">About</a>
+        <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
+        <a class="nav-item" href="/returns" id="navReturns">Returns</a>
+        <a class="nav-item active" href="/reviews" id="navReviews">Reviews</a>
+      </nav>
+
+      <div class="sb-scroll">
+        <div class="sb-card">
+          <h3>Contact</h3>
+          <p><a href="mailto:support@mosaipins.space">support@mosaipins.space</a></p>
+        </div>
+        <div class="sb-card">
+          <h3>Info</h3>
+          <p>Reviews are loaded from Airtable table <b>Reviews</b>.</p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="top-left">
+          <h1 class="h-title">Reviews</h1>
+          <div class="sub">What customers say about Mosaic Pins</div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="hero">
+          <div>
+            <div style="font-weight:950; letter-spacing:.2px;">Customer Reviews</div>
+            <div style="color:var(--muted); font-size:12px; margin-top:6px;" id="sumLine">Loading…</div>
+          </div>
+
+          <div class="right">
+            <select class="select" id="sort">
+              <option value="new">Newest first</option>
+              <option value="old">Oldest first</option>
+              <option value="high">Highest rating</option>
+              <option value="low">Lowest rating</option>
+            </select>
+            <select class="select" id="filter">
+              <option value="all">All ratings</option>
+              <option value="5">★★★★★ (5)</option>
+              <option value="4">★★★★☆ (4+)</option>
+              <option value="3">★★★☆☆ (3+)</option>
+              <option value="2">★★☆☆☆ (2+)</option>
+              <option value="1">★☆☆☆☆ (1+)</option>
+            </select>
+            <button class="btn" id="reload" type="button">Reload</button>
+          </div>
+        </div>
+
+        <div class="grid" id="grid"></div>
+      </div>
+
+      <footer class="siteFooter">
+        <a href="/shipping">Shipping</a>
+        <span class="sep">|</span>
+        <a href="/returns">Returns & Refunds</a>
+        <span class="sep">|</span>
+        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightboxBack" id="lightboxBack"></div>
+  <div class="lightbox" id="lightbox">
+    <div class="lightboxCard">
+      <div class="lbTop">
+        <div class="lbPill" id="lbCounter">—</div>
+        <button class="lbClose" id="lbClose" type="button">✕</button>
+      </div>
+      <img class="lightboxImg" id="lbImg" alt="Review photo" />
+    </div>
+  </div>
+
+<script>
+  const API_REVIEWS = "/api/reviews";
+
+  const elGrid = document.getElementById("grid");
+  const elSort = document.getElementById("sort");
+  const elFilter = document.getElementById("filter");
+  const elReload = document.getElementById("reload");
+  const elSumLine = document.getElementById("sumLine");
+
+  // Lightbox
+  const lbBack = document.getElementById("lightboxBack");
+  const lb = document.getElementById("lightbox");
+  const lbImg = document.getElementById("lbImg");
+  const lbClose = document.getElementById("lbClose");
+  const lbCounter = document.getElementById("lbCounter");
+
+  let all = [];
+  let view = [];
+  let lbPhotos = [];
+  let lbIndex = 0;
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  function starsText(n){
+    n = Math.max(0, Math.min(5, Number(n)||0));
+    return "★★★★★".slice(0,n) + "☆☆☆☆☆".slice(0,5-n);
+  }
+
+  function fmtDate(iso){
+    if (!iso) return "";
+    try{
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleDateString(undefined, { year:"numeric", month:"short", day:"2-digit" });
+    }catch(_){ return ""; }
+  }
+
+  async function load(){
+    elGrid.innerHTML = `<div style="color:var(--muted); padding:8px;">Loading…</div>`;
+    try{
+      const r = await fetch(API_REVIEWS, { cache:"no-store" });
+      const data = await r.json().catch(()=> ({}));
+      if (!r.ok || !data?.ok) throw new Error(data?.error || "Failed to load reviews");
+      all = Array.isArray(data.reviews) ? data.reviews : [];
+      apply();
+    }catch(e){
+      elGrid.innerHTML = `<div style="color:var(--muted); padding:8px;">${escapeHtml(String(e?.message || e))}</div>`;
+      elSumLine.textContent = "Failed to load.";
+    }
+  }
+
+  function apply(){
+    const f = elFilter.value;
+    const s = elSort.value;
+
+    view = all.filter(x => {
+      const rating = Number(x.rating||0);
+      if (f === "all") return true;
+      const min = Number(f);
+      return rating >= min;
+    });
+
+    view.sort((a,b)=>{
+      const da = new Date(a.date || 0).getTime() || 0;
+      const db = new Date(b.date || 0).getTime() || 0;
+      const ra = Number(a.rating||0);
+      const rb = Number(b.rating||0);
+
+      if (s === "new") return db - da;
+      if (s === "old") return da - db;
+      if (s === "high") return rb - ra || (db - da);
+      if (s === "low") return ra - rb || (db - da);
+      return db - da;
+    });
+
+    // summary
+    const avg = view.length ? (view.reduce((t,x)=>t+(Number(x.rating)||0),0) / view.length) : 0;
+    elSumLine.textContent = view.length
+      ? `${view.length} reviews • avg ${avg.toFixed(2)} / 5`
+      : `No reviews for this filter`;
+
+    render();
+  }
+
+  function card(r){
+    const initials = (r.name || "—").trim().slice(0,1).toUpperCase() || "—";
+    const avatar = r.avatar ? `<img src="${escapeHtml(r.avatar)}" alt="${escapeHtml(r.name)}" />` : `${escapeHtml(initials)}`;
+    const photos = Array.isArray(r.photos) ? r.photos.filter(Boolean) : [];
+
+    const photosHtml = photos.length ? `
+      <div class="photos">
+        ${photos.map((p, i)=>`
+          <div class="ph" data-photo="${escapeHtml(p)}" data-idx="${i}">
+            <img src="${escapeHtml(p)}" alt="Photo" loading="lazy" />
+          </div>
+        `).join("")}
+      </div>
+    ` : "";
+
+    return `
+      <article class="card">
+        <div class="cardHead">
+          <div class="who">
+            <div class="avatar">${avatar}</div>
+            <div class="nameWrap">
+              <p class="name">${escapeHtml(r.name || "Anonymous")}</p>
+              <p class="meta">${escapeHtml(fmtDate(r.date))}${r.country ? " • " + escapeHtml(r.country) : ""}</p>
+            </div>
+          </div>
+          <div class="stars" title="${escapeHtml(String(r.rating||""))}/5">${starsText(r.rating)}</div>
+        </div>
+        <div class="cardBody">${escapeHtml(r.text || "")}</div>
+        ${photosHtml}
+      </article>
+    `;
+  }
+
+  function render(){
+    if (!view.length){
+      elGrid.innerHTML = `<div style="color:var(--muted); padding:8px;">No reviews.</div>`;
+      return;
+    }
+
+    elGrid.innerHTML = view.map(card).join("");
+
+    // click photos -> lightbox
+    [...elGrid.querySelectorAll(".ph")].forEach(ph => {
+      ph.addEventListener("click", ()=>{
+        const cardEl = ph.closest(".card");
+        const imgs = [...cardEl.querySelectorAll(".ph img")].map(img => img.getAttribute("src")).filter(Boolean);
+        const i = Number(ph.getAttribute("data-idx") || 0);
+        openLightbox(imgs, i);
+      });
+    });
+  }
+
+  function openLightbox(arr, i){
+    lbPhotos = Array.isArray(arr) ? arr : [];
+    lbIndex = Math.max(0, Math.min(lbPhotos.length - 1, Number(i)||0));
+    if (!lbPhotos.length) return;
+
+    lbImg.src = lbPhotos[lbIndex];
+    lbCounter.textContent = `${lbIndex + 1} / ${lbPhotos.length}`;
+
+    lbBack.classList.add("show");
+    lb.classList.add("show");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox(){
+    lbBack.classList.remove("show");
+    lb.classList.remove("show");
+    document.body.style.overflow = "";
+  }
+
+  lbClose.addEventListener("click", closeLightbox);
+  lbBack.addEventListener("click", closeLightbox);
+
+  // swipe in lightbox (mobile)
+  (function enableSwipe(){
+    let startX = 0, dx = 0, dragging = false;
+
+    lbImg.addEventListener("touchstart", (e)=>{
+      if (!e.touches?.length) return;
+      dragging = true;
+      startX = e.touches[0].clientX;
+      dx = 0;
+    }, {passive:true});
+
+    lbImg.addEventListener("touchmove", (e)=>{
+      if (!dragging || !e.touches?.length) return;
+      dx = e.touches[0].clientX - startX;
+    }, {passive:true});
+
+    lbImg.addEventListener("touchend", ()=>{
+      if (!dragging) return;
+      dragging = false;
+      if (Math.abs(dx) < 30) return;
+
+      if (dx > 0 && lbIndex > 0) lbIndex--;
+      else if (dx < 0 && lbIndex < lbPhotos.length - 1) lbIndex++;
+
+      lbImg.src = lbPhotos[lbIndex];
+      lbCounter.textContent = `${lbIndex + 1} / ${lbPhotos.length}`;
+    }, {passive:true});
+  })();
+
+  elSort.addEventListener("change", apply);
+  elFilter.addEventListener("change", apply);
+  elReload.addEventListener("click", load);
+
+  (function navActive(){
+    const path = window.location.pathname || "/";
+    const ids = ["navShop","navAbout","navShipping","navReturns","navReviews"];
+    ids.forEach(id => document.getElementById(id)?.classList.remove("active"));
+    if (path.startsWith("/reviews")) document.getElementById("navReviews")?.classList.add("active");
+    else if (path.startsWith("/shipping")) document.getElementById("navShipping")?.classList.add("active");
+    else if (path.startsWith("/returns")) document.getElementById("navReturns")?.classList.add("active");
+    else if (path.startsWith("/about")) document.getElementById("navAbout")?.classList.add("active");
+    else document.getElementById("navShop")?.classList.add("active");
+  })();
+
+  load();
+</script>
+</body>
+</html>
