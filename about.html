@@ -231,6 +231,20 @@
       background-position:center;
       filter: saturate(1.05);
       transform: scale(1.02);
+      background-repeat:no-repeat;
+    }
+
+    /* ✅ FIX: on mobile show full hero image (no crop) */
+    @media (max-width: 520px){
+      .hero{
+        min-height: 0;
+        aspect-ratio: 16 / 9;          /* можно 21/9 если хотите ещё шире */
+      }
+      .heroImg{
+        background-size: contain;       /* ✅ no crop */
+        transform: none;               /* ✅ убрать увеличение (чтобы не резало) */
+        background-color: rgba(0,0,0,.25); /* красивые поля по бокам/сверху */
+      }
     }
 
     /* лёгкая подложка, без сильного затемнения */
