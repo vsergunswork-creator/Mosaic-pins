@@ -141,7 +141,6 @@
       text-align:center;
     }
 
-    /* ✅ Back to shop button */
     .backBtn{
       display:inline-flex;
       align-items:center;
@@ -173,7 +172,7 @@
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap:16px;
-      align-items:start;
+      align-items:stretch; /* ✅ IMPORTANT: stretch to same height */
     }
 
     @media (max-width:980px){
@@ -195,13 +194,22 @@
       background:rgba(0,0,0,.22);
       border-radius:16px;
       overflow:hidden;
+      min-height:0; /* ✅ allow child to size */
     }
 
-    .gallery{padding:12px; display:grid; gap:10px;}
+    /* ✅ Gallery fills panel height and lets hero stretch */
+    .gallery{
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      height:100%;
+      min-height:0;
+    }
 
-    /* ✅ IMPORTANT: hero stays, but NOT forced to be square */
     .hero{
-      aspect-ratio: auto;               /* ✅ was 1/1 */
+      flex:1 1 auto;        /* ✅ stretch to match right panel height */
+      min-height:320px;     /* ✅ safety */
       border-radius:14px;
       overflow:hidden;
       background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(96,165,250,.10));
@@ -211,7 +219,6 @@
       user-select:none;
       touch-action: pan-y;
     }
-
     .hero-inner{
       width:100%;
       height:100%;
@@ -219,10 +226,9 @@
       will-change: transform;
     }
 
-    /* ✅ IMPORTANT: reduce ONLY the "player/view" height, swipe stays */
     .carousel{
       width:100%;
-      height: clamp(340px, 52vh, 460px); /* ✅ NEW: controls image viewer height */
+      height:100%;          /* ✅ player fills hero height */
       overflow-x:auto;
       overflow-y:hidden;
       display:flex;
@@ -232,14 +238,6 @@
       user-select:none;
       cursor: grab;
     }
-
-    /* Mobile tweak: slightly smaller viewer, swipe still works */
-    @media (max-width:980px){
-      .carousel{
-        height: clamp(280px, 46vh, 380px);
-      }
-    }
-
     .carousel::-webkit-scrollbar{display:none;}
     .carousel.dragging{cursor: grabbing;}
     .slide{flex: 0 0 100%; width:100%; height:100%; scroll-snap-align:center;}
@@ -288,7 +286,7 @@
       display:none;
     }
 
-    .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px;}
+    .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px; flex:0 0 auto;}
     .t{
       width:72px; height:72px; border-radius:12px;
       border:1px solid var(--line);
@@ -299,6 +297,17 @@
     }
     .t.active{outline:2px solid rgba(34,197,94,.45); opacity:1}
     .t img{width:100%; height:100%; object-fit:cover; display:block;}
+
+    /* ✅ Mobile keeps your “player height” feeling */
+    @media (max-width:980px){
+      .carousel{
+        height: clamp(280px, 46vh, 380px);
+      }
+      .hero{
+        flex: 0 0 auto;
+        min-height: 0;
+      }
+    }
 
     .details{padding:16px;}
     .kicker{color:var(--muted); font-size:12px}
@@ -544,7 +553,6 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    /* ✅ footer (desktop) */
     .siteFooter{
       padding: 12px 18px;
       border-top: 1px solid var(--line);
@@ -560,7 +568,6 @@
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
 
-    /* ✅ MOBILE NAV */
     .mobileNav{ display:none; }
     @media (max-width:980px){
       .mobileNav{
@@ -923,16 +930,11 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-
-  // пока оставим “later”
   elCartCheckout.addEventListener("click", () => toast("Checkout", "Cart checkout: next step ✅"));
-
-  el("currency").addEventListener("change", () => {
-    renderCart();
-  });
+  el("currency").addEventListener("change", () => { renderCart(); });
 
   /* =========================
-     PRODUCT PAGE
+     PRODUCT PAGE (carousel)
   ========================== */
   const hero = el("hero");
   const heroInner = el("heroInner");
@@ -957,7 +959,7 @@
   function syncThumbs(){
     const thumbs = el("thumbs");
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
+    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
     if (active) active.classList.add("active");
   }
 
@@ -1017,7 +1019,6 @@
     });
   }
 
-  /* ✅ Swipe/drag сохранён полностью */
   function enableDragScroll(){
     let isDown = false;
     let startX = 0;
@@ -1110,10 +1111,7 @@
     if (!Number.isFinite(qty) || qty <= 0) qty = 1;
 
     const stock = Number(p.stock ?? 0);
-    if (stock <= 0){
-      toast("Cart", "Sold out");
-      return;
-    }
+    if (stock <= 0){ toast("Cart", "Sold out"); return; }
 
     const cart = readCart();
     const idx = cart.findIndex(x => String(x.pin) === String(p.pin));
@@ -1270,35 +1268,6 @@
   }
 
   load();
-
-  /* ✅ Active state for desktop sidebar + mobile nav */
-  (function navActive(){
-    const path = window.location.pathname || "/";
-
-    const setActive = (id, on) => {
-      const elx = document.getElementById(id);
-      if (elx) elx.classList.toggle("active", !!on);
-    };
-
-    setActive("mNavShop", false);
-    setActive("mNavAbout", false);
-    setActive("mNavShipping", false);
-    setActive("mNavReturns", false);
-    setActive("mNavReviews", false);
-
-    setActive("navShop", false);
-    setActive("navAbout", false);
-    setActive("navShipping", false);
-    setActive("navReturns", false);
-    setActive("navReviews", false);
-    setActive("navProduct", true);
-
-    if (path.startsWith("/reviews")) { setActive("mNavReviews", true); setActive("navReviews", true); }
-    else if (path.startsWith("/shipping")) { setActive("mNavShipping", true); setActive("navShipping", true); }
-    else if (path.startsWith("/returns")) { setActive("mNavReturns", true); setActive("navReturns", true); }
-    else if (path.startsWith("/about")) { setActive("mNavAbout", true); setActive("navAbout", true); }
-    else { setActive("mNavShop", true); setActive("navShop", true); }
-  })();
 </script>
 </body>
 </html>
