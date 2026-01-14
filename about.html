@@ -222,26 +222,18 @@
       overflow:hidden;
       background:rgba(0,0,0,.22);
       position:relative;
+      min-height: 260px;
       box-shadow: var(--shadow);
-
-      /* ✅ главный фикс: контейнер под пропорции баннера */
-      aspect-ratio: 16 / 6;
-      height: auto;
     }
-
     .heroImg{
-      position:absolute;
-      inset:0;
-
-      /* ✅ НЕ режем баннер */
-      background-size: contain;
-      background-position: center;
-      background-repeat: no-repeat;
-
+      position:absolute; inset:0;
+      background-size:cover;
+      background-position:center;
       filter: saturate(1.05);
-      transform: none;
+      transform: scale(1.02);
     }
 
+    /* лёгкая подложка, без сильного затемнения */
     .heroOverlay{
       position:absolute; inset:0;
       background:
@@ -257,7 +249,7 @@
       flex-direction:column;
       justify-content:flex-end;
       gap:10px;
-      min-height: 100%;
+      min-height: 260px;
     }
 
     /* ✅ скрываем заголовок на фото полностью */
@@ -409,15 +401,11 @@
       .main{height:auto; min-height:100vh}
       .content{padding:14px}
       .aboutWrap{grid-template-columns:1fr; }
+      .heroInner{min-height: 240px}
       .slide{flex: 0 0 calc((100% - 14px) / 2);}
       .carPrev,.carNext{display:none;}
     }
-
-    /* ✅ Мобилка: контейнер почти ровно как баннер */
     @media (max-width:520px){
-      .hero{
-        aspect-ratio: 16 / 5;
-      }
       .slide{flex: 0 0 100%;}
     }
 
@@ -580,6 +568,8 @@
             <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
           </p>
         </div>
+
+        <!-- ✅ Tip block removed -->
       </div>
     </aside>
 
@@ -707,6 +697,7 @@
     toast("Cart", `Items: ${cartCount()}`);
   });
 
+  // Airtable content load
   const heroImg = document.getElementById("heroImg");
   const heroTitle = document.getElementById("heroTitle");
   const heroSubtitle = document.getElementById("heroSubtitle");
@@ -721,6 +712,7 @@
   const nextBtn = document.getElementById("nextBtn");
   const viewport = document.getElementById("viewport");
 
+  // Lightbox refs
   const lbBack = document.getElementById("lightboxBack");
   const lb = document.getElementById("lightbox");
   const lbImg = document.getElementById("lbImg");
@@ -754,6 +746,7 @@
       topTitle.textContent = "About";
       topSub.textContent = c.heroTitle ? c.heroTitle : "Mosaic Pins Space";
 
+      // ✅ даже если Airtable присылает heroTitle — он в hero скрыт (CSS)
       heroTitle.textContent = c.heroTitle || "Mosaic Pins Space";
       heroSubtitle.textContent = c.heroSubtitle || "";
       aboutBody.textContent = c.aboutBody || "";
@@ -788,7 +781,10 @@
       div.className = "slide";
       div.setAttribute("data-i", String(i));
       div.innerHTML = `<img src="${url}" alt="Gallery ${i+1}" loading="lazy" />`;
+
+      // ✅ клик = открыть большую
       div.addEventListener("click", () => openLightbox(i));
+
       track.appendChild(div);
 
       const d = document.createElement("button");
@@ -851,6 +847,7 @@
   prevBtn.addEventListener("click", prev);
   nextBtn.addEventListener("click", next);
 
+  // swipe support
   (function enableSwipe(){
     let startX = 0;
     let dx = 0;
@@ -876,6 +873,7 @@
     }, {passive:true});
   })();
 
+  // Lightbox
   function openLightbox(i){
     if (!gallery.length) return;
     index = Math.max(0, Math.min(gallery.length - 1, Number(i)||0));
@@ -918,6 +916,7 @@
   lbPrev.addEventListener("click", lbPrevFn);
   lbNext.addEventListener("click", lbNextFn);
 
+  // keyboard
   window.addEventListener("keydown", (e)=>{
     if (lb.classList.contains("show")){
       if (e.key === "Escape") closeLightbox();
