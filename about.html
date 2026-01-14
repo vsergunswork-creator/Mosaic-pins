@@ -47,24 +47,15 @@
       will-change: transform;
     }
 
-    /* ✅ nicer dark scrollbars (как на главной) */
+    /* ✅ Dark scrollbar like main */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
     }
     *::-webkit-scrollbar{width:10px;height:10px}
-    *::-webkit-scrollbar-track{
-      background:rgba(0,0,0,.25);
-      border-radius:999px
-    }
-    *::-webkit-scrollbar-thumb{
-      background:rgba(255,255,255,.18);
-      border-radius:999px;
-      border:2px solid rgba(0,0,0,.25)
-    }
-    *::-webkit-scrollbar-thumb:hover{
-      background:rgba(255,255,255,.25)
-    }
+    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
+    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
+    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
 
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
 
@@ -181,7 +172,7 @@
       display:flex;
       flex-direction:column;
       min-width:0;
-      min-height:0;
+      min-height:0; /* ✅ needed for sticky footer layout */
     }
     .topbar{
       padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
@@ -224,12 +215,12 @@
       text-align:center;
     }
 
-    /* ✅ ВАЖНО: контент растягивается, footer прижимается вниз */
+    /* ✅ make footer stick to bottom */
     .content{
       padding:18px;
       overflow:auto;
       min-height:0;
-      flex: 1 1 auto;
+      flex:1 1 auto;
     }
 
     /* ===== ABOUT PAGE BLOCKS ===== */
@@ -244,11 +235,11 @@
     }
     .heroImg{
       position:absolute; inset:0;
-      background-size:contain;
+      background-size:cover;          /* ✅ DESKTOP: as it was */
+      background-position:center;     /* ✅ DESKTOP: as it was */
       background-repeat:no-repeat;
-      background-position:center;
       filter: saturate(1.05);
-      transform: scale(1.0);
+      transform: scale(1.02);
     }
 
     .heroOverlay{
@@ -281,13 +272,13 @@
       text-shadow: 0 10px 26px rgba(0,0,0,.45);
     }
 
-    /* ✅ ОДИНАКОВАЯ ВЫСОТА ДВУХ ПАНЕЛЕЙ */
+    /* ✅ DESKTOP: About + Gallery aligned + same height */
     .aboutWrap{
       margin-top: 14px;
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap: 14px;
-      align-items: stretch;          /* ✅ тянем обе колонки одинаково */
+      align-items: stretch; /* was start */
     }
     .panel{
       border-radius:18px;
@@ -295,9 +286,9 @@
       background:rgba(0,0,0,.22);
       box-shadow: var(--shadow);
       overflow:hidden;
-      display:flex;                  /* ✅ делаем панель flex */
-      flex-direction:column;         /* ✅ header сверху, контент растёт */
-      min-height: 0;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
     }
     .panelHead{
       padding:14px 16px 12px;
@@ -307,7 +298,7 @@
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      flex: 0 0 auto;
+      flex:0 0 auto;
     }
     .panelTitle{
       margin:0;
@@ -321,8 +312,8 @@
       font-size: 13px;
       line-height: 1.55;
       white-space: pre-line;
-      flex: 1 1 auto;               /* ✅ растягиваем body */
-      min-height: 0;
+      flex:1 1 auto; /* ✅ fills panel height */
+      min-height:0;
     }
     .hint{
       font-size: 12px;
@@ -334,8 +325,8 @@
     .carousel{
       position:relative;
       padding: 14px 16px 16px;
-      flex: 1 1 auto;               /* ✅ чтобы галерея заняла высоту */
-      min-height: 0;
+      flex:1 1 auto;   /* ✅ make gallery panel fill height */
+      min-height:0;
       display:flex;
       flex-direction:column;
     }
@@ -345,8 +336,8 @@
       border:1px solid var(--line);
       background: rgba(0,0,0,.20);
       padding: 14px;
-      flex: 1 1 auto;               /* ✅ viewport растягивается */
-      min-height: 0;
+      flex:1 1 auto;   /* ✅ fills remaining height */
+      min-height:0;
     }
     .track{
       display:flex;
@@ -410,7 +401,7 @@
       justify-content:center;
       gap:8px;
       padding-top: 12px;
-      flex: 0 0 auto;
+      flex:0 0 auto;
     }
     .dotBtn{
       width:8px;height:8px;border-radius:999px;
@@ -431,18 +422,31 @@
       .sidebar{display:none}
       .main{height:auto; min-height:100vh}
       .content{padding:14px}
-      .aboutWrap{grid-template-columns:1fr; }
-      .heroInner{min-height: 240px}
+      .aboutWrap{grid-template-columns:1fr;}
+
+      /* ✅ MOBILE HERO: exactly as your perfect version */
+      .hero{
+        min-height: 0;
+        aspect-ratio: 16 / 7;
+      }
+      .heroInner{
+        min-height: 0;
+        padding: 14px 14px 12px;
+      }
+      .heroImg{
+        background-size: contain;
+        background-position: center;
+        transform: none;
+      }
+
       .slide{flex: 0 0 calc((100% - 14px) / 2);}
       .carPrev,.carNext{display:none;}
     }
     @media (max-width:520px){
       .slide{flex: 0 0 100%;}
-      .hero{min-height: 210px}
-      .heroInner{min-height: 210px}
+      .hero{border-radius: 16px;}
     }
 
-    /* ✅ footer: всегда в самом низу main */
     .siteFooter{
       padding: 12px 18px;
       border-top: 1px solid var(--line);
@@ -452,8 +456,8 @@
       display:flex;
       gap:12px;
       flex-wrap:wrap;
-      flex: 0 0 auto;
-      margin-top: auto; /* ✅ прижимает вниз */
+      flex:0 0 auto;
+      margin-top:auto; /* ✅ push footer to bottom */
     }
     .siteFooter a{
       color: var(--text);
@@ -595,12 +599,12 @@
       </nav>
 
       <div class="sb-scroll">
-        <div class="sb-section"><span>Info</span><span class="pill">mosaicpins.space</span></div>
+        <div class="sb-section"><span>Info</span><span class="pill">mosaicipns.space</span></div>
 
         <div class="sb-card">
           <h3>Contact</h3>
           <p>
-            <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
+            <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
           </p>
         </div>
       </div>
@@ -638,9 +642,7 @@
               <h3 class="panelTitle">About us</h3>
               <div class="hint">Editable in Airtable</div>
             </div>
-            <div class="panelBody" id="aboutBody">
-              Loading…
-            </div>
+            <div class="panelBody" id="aboutBody">Loading…</div>
           </section>
 
           <section class="panel">
@@ -668,7 +670,7 @@
         <span class="sep">|</span>
         <a href="/returns">Returns & Refunds</a>
         <span class="sep">|</span>
-        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
+        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
       </footer>
     </main>
   </div>
@@ -731,6 +733,7 @@
   });
 
   // Airtable content load
+  const hero = document.getElementById("hero");
   const heroImg = document.getElementById("heroImg");
   const heroTitle = document.getElementById("heroTitle");
   const heroSubtitle = document.getElementById("heroSubtitle");
@@ -784,6 +787,13 @@
       aboutBody.textContent = c.aboutBody || "";
 
       setHeroBg(c.heroImage);
+
+      /* ✅ ONLY MOBILE: set aspect-ratio from Airtable if provided (desktop untouched) */
+      if (window.matchMedia("(max-width: 980px)").matches) {
+        const w = Number(c.heroImageWidth || 0);
+        const h = Number(c.heroImageHeight || 0);
+        hero.style.aspectRatio = (w > 0 && h > 0) ? `${w} / ${h}` : "16 / 7";
+      }
 
       gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
       galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
@@ -867,7 +877,7 @@
   }
 
   function goTo(i){
-    index = Math.max(0, Math.min(gallery.length - 1, Number(i)||0));
+    index = Math.max(0, Math.min(gallery.length - 1, i));
     applyCarousel();
   }
   function prev(){ goTo(index - 1); }
@@ -957,6 +967,14 @@
   window.addEventListener("resize", ()=>{
     measureStep();
     applyCarousel();
+
+    // keep mobile aspect-ratio on resize
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      // if already set, do nothing; if not set, fallback
+      if (!hero.style.aspectRatio) hero.style.aspectRatio = "16 / 7";
+    } else {
+      hero.style.aspectRatio = "";
+    }
   });
 
   (function navActive(){
