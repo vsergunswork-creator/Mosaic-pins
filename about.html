@@ -227,8 +227,9 @@
     }
     .heroImg{
       position:absolute; inset:0;
-      background-size:cover;
-      background-position:center;
+      background-size:cover;          /* ✅ ДЕСКТОП: как было */
+      background-position:center;     /* ✅ ДЕСКТОП: как было */
+      background-repeat:no-repeat;
       filter: saturate(1.05);
       transform: scale(1.02);
     }
@@ -401,12 +402,28 @@
       .main{height:auto; min-height:100vh}
       .content{padding:14px}
       .aboutWrap{grid-template-columns:1fr; }
-      .heroInner{min-height: 240px}
+
+      /* ✅ МОБИЛКА: контейнер под картинку + НЕ режем */
+      .hero{
+        min-height: 0;                 /* убираем фикс */
+        aspect-ratio: 16 / 7;          /* запасной красивый ratio */
+      }
+      .heroInner{
+        min-height: 0;
+        padding: 14px 14px 12px;
+      }
+      .heroImg{
+        background-size: contain;      /* НЕ режем по бокам */
+        background-position: center;
+        transform: none;              /* чтобы не увеличивало и не резало */
+      }
+
       .slide{flex: 0 0 calc((100% - 14px) / 2);}
       .carPrev,.carNext{display:none;}
     }
     @media (max-width:520px){
       .slide{flex: 0 0 100%;}
+      .hero{border-radius: 16px;}
     }
 
     .siteFooter{
@@ -698,6 +715,7 @@
   });
 
   // Airtable content load
+  const hero = document.getElementById("hero");
   const heroImg = document.getElementById("heroImg");
   const heroTitle = document.getElementById("heroTitle");
   const heroSubtitle = document.getElementById("heroSubtitle");
@@ -746,12 +764,23 @@
       topTitle.textContent = "About";
       topSub.textContent = c.heroTitle ? c.heroTitle : "Mosaic Pins Space";
 
-      // ✅ даже если Airtable присылает heroTitle — он в hero скрыт (CSS)
       heroTitle.textContent = c.heroTitle || "Mosaic Pins Space";
       heroSubtitle.textContent = c.heroSubtitle || "";
       aboutBody.textContent = c.aboutBody || "";
 
       setHeroBg(c.heroImage);
+
+      // ✅ ТОЛЬКО МОБИЛКА: подгоняем контейнер под реальный размер картинки
+      // (на десктопе ничего не меняем)
+      if (window.matchMedia("(max-width: 980px)").matches) {
+        const w = Number(c.heroImageWidth || 0);
+        const h = Number(c.heroImageHeight || 0);
+        if (w > 0 && h > 0) {
+          hero.style.aspectRatio = `${w} / ${h}`;
+        } else {
+          hero.style.aspectRatio = "16 / 7";
+        }
+      }
 
       gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
       galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
@@ -782,7 +811,6 @@
       div.setAttribute("data-i", String(i));
       div.innerHTML = `<img src="${url}" alt="Gallery ${i+1}" loading="lazy" />`;
 
-      // ✅ клик = открыть большую
       div.addEventListener("click", () => openLightbox(i));
 
       track.appendChild(div);
@@ -847,7 +875,6 @@
   prevBtn.addEventListener("click", prev);
   nextBtn.addEventListener("click", next);
 
-  // swipe support
   (function enableSwipe(){
     let startX = 0;
     let dx = 0;
@@ -873,7 +900,6 @@
     }, {passive:true});
   })();
 
-  // Lightbox
   function openLightbox(i){
     if (!gallery.length) return;
     index = Math.max(0, Math.min(gallery.length - 1, Number(i)||0));
@@ -916,7 +942,6 @@
   lbPrev.addEventListener("click", lbPrevFn);
   lbNext.addEventListener("click", lbNextFn);
 
-  // keyboard
   window.addEventListener("keydown", (e)=>{
     if (lb.classList.contains("show")){
       if (e.key === "Escape") closeLightbox();
