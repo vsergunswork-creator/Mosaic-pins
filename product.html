@@ -122,6 +122,8 @@
       font-weight:900;
       white-space:nowrap;
       text-decoration:none;
+      min-height:44px;
+      line-height:1.1;
     }
     .cartBtn:hover{background:rgba(255,255,255,.06)}
     .cartBadge{
@@ -136,6 +138,26 @@
       min-width:24px;
       text-align:center;
     }
+
+    /* ✅ Back to shop button (same style as buttons) */
+    .backBtn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.28);
+      border:1px solid var(--line);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+      text-decoration:none;
+      min-height:44px;
+      line-height:1.1;
+      opacity:.92;
+    }
+    .backBtn:hover{background:rgba(255,255,255,.06); opacity:1}
 
     .content{
       padding:18px;
@@ -163,7 +185,6 @@
         overflow:auto;
         padding-bottom: calc(14px + max(44px, env(safe-area-inset-bottom, 0px)) + 56px);
       }
-      /* ✅ место под мобильную навигацию */
       .main{padding-bottom: calc(76px + env(safe-area-inset-bottom));}
     }
 
@@ -579,9 +600,9 @@
         <div class="pill" id="sbCount">Product</div>
       </div>
 
-      <!-- ✅ FULL MENU (like other pages) -->
+      <!-- ✅ FULL MENU + Back to shop -->
       <nav class="sb-nav">
-        <a class="nav-item" href="/" id="navShop">Shop</a>
+        <a class="nav-item" href="/" id="navShop">← Back to shop</a>
         <a class="nav-item" href="/about" id="navAbout">About</a>
         <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
         <a class="nav-item" href="/returns" id="navReturns">Returns</a>
@@ -598,6 +619,9 @@
         </div>
 
         <div class="topRight">
+          <!-- ✅ ADDED Back button -->
+          <a class="backBtn" href="/" id="backTopShop" title="Back to shop">← Back to shop</a>
+
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
@@ -1128,35 +1152,6 @@
 
     window.location.href = data.url;
   }
-
-  function setActive(id, on){
-    const x = document.getElementById(id);
-    if (x) x.classList.toggle("active", !!on);
-  }
-
-  // ✅ active state for this page
-  (function navActive(){
-    const path = window.location.pathname || "/";
-
-    setActive("navShop", false);
-    setActive("navAbout", false);
-    setActive("navShipping", false);
-    setActive("navReturns", false);
-    setActive("navReviews", false);
-    setActive("navProduct", true);
-
-    setActive("mNavShop", false);
-    setActive("mNavAbout", false);
-    setActive("mNavShipping", false);
-    setActive("mNavReturns", false);
-    setActive("mNavReviews", false);
-
-    if (path.startsWith("/reviews")) setActive("mNavReviews", true);
-    else if (path.startsWith("/shipping")) setActive("mNavShipping", true);
-    else if (path.startsWith("/returns")) setActive("mNavReturns", true);
-    else if (path.startsWith("/about")) setActive("mNavAbout", true);
-    else setActive("mNavShop", true);
-  })();
 
   async function load(){
     updateCartBadge();
