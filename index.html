@@ -13,7 +13,6 @@
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
 
-      /* darker overlays (less прозрачные) */
       --overlay: rgba(0,0,0,.72);
       --overlay2: rgba(0,0,0,.82);
       --panel: rgba(0,0,0,.28);
@@ -25,30 +24,28 @@
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      background: var(--bg); /* ✅ фон теперь базовый */
+      background: var(--bg);
       color:var(--text);
       overflow:hidden;
-      position:relative;     /* ✅ нужно для псевдо-слоя */
-      isolation:isolate;     /* ✅ фон-слой не конфликтует с blur */
+      position:relative;
+      isolation:isolate;
     }
 
-    /* ✅ единый цельный фон, который НЕ “ломается” при скролле */
     body::before{
       content:"";
       position:fixed;
-      inset:-20vh -20vw;          /* чуть больше, чтобы на мобилке не было краёв */
+      inset:-20vh -20vw;
       z-index:-1;
       pointer-events:none;
       background:
         radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
         radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
         var(--bg);
-      filter: blur(18px) saturate(1.05); /* ✅ мягче, без “ступеньки” */
+      filter: blur(18px) saturate(1.05);
       transform: translateZ(0);
       will-change: transform;
     }
 
-    /* nicer dark scrollbars */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
@@ -111,7 +108,6 @@
       position:relative;
     }
 
-    /* subtle fade at top/bottom instead of ugly “качель” feeling */
     .sb-scroll:before,
     .sb-scroll:after{
       content:"";
@@ -193,7 +189,6 @@
       min-width:0;
     }
     .topbar{
-      /* ✅ safe-area чтобы сверху не резало на мобилке */
       padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
       display:flex; align-items:center; justify-content:space-between; gap:12px;
       border-bottom:1px solid var(--line);
@@ -223,7 +218,6 @@
     }
     .top-right{display:flex; align-items:center; gap:10px}
 
-    /* ✅ общие правила чтобы элементы не “обрезались” */
     .filtersBtn,.cartBtn,.toggle,.currency{
       min-height:44px;
       line-height:1.1;
@@ -314,6 +308,7 @@
     }
     @media (max-width:1200px){ .grid{grid-template-columns:repeat(4,1fr)} }
 
+    /* ====== MOBILE LAYOUT ====== */
     @media (max-width:980px){
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
@@ -325,7 +320,6 @@
 
       .search{order:3; width:100%; max-width:none; min-width:0}
 
-      /* ✅ главное: нормально переносим и не режем элементы */
       .top-right{
         order:2;
         width:100%;
@@ -333,12 +327,15 @@
         flex-wrap:wrap;
         gap:10px;
       }
-      /* на очень узких экранах кнопки занимают строку красиво */
       .top-right > *{flex: 1 1 auto}
       .filtersBtn,.cartBtn,.currency,.toggle{justify-content:center}
 
       .filtersBtn{display:inline-flex}
       .content{padding:14px}
+
+      /* ✅ место под нижнюю навигацию, чтобы контент не прятался */
+      .main{padding-bottom: calc(76px + env(safe-area-inset-bottom));}
+
       .grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px}
     }
     @media (max-width:520px){
@@ -443,7 +440,7 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* Mobile Filters Sheet (darker, less transparent) */
+    /* Mobile Filters Sheet */
     .sheetBack{
       position:fixed;
       inset:0;
@@ -622,7 +619,6 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    /* ✅ footer */
     .siteFooter{
       padding: 12px 18px;
       border-top: 1px solid var(--line);
@@ -641,6 +637,49 @@
     }
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
+
+    /* ✅ MOBILE NAV (shows About on mobile) */
+    .mobileNav{
+      display:none;
+    }
+    @media (max-width:980px){
+      .mobileNav{
+        display:flex;
+        position:fixed;
+        left:12px;
+        right:12px;
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        z-index:1200;
+
+        padding:8px;
+        gap:8px;
+        border-radius: 18px;
+        border:1px solid var(--line);
+        background: rgba(0,0,0,.45);
+        backdrop-filter: blur(10px);
+        box-shadow: var(--shadow);
+      }
+      .mNavItem{
+        flex:1 1 0;
+        text-decoration:none;
+        color:var(--muted);
+        border:1px solid transparent;
+        background: rgba(255,255,255,.03);
+        border-radius:14px;
+        padding:10px 10px;
+        text-align:center;
+        font-weight:900;
+        font-size:12px;
+        letter-spacing:.2px;
+        user-select:none;
+      }
+      .mNavItem:hover{background: rgba(255,255,255,.06); color:var(--text);}
+      .mNavItem.active{
+        background:rgba(34,197,94,.14);
+        border-color: rgba(34,197,94,.22);
+        color:var(--text);
+      }
+    }
   </style>
 </head>
 
@@ -652,10 +691,8 @@
         <div class="pill" id="sbCount">— items</div>
       </div>
 
-      <!-- ✅ реальные страницы вместо # -->
       <nav class="sb-nav">
         <a class="nav-item active" href="/" id="navShop">Shop</a>
-        <!-- Если /about ещё нет — можете временно удалить эту строку -->
         <a class="nav-item" href="/about" id="navAbout">About</a>
         <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
         <a class="nav-item" href="/returns" id="navReturns">Returns</a>
@@ -720,7 +757,6 @@
         <div class="grid" id="grid"></div>
       </div>
 
-      <!-- ✅ footer со ссылками (Stripe любит такие страницы) -->
       <footer class="siteFooter">
         <a href="/shipping">Shipping</a>
         <span class="sep">|</span>
@@ -730,6 +766,14 @@
       </footer>
     </main>
   </div>
+
+  <!-- ✅ Mobile bottom navigation (shows About on mobile) -->
+  <nav class="mobileNav" aria-label="Mobile navigation">
+    <a class="mNavItem" href="/" id="mNavShop">Shop</a>
+    <a class="mNavItem" href="/about" id="mNavAbout">About</a>
+    <a class="mNavItem" href="/shipping" id="mNavShipping">Shipping</a>
+    <a class="mNavItem" href="/returns" id="mNavReturns">Returns</a>
+  </nav>
 
   <!-- Mobile Filters Sheet -->
   <div class="sheetBack" id="sheetBack"></div>
@@ -785,9 +829,9 @@
 
 <script>
   const API_PRODUCTS = "/api/products";
-  const API_CHECKOUT = "/api/checkout"; // ✅ NEW
+  const API_CHECKOUT = "/api/checkout";
 
-  const CART_KEY = "mp_cart"; // [{pin, qty, title, image, price, stock}]
+  const CART_KEY = "mp_cart";
   function readCart(){
     try{
       const raw = localStorage.getItem(CART_KEY);
@@ -801,9 +845,8 @@
   let products = [];
   let filtered = [];
 
-  // ✅ diameters теперь храним по KEY (строка), чтобы работали "3,6 (9/64)" и т.д.
-  const selectedDiameters = new Set(); // keys
-  let diameterMap = new Map(); // key -> { key, num, display, note }
+  const selectedDiameters = new Set();
+  let diameterMap = new Map();
 
   const elGrid = document.getElementById("grid");
   const elQ = document.getElementById("q");
@@ -1029,9 +1072,6 @@
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  /* =========================
-     ✅ REAL CHECKOUT (Stripe)
-  ========================== */
   async function startCheckout(){
     const cart = readCart();
     if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
@@ -1347,7 +1387,6 @@
   renderCart();
   loadProducts();
 
-  // ✅ Stripe return handling: /?success=1 or /?canceled=1
   (function handleReturn(){
     const u = new URL(window.location.href);
 
@@ -1359,8 +1398,6 @@
 
       u.searchParams.delete("success");
       history.replaceState({}, "", u.toString());
-
-      // подтянуть свежий Stock
       loadProducts();
     }
 
@@ -1371,20 +1408,31 @@
     }
   })();
 
-  // ✅ подсветка активного пункта меню по URL (Shop/Shipping/Returns/About)
+  // ✅ active state for BOTH desktop sidebar and mobile bottom nav
   (function navActive(){
     const path = window.location.pathname || "/";
-    const navShop = document.getElementById("navShop");
-    const navAbout = document.getElementById("navAbout");
-    const navShipping = document.getElementById("navShipping");
-    const navReturns = document.getElementById("navReturns");
 
-    [navShop, navAbout, navShipping, navReturns].forEach(a => a && a.classList.remove("active"));
+    const setActive = (id, on) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle("active", !!on);
+    };
 
-    if (path.startsWith("/shipping")) navShipping?.classList.add("active");
-    else if (path.startsWith("/returns")) navReturns?.classList.add("active");
-    else if (path.startsWith("/about")) navAbout?.classList.add("active");
-    else navShop?.classList.add("active");
+    // desktop
+    setActive("navShop", false);
+    setActive("navAbout", false);
+    setActive("navShipping", false);
+    setActive("navReturns", false);
+
+    // mobile
+    setActive("mNavShop", false);
+    setActive("mNavAbout", false);
+    setActive("mNavShipping", false);
+    setActive("mNavReturns", false);
+
+    if (path.startsWith("/shipping")) { setActive("navShipping", true); setActive("mNavShipping", true); }
+    else if (path.startsWith("/returns")) { setActive("navReturns", true); setActive("mNavReturns", true); }
+    else if (path.startsWith("/about")) { setActive("navAbout", true); setActive("mNavAbout", true); }
+    else { setActive("navShop", true); setActive("mNavShop", true); }
   })();
 </script>
 </body>
