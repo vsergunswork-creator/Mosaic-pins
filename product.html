@@ -91,6 +91,23 @@
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
     .topRight{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 
+    /* ✅ Back to shop (как cartBtn) */
+    .backBtn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.28);
+      border:1px solid var(--line);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+      text-decoration:none;
+    }
+    .backBtn:hover{background:rgba(255,255,255,.06)}
+
     .currency{
       padding:10px 12px;
       border-radius:999px;
@@ -167,8 +184,12 @@
 
     .gallery{padding:12px; display:grid; gap:10px;}
 
+    /* ✅ ГЛАВНОЕ ИЗМЕНЕНИЕ:
+       На desktop делаем hero ШИРЕ => по высоте НИЖЕ (чтобы было ближе к уровню кнопок справа).
+       На mobile возвращаем квадрат (свайп как был).
+    */
     .hero{
-      aspect-ratio: 1/1;
+      aspect-ratio: 16/11; /* было 1/1 */
       border-radius:14px;
       overflow:hidden;
       background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(96,165,250,.10));
@@ -178,6 +199,10 @@
       user-select:none;
       touch-action: pan-y;
     }
+    @media (max-width:980px){
+      .hero{ aspect-ratio: 1/1; } /* ✅ мобильная версия как раньше */
+    }
+
     .hero-inner{
       width:100%;
       height:100%;
@@ -527,6 +552,9 @@
         </div>
 
         <div class="topRight">
+          <!-- ✅ Back to shop -->
+          <a class="backBtn" href="/" id="backTopShop" title="Back to shop">← Back to shop</a>
+
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
@@ -798,13 +826,8 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-
-  // пока оставим “later”
   elCartCheckout.addEventListener("click", () => toast("Checkout", "Cart checkout: next step ✅"));
-
-  el("currency").addEventListener("change", () => {
-    renderCart();
-  });
+  el("currency").addEventListener("change", () => { renderCart(); });
 
   /* =========================
      PRODUCT PAGE
@@ -1123,7 +1146,6 @@
       addToCart(p, quantity);
     });
 
-    // ✅ BUY NOW = Stripe checkout for this ONE item
     buyBtn.addEventListener("click", async () => {
       const quantity = clampQty(qtyInput.value, stock);
       if (stock <= 0) return;
