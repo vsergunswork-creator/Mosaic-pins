@@ -47,7 +47,7 @@
       will-change: transform;
     }
 
-    /* ✅ Dark scrollbars like main page */
+    /* ✅ Dark scrollbar like main */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
@@ -172,6 +172,7 @@
       display:flex;
       flex-direction:column;
       min-width:0;
+      min-height:0; /* ✅ needed for sticky footer layout */
     }
     .topbar{
       padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
@@ -214,7 +215,13 @@
       text-align:center;
     }
 
-    .content{padding:18px; overflow:auto; min-height:0;}
+    /* ✅ make footer stick to bottom */
+    .content{
+      padding:18px;
+      overflow:auto;
+      min-height:0;
+      flex:1 1 auto;
+    }
 
     /* ===== ABOUT PAGE BLOCKS ===== */
     .hero{
@@ -228,8 +235,8 @@
     }
     .heroImg{
       position:absolute; inset:0;
-      background-size:cover;          /* ✅ desktop stays as before */
-      background-position:center;     /* ✅ desktop stays as before */
+      background-size:cover;          /* ✅ DESKTOP: as it was */
+      background-position:center;     /* ✅ DESKTOP: as it was */
       background-repeat:no-repeat;
       filter: saturate(1.05);
       transform: scale(1.02);
@@ -265,12 +272,13 @@
       text-shadow: 0 10px 26px rgba(0,0,0,.45);
     }
 
+    /* ✅ DESKTOP: About + Gallery aligned + same height */
     .aboutWrap{
       margin-top: 14px;
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap: 14px;
-      align-items:start;
+      align-items: stretch; /* was start */
     }
     .panel{
       border-radius:18px;
@@ -278,6 +286,9 @@
       background:rgba(0,0,0,.22);
       box-shadow: var(--shadow);
       overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
     }
     .panelHead{
       padding:14px 16px 12px;
@@ -287,6 +298,7 @@
       align-items:center;
       justify-content:space-between;
       gap:10px;
+      flex:0 0 auto;
     }
     .panelTitle{
       margin:0;
@@ -300,6 +312,8 @@
       font-size: 13px;
       line-height: 1.55;
       white-space: pre-line;
+      flex:1 1 auto; /* ✅ fills panel height */
+      min-height:0;
     }
     .hint{
       font-size: 12px;
@@ -311,6 +325,10 @@
     .carousel{
       position:relative;
       padding: 14px 16px 16px;
+      flex:1 1 auto;   /* ✅ make gallery panel fill height */
+      min-height:0;
+      display:flex;
+      flex-direction:column;
     }
     .viewport{
       overflow:hidden;
@@ -318,6 +336,8 @@
       border:1px solid var(--line);
       background: rgba(0,0,0,.20);
       padding: 14px;
+      flex:1 1 auto;   /* ✅ fills remaining height */
+      min-height:0;
     }
     .track{
       display:flex;
@@ -369,6 +389,7 @@
       font-weight:950;
       backdrop-filter: blur(10px);
       user-select:none;
+      z-index:3;
     }
     .carBtn:hover{ background: rgba(255,255,255,.06); }
     .carBtn:disabled{ opacity:.35; cursor:not-allowed; }
@@ -380,6 +401,7 @@
       justify-content:center;
       gap:8px;
       padding-top: 12px;
+      flex:0 0 auto;
     }
     .dotBtn{
       width:8px;height:8px;border-radius:999px;
@@ -400,9 +422,9 @@
       .sidebar{display:none}
       .main{height:auto; min-height:100vh}
       .content{padding:14px}
-      .aboutWrap{grid-template-columns:1fr; }
+      .aboutWrap{grid-template-columns:1fr;}
 
-      /* ✅ MOBILE HERO: container fits image, no side-cropping */
+      /* ✅ MOBILE HERO: exactly as your perfect version */
       .hero{
         min-height: 0;
         aspect-ratio: 16 / 7;
@@ -434,7 +456,8 @@
       display:flex;
       gap:12px;
       flex-wrap:wrap;
-      flex: 0 0 auto;
+      flex:0 0 auto;
+      margin-top:auto; /* ✅ push footer to bottom */
     }
     .siteFooter a{
       color: var(--text);
@@ -499,7 +522,6 @@
       object-fit: contain;
       display:block;
       background: rgba(0,0,0,.35);
-      touch-action: pan-y; /* ✅ allow vertical scroll, detect horizontal swipe */
     }
     .lbTop{
       position:absolute;
@@ -618,11 +640,9 @@
           <section class="panel">
             <div class="panelHead">
               <h3 class="panelTitle">About us</h3>
-              <!-- ✅ removed "Editable in Airtable" -->
+              <div class="hint">Editable in Airtable</div>
             </div>
-            <div class="panelBody" id="aboutBody">
-              Loading…
-            </div>
+            <div class="panelBody" id="aboutBody">Loading…</div>
           </section>
 
           <section class="panel">
@@ -768,12 +788,11 @@
 
       setHeroBg(c.heroImage);
 
-      // ✅ ONLY MOBILE: fit hero container to image ratio if provided
+      /* ✅ ONLY MOBILE: set aspect-ratio from Airtable if provided (desktop untouched) */
       if (window.matchMedia("(max-width: 980px)").matches) {
         const w = Number(c.heroImageWidth || 0);
         const h = Number(c.heroImageHeight || 0);
-        if (w > 0 && h > 0) hero.style.aspectRatio = `${w} / ${h}`;
-        else hero.style.aspectRatio = "16 / 7";
+        hero.style.aspectRatio = (w > 0 && h > 0) ? `${w} / ${h}` : "16 / 7";
       }
 
       gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
@@ -804,9 +823,7 @@
       div.className = "slide";
       div.setAttribute("data-i", String(i));
       div.innerHTML = `<img src="${url}" alt="Gallery ${i+1}" loading="lazy" />`;
-
       div.addEventListener("click", () => openLightbox(i));
-
       track.appendChild(div);
 
       const d = document.createElement("button");
@@ -869,7 +886,6 @@
   prevBtn.addEventListener("click", prev);
   nextBtn.addEventListener("click", next);
 
-  // ✅ swipe in carousel
   (function enableSwipe(){
     let startX = 0;
     let dx = 0;
@@ -895,7 +911,6 @@
     }, {passive:true});
   })();
 
-  // Lightbox
   function openLightbox(i){
     if (!gallery.length) return;
     index = Math.max(0, Math.min(gallery.length - 1, Number(i)||0));
@@ -938,35 +953,6 @@
   lbPrev.addEventListener("click", lbPrevFn);
   lbNext.addEventListener("click", lbNextFn);
 
-  // ✅ Swipe in Lightbox (mobile)
-  (function enableLightboxSwipe(){
-    let startX = 0;
-    let dx = 0;
-    let dragging = false;
-
-    lbImg.addEventListener("touchstart", (e)=>{
-      if (!e.touches?.length) return;
-      dragging = true;
-      startX = e.touches[0].clientX;
-      dx = 0;
-    }, { passive:true });
-
-    lbImg.addEventListener("touchmove", (e)=>{
-      if (!dragging || !e.touches?.length) return;
-      dx = e.touches[0].clientX - startX;
-    }, { passive:true });
-
-    lbImg.addEventListener("touchend", ()=>{
-      if (!dragging) return;
-      dragging = false;
-
-      if (Math.abs(dx) < 30) return;
-      if (dx > 0) lbPrevFn();
-      else lbNextFn();
-    }, { passive:true });
-  })();
-
-  // keyboard
   window.addEventListener("keydown", (e)=>{
     if (lb.classList.contains("show")){
       if (e.key === "Escape") closeLightbox();
@@ -981,6 +967,14 @@
   window.addEventListener("resize", ()=>{
     measureStep();
     applyCarousel();
+
+    // keep mobile aspect-ratio on resize
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      // if already set, do nothing; if not set, fallback
+      if (!hero.style.aspectRatio) hero.style.aspectRatio = "16 / 7";
+    } else {
+      hero.style.aspectRatio = "";
+    }
   });
 
   (function navActive(){
