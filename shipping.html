@@ -12,9 +12,6 @@
       --line:rgba(255,255,255,.08);
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
-
-      --overlay: rgba(0,0,0,.72);
-      --overlay2: rgba(0,0,0,.82);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -97,6 +94,8 @@
 
     .content{
       padding: 18px;
+      /* ✅ space for mobile bottom nav */
+      padding-bottom: 18px;
     }
 
     h1{
@@ -174,6 +173,63 @@
     .footer a{color: var(--text); text-decoration:none; opacity:.9;}
     .footer a:hover{opacity:1}
     .sep{opacity:.35}
+
+    /* ==========================
+       ✅ MOBILE BOTTOM NAV (Shop/About/Shipping/Returns/Reviews)
+    ========================== */
+    .mobileNav{
+      display:none;
+      position:fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 2500;
+      padding: 10px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 40px rgba(0,0,0,.55);
+    }
+    .mobileNavRow{
+      display:flex;
+      gap:10px;
+      justify-content:space-between;
+    }
+    .mItem{
+      flex:1 1 0;
+      text-align:center;
+      text-decoration:none;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 13px;
+      padding: 12px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: rgba(255,255,255,.04);
+      white-space: nowrap;
+      user-select:none;
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+    }
+    .mItem:hover{ color: var(--text); background: rgba(255,255,255,.07); }
+    .mItem.active{
+      color: var(--text);
+      background: rgba(34,197,94,.16);
+      border-color: rgba(34,197,94,.25);
+    }
+
+    @media (max-width:980px){
+      /* ✅ add space so nav doesn't cover content */
+      .content{
+        padding:14px;
+        padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
+      }
+      .mobileNav{display:block;}
+    }
+    @media (max-width:520px){
+      .mobileNavRow{gap:8px;}
+      .mItem{font-size:12px; padding: 12px 8px;}
+    }
   </style>
 </head>
 
@@ -203,11 +259,11 @@
               Orders are typically processed within <b>1–3 business days</b>.
               During peak periods it may take a little longer.
             </p>
-            <span class="pill">Handcrafted & carefully packed</span>
+            <span class="pill">Handcrafted &amp; carefully packed</span>
           </div>
 
           <div class="card">
-            <h2>Shipping & tracking</h2>
+            <h2>Shipping &amp; tracking</h2>
             <p>
               Shipping options and cost are calculated at checkout.
               Whenever possible we provide a <b>tracking number</b>.
@@ -230,7 +286,7 @@
           </div>
 
           <div class="card">
-            <h2>Customs & import taxes</h2>
+            <h2>Customs &amp; import taxes</h2>
             <p>
               International orders may be subject to customs fees, VAT or import taxes.
               These charges are the buyer’s responsibility.
@@ -247,7 +303,7 @@
       <div class="footer">
         <a href="/shipping.html">Shipping</a>
         <span class="sep">|</span>
-        <a href="/returns.html">Returns & Refunds</a>
+        <a href="/returns.html">Returns &amp; Refunds</a>
         <span class="sep">|</span>
         <a href="/reviews.html">Reviews</a>
         <span class="sep">|</span>
@@ -256,7 +312,31 @@
     </div>
   </div>
 
+  <!-- ✅ MOBILE BOTTOM NAV -->
+  <nav class="mobileNav" aria-label="Bottom navigation">
+    <div class="mobileNavRow">
+      <a class="mItem" href="/index.html" id="mShop">Shop</a>
+      <a class="mItem" href="/about.html" id="mAbout">About</a>
+      <a class="mItem" href="/shipping.html" id="mShipping">Shipping</a>
+      <a class="mItem" href="/returns.html" id="mReturns">Returns</a>
+      <a class="mItem" href="/reviews.html" id="mReviews">Reviews</a>
+    </div>
+  </nav>
+
   <script>
+    // ✅ active state for mobile bottom nav
+    (function navActive(){
+      const path = (window.location.pathname || "/").toLowerCase();
+      const ids = ["mShop","mAbout","mShipping","mReturns","mReviews"];
+      ids.forEach(id => document.getElementById(id)?.classList.remove("active"));
+
+      if (path.endsWith("/shipping") || path.endsWith("/shipping.html")) document.getElementById("mShipping")?.classList.add("active");
+      else if (path.endsWith("/returns") || path.endsWith("/returns.html")) document.getElementById("mReturns")?.classList.add("active");
+      else if (path.endsWith("/reviews") || path.endsWith("/reviews.html")) document.getElementById("mReviews")?.classList.add("active");
+      else if (path.endsWith("/about") || path.endsWith("/about.html")) document.getElementById("mAbout")?.classList.add("active");
+      else document.getElementById("mShop")?.classList.add("active");
+    })();
+
     // если пользователь пришёл со Stripe success/canceled на эти страницы — перекинем на главную с тостом
     (function(){
       const u = new URL(window.location.href);
