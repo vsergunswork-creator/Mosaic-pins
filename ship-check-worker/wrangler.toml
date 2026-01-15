@@ -4,3 +4,22 @@ compatibility_date = "2025-01-01"
 
 [triggers]
 crons = ["*/15 * * * *"]
+
+[vars]
+# --- Airtable ---
+AIRTABLE_BASE_ID = "appXXXXXXXXXXXXXX"
+AIRTABLE_ORDERS_TABLE_NAME = "Orders"
+
+# Field names (если в Airtable EXACT такие же — можно вообще не указывать)
+AIRTABLE_TRACKING_FIELD = "Tracking Number"
+AIRTABLE_SHIPPED_FIELD = "Shipped Email Sent"
+AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
+AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
+AIRTABLE_ORDER_ID_FIELD = "Order ID"
+
+# --- Email ---
+STORE_NAME = "Mosaic Pins"
+MAIL_FROM = "support@mosaipins.space"
+MAIL_REPLY_TO = "support@mosaipins.space"
+# optional:
+MAIL_BCC = "mosaicpinsspace@gmail.com"
