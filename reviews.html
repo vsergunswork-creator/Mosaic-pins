@@ -157,6 +157,7 @@
       display:flex;
       flex-direction:column;
       min-width:0;
+      min-height:0; /* ✅ for sticky layout */
     }
     .topbar{
       padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
@@ -199,12 +200,12 @@
       text-align:center;
     }
 
-    /* ✅ ВАЖНО: теперь контент заполняет высоту, а footer всегда внизу */
+    /* ✅ content fills height */
     .content{
       padding:18px;
       overflow:auto;
       min-height:0;
-      flex: 1 1 auto; /* ✅ добавлено */
+      flex: 1 1 auto;
     }
 
     /* ===== REVIEWS PAGE ===== */
@@ -433,6 +434,7 @@
       gap:12px;
       flex-wrap:wrap;
       flex: 0 0 auto;
+      margin-top:auto;
     }
     .siteFooter a{color: var(--text); text-decoration:none; opacity:.9;}
     .siteFooter a:hover{opacity:1}
@@ -521,14 +523,69 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
+    /* ==========================
+       ✅ MOBILE BOTTOM NAV (Shop/About/Shipping/Returns/Reviews)
+    ========================== */
+    .mobileNav{
+      display:none;
+      position:fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 2500;
+      padding: 10px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 40px rgba(0,0,0,.55);
+    }
+    .mobileNavRow{
+      display:flex;
+      gap:10px;
+      justify-content:space-between;
+    }
+    .mItem{
+      flex:1 1 0;
+      text-align:center;
+      text-decoration:none;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 13px;
+      padding: 12px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: rgba(255,255,255,.04);
+      white-space: nowrap;
+      user-select:none;
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+    }
+    .mItem:hover{ color: var(--text); background: rgba(255,255,255,.07); }
+    .mItem.active{
+      color: var(--text);
+      background: rgba(34,197,94,.16);
+      border-color: rgba(34,197,94,.25);
+    }
+
     @media (max-width:980px){
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
       .sidebar{display:none}
       .main{height:auto; min-height:100vh}
-      .content{padding:14px}
       .grid2{grid-template-columns:1fr;}
       .formRow{grid-template-columns:1fr;}
+
+      /* ✅ add space for bottom nav */
+      .content{
+        padding:14px;
+        padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
+      }
+
+      .mobileNav{display:block;}
+    }
+    @media (max-width:520px){
+      .mobileNavRow{gap:8px;}
+      .mItem{font-size:12px; padding: 12px 8px;}
     }
   </style>
 </head>
@@ -623,7 +680,6 @@
               <div class="field">
                 <div class="label">Rating</div>
                 <div class="starsPick" id="starsPick" aria-label="Choose rating">
-                  <!-- stars injected -->
                   <div class="ratingText" id="ratingText">Select 5 stars</div>
                 </div>
               </div>
@@ -664,6 +720,17 @@
     </main>
   </div>
 
+  <!-- ✅ MOBILE BOTTOM NAV -->
+  <nav class="mobileNav" aria-label="Bottom navigation">
+    <div class="mobileNavRow">
+      <a class="mItem" href="/" id="mShop">Shop</a>
+      <a class="mItem" href="/about" id="mAbout">About</a>
+      <a class="mItem" href="/shipping" id="mShipping">Shipping</a>
+      <a class="mItem" href="/returns" id="mReturns">Returns</a>
+      <a class="mItem" href="/reviews" id="mReviews">Reviews</a>
+    </div>
+  </nav>
+
   <!-- Lightbox -->
   <div class="lightboxBack" id="lightboxBack"></div>
   <div class="lightbox" id="lightbox">
@@ -699,7 +766,7 @@
   function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
   updateCartBadge();
 
-  // simple cart toast (like your about page)
+  // simple cart toast
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
   const elToastMsg = document.getElementById("toastMsg");
@@ -721,17 +788,24 @@
     }[m]));
   }
 
-  // nav active
+  /* ✅ Active state for LEFT sidebar + MOBILE bottom nav */
   (function navActive(){
     const path = window.location.pathname || "/";
-    const ids = ["navShop","navAbout","navReviews","navShipping","navReturns"];
-    ids.forEach(id => document.getElementById(id)?.classList.remove("active"));
 
-    if (path.startsWith("/shipping")) document.getElementById("navShipping")?.classList.add("active");
-    else if (path.startsWith("/returns")) document.getElementById("navReturns")?.classList.add("active");
-    else if (path.startsWith("/about")) document.getElementById("navAbout")?.classList.add("active");
-    else if (path.startsWith("/reviews")) document.getElementById("navReviews")?.classList.add("active");
-    else document.getElementById("navShop")?.classList.add("active");
+    const map = [
+      { test: (p)=> p==="/" || p.startsWith("/index"), desk:"navShop",  mob:"mShop" },
+      { test: (p)=> p.startsWith("/about"),          desk:"navAbout", mob:"mAbout" },
+      { test: (p)=> p.startsWith("/shipping"),       desk:"navShipping", mob:"mShipping" },
+      { test: (p)=> p.startsWith("/returns"),        desk:"navReturns",  mob:"mReturns" },
+      { test: (p)=> p.startsWith("/reviews"),        desk:"navReviews",  mob:"mReviews" },
+    ];
+
+    ["navShop","navAbout","navShipping","navReturns","navReviews"].forEach(id => document.getElementById(id)?.classList.remove("active"));
+    ["mShop","mAbout","mShipping","mReturns","mReviews"].forEach(id => document.getElementById(id)?.classList.remove("active"));
+
+    const hit = map.find(x => x.test(path)) || map[0];
+    document.getElementById(hit.desk)?.classList.add("active");
+    document.getElementById(hit.mob)?.classList.add("active");
   })();
 
   // stars utils
@@ -916,6 +990,7 @@
     }
   }
 
+  // submit
   const elName = document.getElementById("name");
   const elCountry = document.getElementById("country");
   const elText = document.getElementById("text");
