@@ -91,7 +91,6 @@
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
     .topRight{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 
-    /* ✅ Back to shop (как cartBtn) */
     .backBtn{
       display:inline-flex;
       align-items:center;
@@ -160,12 +159,11 @@
       padding-bottom: calc(18px + max(34px, env(safe-area-inset-bottom, 0px)) + 40px);
     }
 
-    /* ✅ ВАЖНО: на desktop тянем карточки одной высоты */
     .wrap{
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap:16px;
-      align-items:stretch; /* было start */
+      align-items:stretch;
     }
 
     @media (max-width:980px){
@@ -188,7 +186,6 @@
       overflow:hidden;
     }
 
-    /* ✅ чтобы внутри можно было скроллить правую карточку (когда текст длинный) */
     #rightPanel{
       display:flex;
       flex-direction:column;
@@ -197,12 +194,11 @@
     #rightPanel .details{
       flex:1 1 auto;
       min-height:0;
-      overflow:auto; /* скролл внутри */
+      overflow:auto;
     }
 
     .gallery{padding:12px; display:grid; gap:10px;}
 
-    /* ✅ КВАДРАТНЫЙ плеер (как Вы хотите) */
     .hero{
       aspect-ratio: 1/1;
       border-radius:14px;
@@ -283,7 +279,6 @@
 
     .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px;}
 
-    /* ✅ квадратные мини-карточки (были уже квадратные, оставляем) */
     .t{
       width:72px; height:72px; border-radius:12px;
       border:1px solid var(--line);
@@ -638,7 +633,9 @@
       <div class="cartTitle">Cart</div>
       <button class="cartClose" id="closeCart" type="button">✕</button>
     </div>
+
     <div class="cartBody" id="cartBody"></div>
+
     <div class="cartFoot">
       <div class="cartSumRow">
         <div>Total</div>
@@ -706,32 +703,6 @@
     if (max >= 1 && q > max) q = max;
     return q;
   }
-
-  /* =========================
-     EQUAL HEIGHT PANELS (desktop)
-  ========================== */
-  function syncPanels(){
-    const left = el("leftPanel");
-    const right = el("rightPanel");
-    if (!left || !right) return;
-
-    // only desktop (2 columns)
-    if (window.matchMedia("(max-width:980px)").matches){
-      right.style.height = "";
-      return;
-    }
-
-    // reset first to measure correctly
-    right.style.height = "";
-
-    // left includes hero + thumbs; we want right to match that height
-    const h = left.getBoundingClientRect().height;
-    if (h > 0){
-      right.style.height = Math.round(h) + "px";
-    }
-  }
-
-  window.addEventListener("resize", () => { syncPanels(); });
 
   /* =========================
      CART DRAWER
@@ -865,8 +836,51 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-  elCartCheckout.addEventListener("click", () => toast("Checkout", "Cart checkout: next step ✅"));
-  el("currency").addEventListener("change", () => { renderCart(); });
+
+  // ✅ ✅ ✅ WORKING CHECKOUT FROM CART (Stripe)
+  elCartCheckout.addEventListener("click", async () => {
+    const cur = String(el("currency").value || "EUR").toUpperCase();
+    const cart = readCart();
+
+    if (!cart.length){
+      toast("Checkout", "Your cart is empty");
+      return;
+    }
+
+    const items = cart.map(it => ({
+      pin: String(it.pin),
+      qty: Number(it.qty) || 1,
+    }));
+
+    elCartCheckout.disabled = true;
+    const oldText = elCartCheckout.textContent;
+    elCartCheckout.textContent = "Redirecting…";
+
+    try{
+      const r = await fetch(API_CHECKOUT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currency: cur, items }),
+      });
+
+      const data = await r.json().catch(()=>({}));
+
+      if (!r.ok || !data?.ok || !data?.url){
+        throw new Error(data?.error || "Checkout failed");
+      }
+
+      window.location.href = data.url;
+
+    }catch(e){
+      toast("Checkout", String(e?.message || e));
+      elCartCheckout.disabled = false;
+      elCartCheckout.textContent = oldText;
+    }
+  });
+
+  el("currency").addEventListener("change", () => {
+    renderCart();
+  });
 
   /* =========================
      PRODUCT PAGE
@@ -881,6 +895,7 @@
   let currentIndex = 0;
   let imagesState = [];
   let currentProduct = null;
+  let carouselWired = false;
 
   function updateNav(){
     const n = imagesState.length;
@@ -938,11 +953,7 @@
       carousel.appendChild(s);
     });
 
-    requestAnimationFrame(() => {
-      scrollToIndex(0, false);
-      // после первого рендера картинок — синхронизируем высоты
-      syncPanels();
-    });
+    requestAnimationFrame(() => scrollToIndex(0, false));
   }
 
   function renderThumbs(images, title){
@@ -956,9 +967,6 @@
       d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
-
-    // миниатюры тоже влияют на высоту левого блока
-    requestAnimationFrame(syncPanels);
   }
 
   function enableDragScroll(){
@@ -995,8 +1003,7 @@
     window.addEventListener("pointercancel", onUp);
   }
 
-  let carouselWired = false;
-  function wireCarousel(){
+  function wireCarouselOnce(){
     if (carouselWired) return;
     carouselWired = true;
 
@@ -1159,7 +1166,7 @@
     const images = Array.isArray(p.images) ? p.images : [];
     buildCarousel(images, p.title);
     renderThumbs(images, p.title);
-    wireCarousel();
+    wireCarouselOnce();
     updateNav();
 
     const stock = Number(p.stock || 0);
@@ -1214,10 +1221,6 @@
     });
 
     setupParallax();
-
-    // финальная синхронизация после заполнения контента справа
-    requestAnimationFrame(syncPanels);
-    setTimeout(syncPanels, 60);
   }
 
   load();
