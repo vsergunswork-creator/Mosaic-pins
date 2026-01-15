@@ -19,7 +19,7 @@ AIRTABLE_ORDER_ID_FIELD = "Order ID"
 
 # --- Email ---
 STORE_NAME = "Mosaic Pins"
-MAIL_FROM = "support@mosaipins.space"
+MAIL_FROM = "support@mosaicpins.space"
 MAIL_REPLY_TO = "mosaicpinsspace@gmail.com"
 # optional:
 MAIL_BCC = "mosaicpinsspace@gmail.com"
