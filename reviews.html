@@ -199,7 +199,13 @@
       text-align:center;
     }
 
-    .content{padding:18px; overflow:auto; min-height:0;}
+    /* ✅ ВАЖНО: теперь контент заполняет высоту, а footer всегда внизу */
+    .content{
+      padding:18px;
+      overflow:auto;
+      min-height:0;
+      flex: 1 1 auto; /* ✅ добавлено */
+    }
 
     /* ===== REVIEWS PAGE ===== */
     .hero{
@@ -356,10 +362,7 @@
     }
 
     /* list */
-    .list{
-      display:grid;
-      gap:12px;
-    }
+    .list{display:grid; gap:12px;}
     .review{
       border-radius:16px;
       border:1px solid var(--line);
@@ -431,29 +434,21 @@
       flex-wrap:wrap;
       flex: 0 0 auto;
     }
-    .siteFooter a{
-      color: var(--text);
-      text-decoration:none;
-      opacity:.9;
-    }
+    .siteFooter a{color: var(--text); text-decoration:none; opacity:.9;}
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
 
     /* Lightbox (for photos) */
     .lightboxBack{
-      position:fixed;
-      inset:0;
+      position:fixed; inset:0;
       background:rgba(0,0,0,.78);
-      display:none;
-      z-index:2000;
+      display:none; z-index:2000;
       backdrop-filter: blur(6px);
     }
     .lightboxBack.show{display:block}
     .lightbox{
-      position:fixed;
-      inset:0;
-      display:none;
-      z-index:2001;
+      position:fixed; inset:0;
+      display:none; z-index:2001;
       place-items:center;
       padding: 18px;
     }
@@ -497,8 +492,7 @@
     }
     .lbClose{
       pointer-events:auto;
-      border:none;
-      cursor:pointer;
+      border:none; cursor:pointer;
       padding:10px 12px;
       border-radius:12px;
       background:rgba(0,0,0,.45);
@@ -761,9 +755,7 @@
   let rating = 5;
 
   function renderPicker(){
-    // keep ratingText at end
     starsPick.querySelectorAll("button.starBtn").forEach(x => x.remove());
-
     for (let i=1;i<=5;i++){
       const b = document.createElement("button");
       b.type = "button";
@@ -859,7 +851,6 @@
     wrap.appendChild(top);
     wrap.appendChild(text);
 
-    // Photos: expected array of urls
     if (Array.isArray(r.photos) && r.photos.length){
       const ph = document.createElement("div");
       ph.className = "rPhotos";
@@ -911,7 +902,6 @@
         return;
       }
 
-      // newest first if date exists
       items.sort((a,b) => {
         const ad = new Date(a.createdAt || a.date || 0).getTime() || 0;
         const bd = new Date(b.createdAt || b.date || 0).getTime() || 0;
@@ -926,7 +916,6 @@
     }
   }
 
-  // submit
   const elName = document.getElementById("name");
   const elCountry = document.getElementById("country");
   const elText = document.getElementById("text");
@@ -969,8 +958,6 @@
 
       toast("Review", "Sent ✅ Waiting for approval");
       elText.value = "";
-      // keep name/country for convenience
-      // reload list (won't show until approved, but keeps stats fresh if you approve quickly)
       loadReviews();
     }catch(e){
       toast("Review", String(e?.message || e));
@@ -982,7 +969,6 @@
 
   elSend.addEventListener("click", sendReview);
 
-  // enter submit (optional)
   elText.addEventListener("keydown", (e)=>{
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendReview();
   });
