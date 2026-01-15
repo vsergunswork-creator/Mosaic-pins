@@ -39,8 +39,6 @@
       color:var(--text);
       overflow:hidden;
       overscroll-behavior: none;
-      position:relative;
-      isolation:isolate;
     }
 
     *{
@@ -53,24 +51,19 @@
     *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
 
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
-
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
-
-      display:flex;
-      flex-direction:column;
-      min-height:0;
     }
-    .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex:0 0 auto;}
+    .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
     .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
     .pill{padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--muted); font-size:12px; white-space:nowrap;}
 
-    .sb-nav{padding:6px; display:grid; gap:6px; flex:0 0 auto;}
+    .sb-nav{padding:6px; display:grid; gap:6px;}
     .nav-item{
       display:flex; align-items:center; gap:10px;
       padding:10px 12px; border-radius:12px;
@@ -93,11 +86,27 @@
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
       flex-wrap:wrap;
-      flex:0 0 auto;
     }
     .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
     .topRight{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+
+    /* ✅ Back to shop (как cartBtn) */
+    .backBtn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.28);
+      border:1px solid var(--line);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+      text-decoration:none;
+    }
+    .backBtn:hover{background:rgba(255,255,255,.06)}
 
     .currency{
       padding:10px 12px;
@@ -108,7 +117,6 @@
       font-size:13px;
       outline:none;
       white-space:nowrap;
-      min-height:44px;
     }
 
     .cartBtn{
@@ -124,8 +132,6 @@
       font-weight:900;
       white-space:nowrap;
       text-decoration:none;
-      min-height:44px;
-      line-height:1.1;
     }
     .cartBtn:hover{background:rgba(255,255,255,.06)}
     .cartBadge{
@@ -140,26 +146,6 @@
       min-width:24px;
       text-align:center;
     }
-
-    /* ✅ Back to shop button (top) */
-    .backBtn{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:999px;
-      background:rgba(0,0,0,.28);
-      border:1px solid var(--line);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:900;
-      white-space:nowrap;
-      text-decoration:none;
-      min-height:44px;
-      line-height:1.1;
-      opacity:.92;
-    }
-    .backBtn:hover{background:rgba(255,255,255,.06); opacity:1}
 
     .content{
       padding:18px;
@@ -198,8 +184,12 @@
 
     .gallery{padding:12px; display:grid; gap:10px;}
 
+    /* ✅ ГЛАВНОЕ ИЗМЕНЕНИЕ:
+       На desktop делаем hero ШИРЕ => по высоте НИЖЕ (чтобы было ближе к уровню кнопок справа).
+       На mobile возвращаем квадрат (свайп как был).
+    */
     .hero{
-      aspect-ratio: 1/1;
+      aspect-ratio: 16/11; /* было 1/1 */
       border-radius:14px;
       overflow:hidden;
       background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(96,165,250,.10));
@@ -209,6 +199,10 @@
       user-select:none;
       touch-action: pan-y;
     }
+    @media (max-width:980px){
+      .hero{ aspect-ratio: 1/1; } /* ✅ мобильная версия как раньше */
+    }
+
     .hero-inner{
       width:100%;
       height:100%;
@@ -544,13 +538,8 @@
         <div class="pill" id="sbCount">Product</div>
       </div>
 
-      <!-- ✅ ONLY CHANGE HERE: add About/Shipping/Returns/Reviews to sidebar -->
       <nav class="sb-nav">
         <a class="nav-item" href="/" id="navShop">← Back to shop</a>
-        <a class="nav-item" href="/about" id="navAbout">About</a>
-        <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
-        <a class="nav-item" href="/returns" id="navReturns">Returns</a>
-        <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
         <a class="nav-item active" href="#" id="navProduct">Product</a>
       </nav>
     </aside>
@@ -563,7 +552,7 @@
         </div>
 
         <div class="topRight">
-          <!-- ✅ keep top Back to shop button -->
+          <!-- ✅ Back to shop -->
           <a class="backBtn" href="/" id="backTopShop" title="Back to shop">← Back to shop</a>
 
           <button class="cartBtn" id="openCart" type="button" title="Cart">
@@ -837,13 +826,8 @@
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-
-  // пока оставим “later”
   elCartCheckout.addEventListener("click", () => toast("Checkout", "Cart checkout: next step ✅"));
-
-  el("currency").addEventListener("change", () => {
-    renderCart();
-  });
+  el("currency").addEventListener("change", () => { renderCart(); });
 
   /* =========================
      PRODUCT PAGE
@@ -858,7 +842,6 @@
   let currentIndex = 0;
   let imagesState = [];
   let currentProduct = null;
-  let carouselWired = false;
 
   function updateNav(){
     const n = imagesState.length;
@@ -872,7 +855,7 @@
   function syncThumbs(){
     const thumbs = el("thumbs");
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
+    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
     if (active) active.classList.add("active");
   }
 
@@ -904,7 +887,7 @@
 
     carousel.innerHTML = "";
     if (!imagesState.length){
-      carousel.innerHTML = \`<div class="heroEmpty">No image</div>\`;
+      carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
       updateNav();
       return;
     }
@@ -912,7 +895,7 @@
     imagesState.forEach((u) => {
       const s = document.createElement("div");
       s.className = "slide";
-      s.innerHTML = \`<img src="\${u}" alt="\${escapeHtml(title)}" draggable="false" />\`;
+      s.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
       carousel.appendChild(s);
     });
 
@@ -926,7 +909,7 @@
       const d = document.createElement("div");
       d.className = "t" + (idx===0 ? " active" : "");
       d.dataset.idx = String(idx);
-      d.innerHTML = \`<img src="\${u}" alt="\${escapeHtml(title)}" draggable="false" />\`;
+      d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
       d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
@@ -966,10 +949,7 @@
     window.addEventListener("pointercancel", onUp);
   }
 
-  function wireCarouselOnce(){
-    if (carouselWired) return;
-    carouselWired = true;
-
+  function wireCarousel(){
     prevBtn.addEventListener("click", () => scrollToIndex(currentIndex - 1));
     nextBtn.addEventListener("click", () => scrollToIndex(currentIndex + 1));
 
@@ -998,7 +978,7 @@
       curr.ry += (target.ry - curr.ry) * k;
 
       heroInner.style.transform =
-        \`translate3d(\${curr.x}px, \${curr.y}px, 0) rotateX(\${curr.rx}deg) rotateY(\${curr.ry}deg) scale(\${target.s})\`;
+        `translate3d(${curr.x}px, ${curr.y}px, 0) rotateX(${curr.rx}deg) rotateY(${curr.ry}deg) scale(${target.s})`;
 
       requestAnimationFrame(apply);
     }
@@ -1129,7 +1109,7 @@
     const images = Array.isArray(p.images) ? p.images : [];
     buildCarousel(images, p.title);
     renderThumbs(images, p.title);
-    wireCarouselOnce();
+    wireCarousel();
     updateNav();
 
     const stock = Number(p.stock || 0);
