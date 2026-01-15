@@ -7,7 +7,7 @@ crons = ["*/15 * * * *"]
 
 [vars]
 # --- Airtable ---
-AIRTABLE_BASE_ID = "appXXXXXXXXXXXXXX"
+AIRTABLE_BASE_ID = "appw4WQJbbR1AP5ZD"
 AIRTABLE_ORDERS_TABLE_NAME = "Orders"
 
 # Field names (если в Airtable EXACT такие же — можно вообще не указывать)
