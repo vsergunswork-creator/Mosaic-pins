@@ -54,9 +54,9 @@
 
     .panel{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      border:1px solid rgba(255,255,255,.08);
-      border-radius: 18px;
-      box-shadow: 0 12px 30px rgba(0,0,0,.45);
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
       overflow:hidden;
     }
 
@@ -66,7 +66,7 @@
       align-items:center;
       justify-content:space-between;
       gap:12px;
-      border-bottom:1px solid rgba(255,255,255,.08);
+      border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
     }
     .brand{display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.3px;}
@@ -94,6 +94,8 @@
 
     .content{
       padding: 18px;
+      /* ✅ space for mobile bottom nav */
+      padding-bottom: 18px;
     }
 
     h1{
@@ -119,7 +121,7 @@
     }
 
     .card{
-      border:1px solid rgba(255,255,255,.08);
+      border:1px solid var(--line);
       border-radius: 16px;
       background: rgba(0,0,0,.22);
       padding: 14px 14px;
@@ -148,7 +150,7 @@
 
     .footer{
       padding: 12px 18px;
-      border-top:1px solid rgba(255,255,255,.08);
+      border-top:1px solid var(--line);
       background: rgba(0,0,0,.20);
       color: var(--muted);
       font-size: 12px;
@@ -159,6 +161,62 @@
     .footer a{color: var(--text); text-decoration:none; opacity:.9;}
     .footer a:hover{opacity:1}
     .sep{opacity:.35}
+
+    /* ==========================
+       ✅ MOBILE BOTTOM NAV (Shop/About/Shipping/Returns/Reviews)
+    ========================== */
+    .mobileNav{
+      display:none;
+      position:fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 2500;
+      padding: 10px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 40px rgba(0,0,0,.55);
+    }
+    .mobileNavRow{
+      display:flex;
+      gap:10px;
+      justify-content:space-between;
+    }
+    .mItem{
+      flex:1 1 0;
+      text-align:center;
+      text-decoration:none;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 13px;
+      padding: 12px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: rgba(255,255,255,.04);
+      white-space: nowrap;
+      user-select:none;
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+    }
+    .mItem:hover{ color: var(--text); background: rgba(255,255,255,.07); }
+    .mItem.active{
+      color: var(--text);
+      background: rgba(34,197,94,.16);
+      border-color: rgba(34,197,94,.25);
+    }
+
+    @media (max-width:980px){
+      .content{
+        padding:14px;
+        padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
+      }
+      .mobileNav{display:block;}
+    }
+    @media (max-width:520px){
+      .mobileNavRow{gap:8px;}
+      .mItem{font-size:12px; padding: 12px 8px;}
+    }
   </style>
 </head>
 
@@ -176,7 +234,7 @@
       </div>
 
       <div class="content">
-        <h1>Returns & Refunds</h1>
+        <h1>Returns &amp; Refunds</h1>
         <p class="sub">
           We want you to be happy with your purchase. If something is wrong, contact us and we’ll help.
         </p>
@@ -216,7 +274,8 @@
           <div class="card">
             <h2>How to contact us</h2>
             <p>
-              Email: <a href="mailto:support@mosaipins.space" style="color:inherit; text-decoration:none; opacity:.95;">support@mosaipins.space</a><br/>
+              Email:
+              <a href="mailto:support@mosaipins.space" style="color:inherit; text-decoration:none; opacity:.95;">support@mosaipins.space</a><br/>
               Please include: order/session ID (if available) and a short description.
             </p>
           </div>
@@ -233,7 +292,7 @@
       <div class="footer">
         <a href="/shipping.html">Shipping</a>
         <span class="sep">|</span>
-        <a href="/returns.html">Returns & Refunds</a>
+        <a href="/returns.html">Returns &amp; Refunds</a>
         <span class="sep">|</span>
         <a href="/reviews.html">Reviews</a>
         <span class="sep">|</span>
@@ -242,7 +301,31 @@
     </div>
   </div>
 
+  <!-- ✅ MOBILE BOTTOM NAV -->
+  <nav class="mobileNav" aria-label="Bottom navigation">
+    <div class="mobileNavRow">
+      <a class="mItem" href="/index.html" id="mShop">Shop</a>
+      <a class="mItem" href="/about.html" id="mAbout">About</a>
+      <a class="mItem" href="/shipping.html" id="mShipping">Shipping</a>
+      <a class="mItem" href="/returns.html" id="mReturns">Returns</a>
+      <a class="mItem" href="/reviews.html" id="mReviews">Reviews</a>
+    </div>
+  </nav>
+
   <script>
+    // ✅ active state for mobile bottom nav
+    (function navActive(){
+      const path = (window.location.pathname || "/").toLowerCase();
+      const ids = ["mShop","mAbout","mShipping","mReturns","mReviews"];
+      ids.forEach(id => document.getElementById(id)?.classList.remove("active"));
+
+      if (path.endsWith("/shipping") || path.endsWith("/shipping.html")) document.getElementById("mShipping")?.classList.add("active");
+      else if (path.endsWith("/returns") || path.endsWith("/returns.html")) document.getElementById("mReturns")?.classList.add("active");
+      else if (path.endsWith("/reviews") || path.endsWith("/reviews.html")) document.getElementById("mReviews")?.classList.add("active");
+      else if (path.endsWith("/about") || path.endsWith("/about.html")) document.getElementById("mAbout")?.classList.add("active");
+      else document.getElementById("mShop")?.classList.add("active");
+    })();
+
     // если пользователь пришёл со Stripe success/canceled на эти страницы — перекинем на главную с тостом
     (function(){
       const u = new URL(window.location.href);
