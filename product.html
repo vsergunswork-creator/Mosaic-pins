@@ -544,7 +544,7 @@
         <div class="pill" id="sbCount">Product</div>
       </div>
 
-      <!-- ✅ LEFT MENU: Back + About/Shipping/Returns/Reviews -->
+      <!-- ✅ ONLY CHANGE HERE: add About/Shipping/Returns/Reviews to sidebar -->
       <nav class="sb-nav">
         <a class="nav-item" href="/" id="navShop">← Back to shop</a>
         <a class="nav-item" href="/about" id="navAbout">About</a>
@@ -563,7 +563,7 @@
         </div>
 
         <div class="topRight">
-          <!-- ✅ TOP Back to shop button stays -->
+          <!-- ✅ keep top Back to shop button -->
           <a class="backBtn" href="/" id="backTopShop" title="Back to shop">← Back to shop</a>
 
           <button class="cartBtn" id="openCart" type="button" title="Cart">
@@ -620,7 +620,6 @@
                   </div>
                 </div>
 
-                <!-- ✅ Buttons like everywhere: dark Add + green Buy -->
                 <button class="btn2" id="addBtn" type="button">Add to cart</button>
                 <button class="btn" id="buyBtn" type="button">Buy now</button>
               </div>
@@ -873,7 +872,7 @@
   function syncThumbs(){
     const thumbs = el("thumbs");
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
+    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
     if (active) active.classList.add("active");
   }
 
@@ -905,7 +904,7 @@
 
     carousel.innerHTML = "";
     if (!imagesState.length){
-      carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
+      carousel.innerHTML = \`<div class="heroEmpty">No image</div>\`;
       updateNav();
       return;
     }
@@ -913,7 +912,7 @@
     imagesState.forEach((u) => {
       const s = document.createElement("div");
       s.className = "slide";
-      s.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
+      s.innerHTML = \`<img src="\${u}" alt="\${escapeHtml(title)}" draggable="false" />\`;
       carousel.appendChild(s);
     });
 
@@ -927,7 +926,7 @@
       const d = document.createElement("div");
       d.className = "t" + (idx===0 ? " active" : "");
       d.dataset.idx = String(idx);
-      d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
+      d.innerHTML = \`<img src="\${u}" alt="\${escapeHtml(title)}" draggable="false" />\`;
       d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
@@ -999,7 +998,7 @@
       curr.ry += (target.ry - curr.ry) * k;
 
       heroInner.style.transform =
-        `translate3d(${curr.x}px, ${curr.y}px, 0) rotateX(${curr.rx}deg) rotateY(${curr.ry}deg) scale(${target.s})`;
+        \`translate3d(\${curr.x}px, \${curr.y}px, 0) rotateX(\${curr.rx}deg) rotateY(\${curr.ry}deg) scale(\${target.s})\`;
 
       requestAnimationFrame(apply);
     }
