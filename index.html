@@ -333,8 +333,8 @@
       .filtersBtn{display:inline-flex}
       .content{padding:14px}
 
-      /* ✅ место под нижнюю навигацию, чтобы контент не прятался */
-      .main{padding-bottom: calc(76px + env(safe-area-inset-bottom));}
+      /* ✅ место под нижнюю навигацию */
+      .main{padding-bottom: calc(86px + env(safe-area-inset-bottom));}
 
       .grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px}
     }
@@ -638,45 +638,51 @@
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
 
-    /* ✅ MOBILE NAV */
+    /* ✅ MOBILE NAV — UPDATED to match other pages (same style) */
     .mobileNav{ display:none; }
+    .mobileNavRow{ display:flex; gap:10px; justify-content:space-between; }
+
+    .mItem{
+      flex:1 1 0;
+      text-align:center;
+      text-decoration:none;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 13px;
+      padding: 12px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: rgba(255,255,255,.04);
+      white-space: nowrap;
+      user-select:none;
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+    }
+    .mItem:hover{ color: var(--text); background: rgba(255,255,255,.07); }
+    .mItem.active{
+      color: var(--text);
+      background: rgba(34,197,94,.16);
+      border-color: rgba(34,197,94,.25);
+    }
+
     @media (max-width:980px){
       .mobileNav{
-        display:flex;
+        display:block;
         position:fixed;
-        left:12px;
-        right:12px;
+        left: 12px;
+        right: 12px;
         bottom: calc(12px + env(safe-area-inset-bottom));
-        z-index:1200;
-
-        padding:8px;
-        gap:8px;
+        z-index: 1200;
+        padding: 10px;
         border-radius: 18px;
-        border:1px solid var(--line);
-        background: rgba(0,0,0,.45);
-        backdrop-filter: blur(10px);
-        box-shadow: var(--shadow);
+        border: 1px solid var(--line);
+        background: rgba(0,0,0,.55);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 18px 40px rgba(0,0,0,.55);
       }
-      .mNavItem{
-        flex:1 1 0;
-        text-decoration:none;
-        color:var(--muted);
-        border:1px solid transparent;
-        background: rgba(255,255,255,.03);
-        border-radius:14px;
-        padding:10px 10px;
-        text-align:center;
-        font-weight:900;
-        font-size:12px;
-        letter-spacing:.2px;
-        user-select:none;
-      }
-      .mNavItem:hover{background: rgba(255,255,255,.06); color:var(--text);}
-      .mNavItem.active{
-        background:rgba(34,197,94,.14);
-        border-color: rgba(34,197,94,.22);
-        color:var(--text);
-      }
+    }
+    @media (max-width:520px){
+      .mobileNavRow{gap:8px;}
+      .mItem{font-size:12px; padding: 12px 8px;}
     }
   </style>
 </head>
@@ -756,7 +762,6 @@
         <div class="grid" id="grid"></div>
       </div>
 
-      <!-- ✅ footer: added Reviews -->
       <footer class="siteFooter">
         <a href="/shipping">Shipping</a>
         <span class="sep">|</span>
@@ -769,13 +774,15 @@
     </main>
   </div>
 
-  <!-- ✅ Mobile bottom navigation -->
-  <nav class="mobileNav" aria-label="Mobile navigation">
-    <a class="mNavItem" href="/" id="mNavShop">Shop</a>
-    <a class="mNavItem" href="/about" id="mNavAbout">About</a>
-    <a class="mNavItem" href="/shipping" id="mNavShipping">Shipping</a>
-    <a class="mNavItem" href="/returns" id="mNavReturns">Returns</a>
-    <a class="mNavItem" href="/reviews" id="mNavReviews">Reviews</a>
+  <!-- ✅ Mobile bottom navigation (same style as other pages) -->
+  <nav class="mobileNav" aria-label="Bottom navigation">
+    <div class="mobileNavRow">
+      <a class="mItem" href="/" id="mShop">Shop</a>
+      <a class="mItem" href="/about" id="mAbout">About</a>
+      <a class="mItem" href="/shipping" id="mShipping">Shipping</a>
+      <a class="mItem" href="/returns" id="mReturns">Returns</a>
+      <a class="mItem" href="/reviews" id="mReviews">Reviews</a>
+    </div>
   </nav>
 
   <!-- Mobile Filters Sheet -->
@@ -1288,7 +1295,7 @@
       }
     }
 
-    // ✅ CHANGED: bigger -> smaller
+    // bigger -> smaller
     const diameters = [...diameterMap.values()].sort((a,b)=>{
       const an = (a.num == null ? -Infinity : a.num);
       const bn = (b.num == null ? -Infinity : b.num);
@@ -1412,49 +1419,23 @@
     }
   })();
 
-  // ✅ active state for BOTH desktop sidebar and mobile bottom nav (with Reviews)
+  // ✅ Active state for desktop sidebar + mobile bottom nav
   (function navActive(){
-    const path = window.location.pathname || "/";
+    const path = (window.location.pathname || "/").toLowerCase();
 
-    const setActive = (id, on) => {
-      const el = document.getElementById(id);
-      if (el) el.classList.toggle("active", !!on);
-    };
+    const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews"];
+    idsDesktop.forEach(id => document.getElementById(id)?.classList.remove("active"));
 
-    // desktop
-    setActive("navShop", false);
-    setActive("navAbout", false);
-    setActive("navShipping", false);
-    setActive("navReturns", false);
-    setActive("navReviews", false);
+    const idsMobile = ["mShop","mAbout","mShipping","mReturns","mReviews"];
+    idsMobile.forEach(id => document.getElementById(id)?.classList.remove("active"));
 
-    // mobile
-    setActive("mNavShop", false);
-    setActive("mNavAbout", false);
-    setActive("mNavShipping", false);
-    setActive("mNavReturns", false);
-    setActive("mNavReviews", false);
+    const set = (id) => document.getElementById(id)?.classList.add("active");
 
-    if (path.startsWith("/reviews")) {
-      setActive("navReviews", true);
-      setActive("mNavReviews", true);
-    }
-    else if (path.startsWith("/shipping")) {
-      setActive("navShipping", true);
-      setActive("mNavShipping", true);
-    }
-    else if (path.startsWith("/returns")) {
-      setActive("navReturns", true);
-      setActive("mNavReturns", true);
-    }
-    else if (path.startsWith("/about")) {
-      setActive("navAbout", true);
-      setActive("mNavAbout", true);
-    }
-    else {
-      setActive("navShop", true);
-      setActive("mNavShop", true);
-    }
+    if (path.startsWith("/shipping")) { set("navShipping"); set("mShipping"); }
+    else if (path.startsWith("/returns")) { set("navReturns"); set("mReturns"); }
+    else if (path.startsWith("/reviews")) { set("navReviews"); set("mReviews"); }
+    else if (path.startsWith("/about")) { set("navAbout"); set("mAbout"); }
+    else { set("navShop"); set("mShop"); }
   })();
 </script>
 </body>
