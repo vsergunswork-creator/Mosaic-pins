@@ -13,7 +13,6 @@ AIRTABLE_ORDERS_TABLE_NAME = "Orders"
 # Field names (если в Airtable EXACT такие же — можно вообще не указывать)
 AIRTABLE_TRACKING_FIELD = "Tracking Number"
 AIRTABLE_SHIPPED_FIELD = "Shipped Email Sent"
-AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
 AIRTABLE_ORDER_ID_FIELD = "Order ID"
 AIRTABLE_ORDER_ID_FIELDI = "OrderCode"
 AIRTABLE_ORDER_STATUS_FIELD = "Order Status"
