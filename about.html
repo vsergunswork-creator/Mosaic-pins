@@ -1,3 +1,4 @@
+<!-- about.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -632,6 +633,165 @@
       .lightboxCard{width: 100%;}
       .lightboxImg{height: 80vh;}
     }
+
+    /* ==========================
+       ✅ CART DRAWER (copied from Shop)
+    ========================== */
+    .cartBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.74);
+      display:none;
+      z-index:1100;
+      backdrop-filter: blur(6px);
+    }
+    .cartBack.show{display:block}
+    .cartDrawer{
+      position:fixed;
+      top:0; right:0; bottom:0;
+      width:min(420px, 92vw);
+      border-left:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
+      box-shadow: -18px 0 40px rgba(0,0,0,.60);
+      transform: translateX(100%);
+      transition: transform .18s ease;
+      z-index:1101;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+    .cartDrawer.show{transform: translateX(0)}
+    .cartHead{
+      padding:14px 14px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .cartTitle{font-weight:950; letter-spacing:.2px;}
+    .cartClose{
+      border:none;
+      cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.30);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .cartClose:hover{background:rgba(255,255,255,.06)}
+    .cartBody{padding:12px; overflow:auto; min-height:0;}
+    .cartEmpty{
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+    }
+    .cartItem{
+      display:grid;
+      grid-template-columns:64px 1fr;
+      gap:10px;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      margin-bottom:10px;
+    }
+    .cartImg{
+      width:64px;height:64px;border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      overflow:hidden;
+      display:flex;align-items:center;justify-content:center;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .cartImg img{width:100%;height:100%;object-fit:cover;display:block;}
+    .cartName{font-weight:900; font-size:13px; margin:0}
+    .cartMeta{color:var(--muted); font-size:12px; margin:4px 0 0}
+    .cartRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
+    .cartQty{
+      display:flex; align-items:center; gap:6px;
+      padding:6px 8px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+    }
+    .cartQty button{
+      width:30px;height:30px;border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+    }
+    .cartQty input{
+      width:44px;
+      background:transparent;
+      border:none;
+      outline:none;
+      color:var(--text);
+      text-align:center;
+      font-weight:900;
+    }
+    .cartRemove{
+      border:none;
+      cursor:pointer;
+      padding:8px 10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:900;
+      line-height:1;
+    }
+    .cartRemove:hover{background:rgba(255,255,255,.06)}
+    .cartFoot{
+      padding:12px;
+      border-top:1px solid var(--line);
+      background:rgba(0,0,0,.40);
+    }
+    .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
+    .cartActions{display:grid; gap:10px;}
+    .btn{
+      border:none; cursor:pointer;
+      padding:12px 14px;
+      border-radius:14px;
+      background:linear-gradient(135deg,#22c55e,#16a34a);
+      color:#07110b;
+      font-weight:950;
+      box-shadow: 0 10px 18px rgba(34,197,94,.18);
+      transition: filter .15s ease, transform .15s ease;
+      white-space:nowrap;
+      width:100%;
+    }
+    .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
+    .btn:disabled{
+      cursor:not-allowed;
+      background:rgba(255,255,255,.10);
+      color:rgba(255,255,255,.55);
+      box-shadow:none;
+      transform:none;
+    }
+    .btn2{
+      border:none; cursor:pointer;
+      padding:12px 14px;
+      border-radius:14px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+      width:100%;
+    }
+    .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
+    .btn2:disabled{opacity:.45; cursor:not-allowed}
   </style>
 </head>
 
@@ -760,6 +920,26 @@
     </div>
   </div>
 
+  <!-- ✅ CART DRAWER (added) -->
+  <div class="cartBack" id="cartBack"></div>
+  <div class="cartDrawer" id="cartDrawer">
+    <div class="cartHead">
+      <div class="cartTitle">Cart</div>
+      <button class="cartClose" id="closeCart" type="button">✕</button>
+    </div>
+    <div class="cartBody" id="cartBody"></div>
+    <div class="cartFoot">
+      <div class="cartSumRow">
+        <div>Total</div>
+        <div id="cartTotal">—</div>
+      </div>
+      <div class="cartActions">
+        <button class="btn" id="cartCheckout">Checkout</button>
+        <button class="btn2" id="cartClear">Clear cart</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
@@ -768,7 +948,10 @@
 <script>
   const API_CONTENT = "/api/content?key=";
 
+  const API_CHECKOUT = "/api/checkout";
   const CART_KEY = "mp_cart";
+  const CUR_KEY = "mp_currency";
+
   function readCart(){
     try{
       const raw = localStorage.getItem(CART_KEY);
@@ -776,10 +959,20 @@
       return Array.isArray(arr) ? arr : [];
     }catch(_){ return []; }
   }
+  function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
   function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
+  function getCurrency(){ return localStorage.getItem(CUR_KEY) || "EUR"; }
 
   const elCartBadge = document.getElementById("cartBadge");
   const elOpenCart = document.getElementById("openCart");
+
+  const elCartBack = document.getElementById("cartBack");
+  const elCartDrawer = document.getElementById("cartDrawer");
+  const elCloseCart = document.getElementById("closeCart");
+  const elCartBody = document.getElementById("cartBody");
+  const elCartTotal = document.getElementById("cartTotal");
+  const elCartCheckout = document.getElementById("cartCheckout");
+  const elCartClear = document.getElementById("cartClear");
 
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
@@ -792,14 +985,163 @@
     setTimeout(()=> elToast.classList.remove("show"), 2600);
   }
 
-  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
-  updateCartBadge();
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
 
-  elOpenCart.addEventListener("click", () => {
-    const c = readCart();
-    if (!c.length) return toast("Cart", "Your cart is empty");
-    toast("Cart", `Items: ${cartCount()}`);
-  });
+  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
+
+  function openCart(){
+    elCartBack.classList.add("show");
+    elCartDrawer.classList.add("show");
+    document.body.style.overflow = "hidden";
+    renderCart();
+  }
+  function closeCart(){
+    elCartBack.classList.remove("show");
+    elCartDrawer.classList.remove("show");
+    document.body.style.overflow = "";
+  }
+  elOpenCart.addEventListener("click", openCart);
+  elCloseCart.addEventListener("click", closeCart);
+  elCartBack.addEventListener("click", closeCart);
+  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeCart(); });
+
+  function setCartQty(pin, qty){
+    const cart = readCart();
+    const idx = cart.findIndex(x => String(x.pin) === String(pin));
+    if (idx < 0) return;
+
+    const stock = Number(cart[idx].stock ?? 0);
+    qty = Number(qty);
+    if (!Number.isFinite(qty)) qty = 1;
+    qty = Math.max(1, qty);
+    if (stock > 0) qty = Math.min(stock, qty);
+
+    cart[idx].qty = qty;
+    writeCart(cart);
+    updateCartBadge();
+    renderCart();
+  }
+
+  function removeFromCart(pin){
+    const cart = readCart().filter(x => String(x.pin) !== String(pin));
+    writeCart(cart);
+    updateCartBadge();
+    renderCart();
+  }
+
+  function clearCart(){
+    writeCart([]);
+    updateCartBadge();
+    renderCart();
+  }
+
+  function cartTotal(){
+    const cur = getCurrency();
+    const cart = readCart();
+    let sum = 0;
+    for (const it of cart){
+      const unit = Number(it?.price?.[cur]);
+      if (Number.isFinite(unit)) sum += unit * (Number(it?.qty)||0);
+    }
+    return sum;
+  }
+
+  function renderCart(){
+    const cart = readCart();
+    const cur = getCurrency();
+
+    if (!cart.length){
+      elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
+      elCartTotal.textContent = "—";
+      elCartCheckout.disabled = true;
+      elCartCheckout.textContent = "Checkout";
+      return;
+    }
+
+    elCartCheckout.disabled = false;
+    elCartCheckout.textContent = "Checkout";
+
+    elCartBody.innerHTML = cart.map(it => {
+      const img = it.image
+        ? `<img src="${escapeHtml(it.image)}" alt="${escapeHtml(it.title)}" />`
+        : `<span>—</span>`;
+
+      const unit = it?.price?.[cur];
+      const unitText = (typeof unit === "number")
+        ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`)
+        : "—";
+
+      return `
+        <div class="cartItem" data-pin="${escapeHtml(it.pin)}">
+          <div class="cartImg">${img}</div>
+          <div>
+            <p class="cartName">${escapeHtml(it.title || it.pin)}</p>
+            <div class="cartMeta">${escapeHtml(it.pin)} • ${unitText}</div>
+            <div class="cartRow">
+              <div class="cartQty">
+                <button type="button" data-act="minus">−</button>
+                <input value="${escapeHtml(it.qty)}" inputmode="numeric" />
+                <button type="button" data-act="plus">+</button>
+              </div>
+              <button class="cartRemove" type="button" data-act="remove">✕</button>
+            </div>
+            <div class="cartMeta" style="margin-top:8px;">Stock: ${escapeHtml(it.stock ?? "—")}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    [...elCartBody.querySelectorAll(".cartItem")].forEach(row => {
+      const pin = row.getAttribute("data-pin");
+      const input = row.querySelector("input");
+      row.querySelector('button[data-act="minus"]').addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
+      row.querySelector('button[data-act="plus"]').addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
+      input.addEventListener("change", () => setCartQty(pin, Number(input.value)));
+      row.querySelector('button[data-act="remove"]').addEventListener("click", () => removeFromCart(pin));
+    });
+
+    const sum = cartTotal();
+    elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
+  }
+
+  elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+
+  async function startCheckout(){
+    const cart = readCart();
+    if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
+
+    const payload = {
+      currency: getCurrency(),
+      items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+    };
+
+    elCartCheckout.disabled = true;
+    elCartCheckout.textContent = "Redirecting…";
+
+    try{
+      const r = await fetch(API_CHECKOUT, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data?.ok || !data?.url){
+        throw new Error(data?.error || "Checkout failed");
+      }
+
+      window.location.href = data.url;
+    }catch(e){
+      toast("Checkout", String(e?.message || e));
+      elCartCheckout.disabled = false;
+      elCartCheckout.textContent = "Checkout";
+    }
+  }
+  elCartCheckout.addEventListener("click", startCheckout);
 
   // Airtable content load
   const hero = document.getElementById("hero");
@@ -1065,6 +1407,8 @@
     document.getElementById(hit.mob)?.classList.add("active");
   })();
 
+  updateCartBadge();
+  renderCart();
   loadAbout();
 </script>
 </body>
