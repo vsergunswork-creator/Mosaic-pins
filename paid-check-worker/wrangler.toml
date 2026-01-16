@@ -1,0 +1,22 @@
+name = "mosaicpins-paid-email"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["*/5 * * * *"] # каждые 5 минут
+
+[vars]
+STORE_NAME = "Mosaic Pins"
+AIRTABLE_ORDERS_TABLE_NAME = "Orders"
+
+MAIL_FROM = "support@mosaicpins.space"
+MAIL_REPLY_TO = "support@mosaicpins.space"
+
+# Если хотите, можно НЕ трогать, код и так знает дефолты:
+# AIRTABLE_ORDER_STATUS_FIELD = "Order Status"
+# AIRTABLE_PAID_SENT_FIELD = "Paid Email Sent"
+# AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
+# AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
+# AIRTABLE_ORDER_CODE_FIELD = "OrderCode"
+# AIRTABLE_AMOUNT_FIELD = "Amount Total"
+# AIRTABLE_CURRENCY_FIELD = "Currency"
