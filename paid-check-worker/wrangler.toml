@@ -1,22 +1,26 @@
-name = "mosaicpins-paid-email"
+name = ""
 main = "index.js"
 compatibility_date = "2025-01-01"
 
 [triggers]
-crons = ["*/5 * * * *"] # каждые 5 минут
+crons = ["*/5 * * * *"]
 
 [vars]
-STORE_NAME = "Mosaic Pins"
+# --- Airtable ---
+AIRTABLE_BASE_ID = "appw4WQJbbR1AP5ZD"
 AIRTABLE_ORDERS_TABLE_NAME = "Orders"
 
-MAIL_FROM = "support@mosaicpins.space"
-MAIL_REPLY_TO = "support@mosaicpins.space"
+# Field names (если в Airtable EXACT такие же — можно вообще не указывать)
+AIRTABLE_TRACKING_FIELD = "Tracking Number"
+AIRTABLE_SHIPPED_FIELD = "Shipped Email Sent"
+AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
+AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
+AIRTABLE_ORDER_ID_FIELD = "Order ID"
+AIRTABLE_ORDER_ID_FIELDI = "OrderCode"
 
-# Если хотите, можно НЕ трогать, код и так знает дефолты:
-# AIRTABLE_ORDER_STATUS_FIELD = "Order Status"
-# AIRTABLE_PAID_SENT_FIELD = "Paid Email Sent"
-# AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
-# AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
-# AIRTABLE_ORDER_CODE_FIELD = "OrderCode"
-# AIRTABLE_AMOUNT_FIELD = "Amount Total"
-# AIRTABLE_CURRENCY_FIELD = "Currency"
+# --- Email ---
+STORE_NAME = "Mosaic Pins"
+MAIL_FROM = "support@mosaicpins.space"
+MAIL_REPLY_TO = "mosaicpinsspace@gmail.com"
+# optional:
+MAIL_BCC = "mosaicpinsspace@gmail.com"
