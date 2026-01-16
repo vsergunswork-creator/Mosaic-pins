@@ -1,4 +1,4 @@
-name = ""
+name = "mosaic-paid-check"
 main = "index.js"
 compatibility_date = "2025-01-01"
 
@@ -17,6 +17,13 @@ AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
 AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
 AIRTABLE_ORDER_ID_FIELD = "Order ID"
 AIRTABLE_ORDER_ID_FIELDI = "OrderCode"
+AIRTABLE_ORDER_STATUS_FIELD = "Order Status"
+AIRTABLE_PAID_SENT_FIELD = "Paid Email Sent"
+AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
+AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
+AIRTABLE_ORDER_CODE_FIELD = "OrderCode"
+AIRTABLE_AMOUNT_FIELD = "Amount Total"
+AIRTABLE_CURRENCY_FIELD = "Currency"
 
 # --- Email ---
 STORE_NAME = "Mosaic Pins"
