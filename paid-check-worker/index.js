@@ -1,8 +1,8 @@
-// index.js (Cloudflare Worker)
+// index.js (Cloudflare Worker) — PAID email sender
 // - Scheduled cron runs runPaidCheck()
 // - Manual test: https://YOUR-WORKER-URL/run?secret=CRON_SECRET
-// - Reads Orders from Airtable where Order Status == "paid" AND Paid Email Sent is NOT checked
-// - Sends "Thanks / Order in progress" email via MailChannels
+// - Reads Orders from Airtable where Order Status = "paid" AND Paid Email Sent is NOT checked
+// - Sends email via MailChannels (uses X-Api-Key header if MAILCHANNELS_API_KEY is set)
 // - Marks Paid Email Sent = true in Airtable
 
 export default {
@@ -38,47 +38,32 @@ async function runPaidCheck(env) {
   must(env.MAIL_FROM, "MAIL_FROM");
   must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
 
-  const STORE_NAME = env.STORE_NAME || "Mosaic Pins";
-
-  // Orders table (default: Orders)
   const ORDERS_TABLE =
     env.AIRTABLE_ORDERS_TABLE_NAME ||
     env.AIRTABLE_ORDERS_TABLE ||
     "Orders";
 
-  // Airtable field names
+  // ---------- FIELD NAMES (YOUR AIRTABLE) ----------
+  const ORDER_STATUS_FIELD = env.AIRTABLE_ORDER_STATUS_FIELD || "Order Status";
+  const PAID_SENT_FIELD = env.AIRTABLE_PAID_SENT_FIELD || "Paid Email Sent";
+
   const EMAIL_FIELD = env.AIRTABLE_CUSTOMER_EMAIL_FIELD || "Customer Email";
   const NAME_FIELD = env.AIRTABLE_CUSTOMER_NAME_FIELD || "Customer Name";
+  const ORDER_CODE_FIELD = env.AIRTABLE_ORDER_CODE_FIELD || "OrderCode";
 
-  // Stripe order/session id (long)
-  const ORDER_ID_FIELD = env.AIRTABLE_ORDER_ID_FIELD || "Order ID";
-
-  // ✅ Short code (OrderCode)
-  const ORDER_CODE_FIELD = env.AIRTABLE_ORDER_ID_FIELDI || "OrderCode";
-
-  // Paid status fields
-  const PAID_FIELD = env.AIRTABLE_PAID_FIELD || "Order Status";
-  const PAID_VALUE = env.AIRTABLE_PAID_VALUE || "paid";
-
-  // Checkbox that marks that we already sent "paid/thanks" email
-  const PAID_SENT_FIELD = env.AIRTABLE_PAID_EMAIL_SENT_FIELD || "Paid Email Sent";
-
-  // Optional info fields (если есть)
-  const CREATED_AT_FIELD = env.AIRTABLE_CREATED_AT_FIELD || "Created At";
-  const AMOUNT_FIELD = env.AIRTABLE_AMOUNT_TOTAL_FIELD || "Amount Total";
+  const AMOUNT_FIELD = env.AIRTABLE_AMOUNT_FIELD || "Amount Total";
   const CURRENCY_FIELD = env.AIRTABLE_CURRENCY_FIELD || "Currency";
 
   // ---------- FIND ORDERS READY ----------
-  // Airtable formula:
-  // AND({Order Status}="paid", NOT({Paid Email Sent}), {Customer Email}!="")
-  const formula = `AND({${PAID_FIELD}}="${escapeAirtableString(PAID_VALUE)}", NOT({${PAID_SENT_FIELD}}), {${EMAIL_FIELD}}!="")`;
+  // paid + not sent + has email
+  const formula = `AND({${ORDER_STATUS_FIELD}}='paid', NOT({${PAID_SENT_FIELD}}), {${EMAIL_FIELD}}!='')`;
 
   const list = await airtableList({
     token: env.AIRTABLE_TOKEN,
     baseId: env.AIRTABLE_BASE_ID,
     table: ORDERS_TABLE,
     filterByFormula: formula,
-    maxRecords: 10,
+    maxRecords: 25,
   });
 
   let sent = 0;
@@ -91,41 +76,38 @@ async function runPaidCheck(env) {
     const email = String(f[EMAIL_FIELD] || "").trim();
     const name = String(f[NAME_FIELD] || "").trim();
 
-    const stripeOrderId = String(f[ORDER_ID_FIELD] || "").trim();
-    const orderCode = String(f[ORDER_CODE_FIELD] || "").trim();
-    const niceOrderId = orderCode || stripeOrderId || rec.id;
+    const orderCode = String(f[ORDER_CODE_FIELD] || "").trim() || rec.id;
 
-    const createdAt = String(f[CREATED_AT_FIELD] || "").trim();
-    const amountTotal = f[AMOUNT_FIELD];
-    const currency = String(f[CURRENCY_FIELD] || "").trim().toUpperCase();
+    const amount = Number(f[AMOUNT_FIELD] ?? 0);
+    const currency = String(f[CURRENCY_FIELD] || "EUR").trim() || "EUR";
 
     if (!email) {
       skipped++;
-      results.push({ id: rec.id, orderId: niceOrderId, status: "skipped", reason: "missing_email" });
+      results.push({ id: rec.id, orderId: orderCode, status: "skipped", reason: "missing_email" });
       continue;
     }
 
     try {
-      const subject = `${STORE_NAME}: Thanks for your order 💚`;
+      const subject = `${env.STORE_NAME || "Mosaic Pins"}: Order ${orderCode} received ✅`;
 
-      const amountLine = formatMoneyLine(amountTotal, currency);
+      const moneyLine =
+        Number.isFinite(amount) && amount > 0 ? `${amount.toFixed(2)} ${currency}` : "";
 
       const text = `Hello ${name || ""}
 
+Thank you for your order! ✅
+We’ve received your payment and your order ${orderCode} is now being prepared.
+
+${moneyLine ? `Paid: ${moneyLine}\n` : ""}You’ll get another email as soon as it ships (with the tracking number).
+
 Thank you for your purchase 💚
-We received your order ${niceOrderId} and it is now in progress.
-
-${amountLine ? amountLine + "\n" : ""}We will email you again when your order is shipped with the tracking number.
-
-— ${STORE_NAME}
 `;
 
-      const html = buildPaidEmailHtml({
-        storeName: STORE_NAME,
+      const html = buildPaidHtml({
+        env,
         name,
-        niceOrderId,
-        amountLine,
-        createdAt,
+        orderCode,
+        moneyLine,
       });
 
       await sendEmailMailchannels({
@@ -139,7 +121,6 @@ ${amountLine ? amountLine + "\n" : ""}We will email you again when your order is
         html,
       });
 
-      // Mark checkbox TRUE
       await airtableUpdate({
         token: env.AIRTABLE_TOKEN,
         baseId: env.AIRTABLE_BASE_ID,
@@ -149,10 +130,15 @@ ${amountLine ? amountLine + "\n" : ""}We will email you again when your order is
       });
 
       sent++;
-      results.push({ id: rec.id, orderId: niceOrderId, status: "sent", to: email });
+      results.push({ id: rec.id, orderId: orderCode, status: "sent", to: email });
     } catch (e) {
       skipped++;
-      results.push({ id: rec.id, orderId: niceOrderId, status: "error", error: String(e?.message || e) });
+      results.push({
+        id: rec.id,
+        orderId: orderCode,
+        status: "error",
+        error: String(e?.message || e),
+      });
     }
   }
 
@@ -165,10 +151,10 @@ ${amountLine ? amountLine + "\n" : ""}We will email you again when your order is
   };
 }
 
-/* ---------------- HTML template (style like shipped worker) ---------------- */
+/* ---------------- Template ---------------- */
 
-function buildPaidEmailHtml({ storeName, name, niceOrderId, amountLine, createdAt }) {
-  const dateLine = createdAt ? `Order date: ${escapeHtml(shortDate(createdAt))}` : "";
+function buildPaidHtml({ env, name, orderCode, moneyLine }) {
+  const storeName = env.STORE_NAME || "Mosaic Pins";
 
   return `
 <div style="
@@ -206,8 +192,10 @@ function buildPaidEmailHtml({ storeName, name, niceOrderId, amountLine, createdA
       </div>
 
       <div style="color:#a8b3c7; font-size:14px; line-height:1.5; margin-bottom:16px;">
-        Thank you for your purchase 💚<br/>
-        We received your order <b style="color:#e9eef7;">${escapeHtml(niceOrderId)}</b> and it is now in progress.
+        Thank you for your order! ✅<br/>
+        We’ve received your payment and your order
+        <b style="color:#e9eef7;">${escapeHtml(orderCode)}</b>
+        is now being prepared.
       </div>
 
       <div style="
@@ -224,29 +212,23 @@ function buildPaidEmailHtml({ storeName, name, niceOrderId, amountLine, createdA
           font-weight:900;
           letter-spacing:.4px;
           word-break:break-word;
-          margin-bottom:12px;
         ">
-          ${escapeHtml(niceOrderId)}
+          ${escapeHtml(orderCode)}
         </div>
 
-        ${amountLine ? `
-        <div style="font-size:13px; color:#a8b3c7; margin-bottom:6px;">
-          Total
-        </div>
-        <div style="font-size:15px; font-weight:900; margin-bottom:12px;">
-          ${escapeHtml(amountLine.replace("Total: ", ""))}
-        </div>
-        ` : ""}
-
-        ${dateLine ? `
-        <div style="font-size:13px; color:#a8b3c7;">
-          ${dateLine}
-        </div>
-        ` : ""}
+        ${moneyLine ? `
+          <div style="height:10px"></div>
+          <div style="font-size:13px; color:#a8b3c7; margin-bottom:6px;">
+            Paid
+          </div>
+          <div style="font-size:15px; font-weight:900;">
+            ${escapeHtml(moneyLine)}
+          </div>
+        ` : ``}
       </div>
 
       <div style="color:#a8b3c7; font-size:13px; margin-top:16px;">
-        We will email you again when your order is shipped with the tracking number.
+        You’ll get another email as soon as it ships (with the tracking number).
       </div>
     </div>
 
@@ -321,11 +303,7 @@ async function sendEmailMailchannels({ env, from, to, replyTo, bcc, subject, tex
   };
 
   const headers = { "Content-Type": "application/json" };
-
-  // ✅ API key auth (MailChannels) if you added it
-  if (env.MAILCHANNELS_API_KEY) {
-    headers["X-Api-Key"] = env.MAILCHANNELS_API_KEY;
-  }
+  if (env.MAILCHANNELS_API_KEY) headers["X-Api-Key"] = env.MAILCHANNELS_API_KEY;
 
   const r = await fetch("https://api.mailchannels.net/tx/v1/send", {
     method: "POST",
@@ -357,28 +335,4 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-// For Airtable formula string escaping (quotes)
-function escapeAirtableString(s) {
-  return String(s || "").replace(/"/g, '\\"');
-}
-
-function formatMoneyLine(amountTotal, currency) {
-  const n = Number(amountTotal);
-  if (!Number.isFinite(n) || n <= 0) return "";
-  const cur = (currency === "USD" || currency === "EUR") ? currency : "";
-  if (cur === "EUR") return `Total: ${n.toFixed(2)} €`;
-  if (cur === "USD") return `Total: ${n.toFixed(2)} $`;
-  return `Total: ${n.toFixed(2)}`;
-}
-
-function shortDate(value) {
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return String(value || "");
-  // коротко, без зависимости от локали: YYYY-MM-DD
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
