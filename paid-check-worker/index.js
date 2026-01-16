@@ -1,4 +1,4 @@
-// index.js (Cloudflare Worker) — PAID email sender
+// index.js (Cloudflare Worker)
 // - Scheduled cron runs runPaidCheck()
 // - Manual test: https://YOUR-WORKER-URL/run?secret=CRON_SECRET
 // - Reads Orders from Airtable where Order Status = "paid" AND Paid Email Sent is NOT checked
@@ -37,33 +37,44 @@ async function runPaidCheck(env) {
   must(env.AIRTABLE_BASE_ID, "AIRTABLE_BASE_ID");
   must(env.MAIL_FROM, "MAIL_FROM");
   must(env.MAIL_REPLY_TO, "MAIL_REPLY_TO");
+  must(env.CRON_SECRET, "CRON_SECRET"); // чтобы /run работал
 
-  const ORDERS_TABLE =
-    env.AIRTABLE_ORDERS_TABLE_NAME ||
-    env.AIRTABLE_ORDERS_TABLE ||
-    "Orders";
+  // Orders table
+  const ORDERS_TABLE = env.AIRTABLE_ORDERS_TABLE_NAME || "Orders";
 
-  // ---------- FIELD NAMES (YOUR AIRTABLE) ----------
-  const ORDER_STATUS_FIELD = env.AIRTABLE_ORDER_STATUS_FIELD || "Order Status";
-  const PAID_SENT_FIELD = env.AIRTABLE_PAID_SENT_FIELD || "Paid Email Sent";
-
+  // ---------- FIELD NAMES (ваши из Variables на скрине) ----------
   const EMAIL_FIELD = env.AIRTABLE_CUSTOMER_EMAIL_FIELD || "Customer Email";
   const NAME_FIELD = env.AIRTABLE_CUSTOMER_NAME_FIELD || "Customer Name";
-  const ORDER_CODE_FIELD = env.AIRTABLE_ORDER_CODE_FIELD || "OrderCode";
+
+  const ORDER_STATUS_FIELD = env.AIRTABLE_ORDER_STATUS_FIELD || "Order Status";
 
   const AMOUNT_FIELD = env.AIRTABLE_AMOUNT_FIELD || "Amount Total";
   const CURRENCY_FIELD = env.AIRTABLE_CURRENCY_FIELD || "Currency";
 
+  // Stripe / IDs
+  const STRIPE_SESSION_FIELD = env.AIRTABLE_STRIPE_SESSION_FIELD || "Stripe Session ID";
+  const ORDER_ID_FIELD = env.AIRTABLE_ORDER_ID_FIELD || "Order ID"; // если у Вас есть
+  const ORDER_CODE_FIELD = env.AIRTABLE_ORDER_CODE_FIELD || "OrderCode";
+  // (у Вас ещё есть AIRTABLE_ORDER_ID_FIELDI = OrderCode — не используем, чтобы не путаться)
+
+  // ✅ Галочка paid письма
+  const PAID_SENT_FIELD = env.AIRTABLE_PAID_SENT_FIELD || "Paid Email Sent";
+
+  // Какой статус считать оплаченным (у Вас на скрине "paid")
+  const PAID_STATUS_VALUE = env.PAID_STATUS_VALUE || "paid";
+
   // ---------- FIND ORDERS READY ----------
-  // paid + not sent + has email
-  const formula = `AND({${ORDER_STATUS_FIELD}}='paid', NOT({${PAID_SENT_FIELD}}), {${EMAIL_FIELD}}!='')`;
+  // AND({Order Status}="paid", NOT({Paid Email Sent}))
+  const formula = `AND({${ORDER_STATUS_FIELD}}='${escapeAirtableString(
+    PAID_STATUS_VALUE
+  )}', NOT({${PAID_SENT_FIELD}}))`;
 
   const list = await airtableList({
     token: env.AIRTABLE_TOKEN,
     baseId: env.AIRTABLE_BASE_ID,
     table: ORDERS_TABLE,
     filterByFormula: formula,
-    maxRecords: 25,
+    maxRecords: 10,
   });
 
   let sent = 0;
@@ -76,87 +87,47 @@ async function runPaidCheck(env) {
     const email = String(f[EMAIL_FIELD] || "").trim();
     const name = String(f[NAME_FIELD] || "").trim();
 
-    const orderCode = String(f[ORDER_CODE_FIELD] || "").trim() || rec.id;
+    const amount = f[AMOUNT_FIELD];
+    const currency = String(f[CURRENCY_FIELD] || "").trim();
 
-    const amount = Number(f[AMOUNT_FIELD] ?? 0);
-    const currency = String(f[CURRENCY_FIELD] || "EUR").trim() || "EUR";
+    const orderCode = String(f[ORDER_CODE_FIELD] || "").trim();
+    const stripeSession = String(f[STRIPE_SESSION_FIELD] || "").trim();
+    const orderId = String(f[ORDER_ID_FIELD] || "").trim();
+
+    const niceOrderId = orderCode || orderId || stripeSession || rec.id;
 
     if (!email) {
       skipped++;
-      results.push({ id: rec.id, orderId: orderCode, status: "skipped", reason: "missing_email" });
+      results.push({
+        id: rec.id,
+        orderId: niceOrderId,
+        status: "skipped",
+        reason: "missing_email",
+      });
       continue;
     }
 
     try {
-      const subject = `${env.STORE_NAME || "Mosaic Pins"}: Order ${orderCode} received ✅`;
+      const subject = `${env.STORE_NAME || "Mosaic Pins"}: Thanks for your order 💚`;
 
-      const moneyLine =
-        Number.isFinite(amount) && amount > 0 ? `${amount.toFixed(2)} ${currency}` : "";
+      const amountLine =
+        amount !== undefined && amount !== null && String(amount).trim() !== ""
+          ? `Total: ${amount} ${currency || ""}`.trim()
+          : "";
 
-      const text = `Hello ${name || ""}
+      const text = `Hello ${name || "friend"},
 
-Thank you for your order! ✅
-We’ve received your payment and your order ${orderCode} is now being prepared.
+Thank you for your order ${niceOrderId}! 💚
+We’ve received your payment and your order is now in processing.
 
-${moneyLine ? `Paid: ${moneyLine}\n` : ""}You’ll get another email as soon as it ships (with the tracking number).
+${amountLine}
 
-Thank you for your purchase 💚
+We’ll email you again as soon as your order is shipped.
+
+If you have any questions, just reply to this email.
 `;
 
-      const html = buildPaidHtml({
-        env,
-        name,
-        orderCode,
-        moneyLine,
-      });
-
-      await sendEmailMailchannels({
-        env,
-        from: env.MAIL_FROM,
-        to: email,
-        replyTo: env.MAIL_REPLY_TO,
-        bcc: env.MAIL_BCC || "",
-        subject,
-        text,
-        html,
-      });
-
-      await airtableUpdate({
-        token: env.AIRTABLE_TOKEN,
-        baseId: env.AIRTABLE_BASE_ID,
-        table: ORDERS_TABLE,
-        recordId: rec.id,
-        fields: { [PAID_SENT_FIELD]: true },
-      });
-
-      sent++;
-      results.push({ id: rec.id, orderId: orderCode, status: "sent", to: email });
-    } catch (e) {
-      skipped++;
-      results.push({
-        id: rec.id,
-        orderId: orderCode,
-        status: "error",
-        error: String(e?.message || e),
-      });
-    }
-  }
-
-  return {
-    table: ORDERS_TABLE,
-    found: (list.records || []).length,
-    sent,
-    skipped,
-    results,
-  };
-}
-
-/* ---------------- Template ---------------- */
-
-function buildPaidHtml({ env, name, orderCode, moneyLine }) {
-  const storeName = env.STORE_NAME || "Mosaic Pins";
-
-  return `
+      const html = `
 <div style="
   background:#0b0d11;
   padding:24px;
@@ -179,7 +150,7 @@ function buildPaidHtml({ env, name, orderCode, moneyLine }) {
       background:linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
     ">
       <div style="font-weight:900; font-size:16px; letter-spacing:.2px;">
-        🟢 ${escapeHtml(storeName)}
+        🟢 ${escapeHtml(env.STORE_NAME || "Mosaic Pins")}
       </div>
       <div style="color:#a8b3c7; font-size:13px; margin-top:4px;">
         Order confirmation
@@ -192,10 +163,8 @@ function buildPaidHtml({ env, name, orderCode, moneyLine }) {
       </div>
 
       <div style="color:#a8b3c7; font-size:14px; line-height:1.5; margin-bottom:16px;">
-        Thank you for your order! ✅<br/>
-        We’ve received your payment and your order
-        <b style="color:#e9eef7;">${escapeHtml(orderCode)}</b>
-        is now being prepared.
+        Thank you for your order <b style="color:#e9eef7;">${escapeHtml(niceOrderId)}</b> 💚<br/>
+        We’ve received your payment and your order is now in processing.
       </div>
 
       <div style="
@@ -205,30 +174,29 @@ function buildPaidHtml({ env, name, orderCode, moneyLine }) {
         padding:14px;
       ">
         <div style="font-size:13px; color:#a8b3c7; margin-bottom:6px;">
-          Order number
+          Order
         </div>
-        <div style="
-          font-size:15px;
-          font-weight:900;
-          letter-spacing:.4px;
-          word-break:break-word;
-        ">
-          ${escapeHtml(orderCode)}
+        <div style="font-size:15px; font-weight:900; margin-bottom:12px;">
+          ${escapeHtml(niceOrderId)}
         </div>
 
-        ${moneyLine ? `
-          <div style="height:10px"></div>
-          <div style="font-size:13px; color:#a8b3c7; margin-bottom:6px;">
-            Paid
-          </div>
-          <div style="font-size:15px; font-weight:900;">
-            ${escapeHtml(moneyLine)}
-          </div>
-        ` : ``}
+        ${
+          amountLine
+            ? `
+        <div style="font-size:13px; color:#a8b3c7; margin-bottom:6px;">
+          Total
+        </div>
+        <div style="font-size:15px; font-weight:900; margin-bottom:0;">
+          ${escapeHtml(amountLine.replace("Total: ", ""))}
+        </div>
+        `
+            : ""
+        }
       </div>
 
       <div style="color:#a8b3c7; font-size:13px; margin-top:16px;">
-        You’ll get another email as soon as it ships (with the tracking number).
+        We’ll email you again as soon as your order is shipped.<br/>
+        If you have any questions, just reply to this email.
       </div>
     </div>
 
@@ -246,6 +214,47 @@ function buildPaidHtml({ env, name, orderCode, moneyLine }) {
   </div>
 </div>
 `;
+
+      await sendEmailMailchannels({
+        env,
+        from: env.MAIL_FROM,
+        to: email,
+        replyTo: env.MAIL_REPLY_TO,
+        bcc: env.MAIL_BCC || "",
+        subject,
+        text,
+        html,
+      });
+
+      // ✅ Ставим галочку Paid Email Sent
+      await airtableUpdate({
+        token: env.AIRTABLE_TOKEN,
+        baseId: env.AIRTABLE_BASE_ID,
+        table: ORDERS_TABLE,
+        recordId: rec.id,
+        fields: { [PAID_SENT_FIELD]: true },
+      });
+
+      sent++;
+      results.push({ id: rec.id, orderId: niceOrderId, status: "sent", to: email });
+    } catch (e) {
+      skipped++;
+      results.push({
+        id: rec.id,
+        orderId: niceOrderId,
+        status: "error",
+        error: String(e?.message || e),
+      });
+    }
+  }
+
+  return {
+    table: ORDERS_TABLE,
+    found: (list.records || []).length,
+    sent,
+    skipped,
+    results,
+  };
 }
 
 /* ---------------- Airtable helpers ---------------- */
@@ -303,7 +312,10 @@ async function sendEmailMailchannels({ env, from, to, replyTo, bcc, subject, tex
   };
 
   const headers = { "Content-Type": "application/json" };
-  if (env.MAILCHANNELS_API_KEY) headers["X-Api-Key"] = env.MAILCHANNELS_API_KEY;
+
+  if (env.MAILCHANNELS_API_KEY) {
+    headers["X-Api-Key"] = env.MAILCHANNELS_API_KEY;
+  }
 
   const r = await fetch("https://api.mailchannels.net/tx/v1/send", {
     method: "POST",
@@ -335,4 +347,9 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+// для формулы Airtable (экранируем одинарные кавычки)
+function escapeAirtableString(s) {
+  return String(s || "").replaceAll("'", "\\'");
 }
