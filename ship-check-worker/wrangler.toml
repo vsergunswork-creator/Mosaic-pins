@@ -16,6 +16,7 @@ AIRTABLE_SHIPPED_FIELD = "Shipped Email Sent"
 AIRTABLE_CUSTOMER_EMAIL_FIELD = "Customer Email"
 AIRTABLE_CUSTOMER_NAME_FIELD = "Customer Name"
 AIRTABLE_ORDER_ID_FIELD = "Order ID"
+AIRTABLE_ORDER_ID_FIELDI = "OrderCode"
 
 # --- Email ---
 STORE_NAME = "Mosaic Pins"
