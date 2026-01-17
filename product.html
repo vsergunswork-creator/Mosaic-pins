@@ -109,7 +109,8 @@
     }
     .backBtn:hover{background:rgba(255,255,255,.06)}
 
-    .currency{
+    .currency,
+    .shipCountry{
       padding:10px 12px;
       border-radius:999px;
       background:rgba(0,0,0,.25);
@@ -119,6 +120,7 @@
       outline:none;
       white-space:nowrap;
       min-height:44px;
+      appearance:none;
     }
 
     .cartBtn{
@@ -571,6 +573,14 @@
             <option value="EUR">EUR €</option>
             <option value="USD">USD $</option>
           </select>
+
+          <!-- ✅ NEW: Shipping country (stored in localStorage) -->
+          <select class="shipCountry" id="shipCountry" title="Shipping country">
+            <option value="DE">Germany (DE)</option>
+            <option value="EU">Europe (EU)</option>
+            <option value="US">United States (US)</option>
+            <option value="CA">Canada (CA)</option>
+          </select>
         </div>
       </div>
 
@@ -658,6 +668,11 @@
   const API_CHECKOUT = "/api/checkout";
 
   const CART_KEY = "mp_cart";
+
+  // ✅ NEW: persisted settings (same keys as main shop)
+  const MP_CUR_KEY = "mp_currency";
+  const MP_SHIP_KEY = "mp_ship_country";
+
   function readCart(){
     try{
       const raw = localStorage.getItem(CART_KEY);
@@ -702,6 +717,51 @@
     if (q < 1) q = 1;
     if (max >= 1 && q > max) q = max;
     return q;
+  }
+
+  // ✅ NEW: restore persisted selects (currency + shipping)
+  (function restoreSettings(){
+    try{
+      const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
+      if (cur && ["EUR","USD"].includes(cur)) el("currency").value = cur;
+
+      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
+      if (ship && ["DE","EU","US","CA"].includes(ship)) el("shipCountry").value = ship;
+
+      // if nothing saved yet — try guess from locale (DE default)
+      if (!localStorage.getItem(MP_SHIP_KEY)) {
+        let guess = "DE";
+        try{
+          const loc = (navigator.language || "").split("-")[1] || "";
+          const cc = String(loc).toUpperCase();
+          if (cc === "US") guess = "US";
+          else if (cc === "CA") guess = "CA";
+          else if (cc === "DE") guess = "DE";
+          else if (cc) guess = "EU";
+        }catch(_){}
+        el("shipCountry").value = guess;
+        localStorage.setItem(MP_SHIP_KEY, guess);
+      }
+    }catch(_){}
+  })();
+
+  // ✅ persist on change
+  el("currency").addEventListener("change", () => {
+    try{ localStorage.setItem(MP_CUR_KEY, String(el("currency").value || "EUR").toUpperCase()); }catch(_){}
+    renderCart();
+  });
+  el("shipCountry").addEventListener("change", () => {
+    try{ localStorage.setItem(MP_SHIP_KEY, String(el("shipCountry").value || "DE").toUpperCase()); }catch(_){}
+    toast("Shipping", `Destination: ${el("shipCountry").value}`);
+  });
+
+  // ✅ Map UI selection -> ISO2 for API
+  function getShippingCountryISO2(){
+    const v = String(el("shipCountry").value || "DE").toUpperCase();
+    if (v === "EU") return "DE";   // default ISO2 for EU bucket (Stripe will still ask real address)
+    if (v === "US") return "US";
+    if (v === "CA") return "CA";
+    return "DE";
   }
 
   /* =========================
@@ -837,7 +897,7 @@
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  // ✅ ✅ ✅ WORKING CHECKOUT FROM CART (Stripe)
+  // ✅ ✅ ✅ WORKING CHECKOUT FROM CART (Stripe) + shippingCountry
   elCartCheckout.addEventListener("click", async () => {
     const cur = String(el("currency").value || "EUR").toUpperCase();
     const cart = readCart();
@@ -846,6 +906,9 @@
       toast("Checkout", "Your cart is empty");
       return;
     }
+
+    // ✅ ensure country saved
+    try{ localStorage.setItem(MP_SHIP_KEY, String(el("shipCountry").value || "DE").toUpperCase()); }catch(_){}
 
     const items = cart.map(it => ({
       pin: String(it.pin),
@@ -860,7 +923,11 @@
       const r = await fetch(API_CHECKOUT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currency: cur, items }),
+        body: JSON.stringify({
+          currency: cur,
+          shippingCountry: getShippingCountryISO2(), // ✅ NEW
+          items
+        }),
       });
 
       const data = await r.json().catch(()=>({}));
@@ -876,10 +943,6 @@
       elCartCheckout.disabled = false;
       elCartCheckout.textContent = oldText;
     }
-  });
-
-  el("currency").addEventListener("change", () => {
-    renderCart();
   });
 
   /* =========================
@@ -1099,8 +1162,12 @@
   async function buyNowOneItem(p, qty){
     const currency = String(el("currency").value || "EUR").toUpperCase();
 
+    // ✅ ensure country saved
+    try{ localStorage.setItem(MP_SHIP_KEY, String(el("shipCountry").value || "DE").toUpperCase()); }catch(_){}
+
     const payload = {
       currency,
+      shippingCountry: getShippingCountryISO2(), // ✅ NEW
       items: [{ pin: String(p.pin), qty: Number(qty) || 1 }],
     };
 
