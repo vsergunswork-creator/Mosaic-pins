@@ -218,7 +218,7 @@
     }
     .top-right{display:flex; align-items:center; gap:10px}
 
-    .filtersBtn,.cartBtn,.toggle,.currency{
+    .filtersBtn,.cartBtn,.toggle,.currency,.shipCountry{
       min-height:44px;
       line-height:1.1;
       align-items:center;
@@ -237,7 +237,7 @@
       white-space:nowrap;
     }
     .toggle input{accent-color:#22c55e; width:16px; height:16px}
-    .currency{
+    .currency,.shipCountry{
       padding:10px 12px;
       border-radius:999px;
       background:rgba(0,0,0,.25);
@@ -246,6 +246,7 @@
       font-size:13px;
       outline:none;
       white-space:nowrap;
+      appearance:none;
     }
 
     .filtersBtn{
@@ -328,7 +329,7 @@
         gap:10px;
       }
       .top-right > *{flex: 1 1 auto}
-      .filtersBtn,.cartBtn,.currency,.toggle{justify-content:center}
+      .filtersBtn,.cartBtn,.currency,.toggle,.shipCountry{justify-content:center}
 
       .filtersBtn{display:inline-flex}
       .content{padding:14px}
@@ -342,6 +343,7 @@
       .grid{grid-template-columns:1fr}
       .top-right > *{flex: 1 1 48%}
       .currency{flex:1 1 48%}
+      .shipCountry{flex:1 1 48%}
     }
 
     .card{
@@ -755,6 +757,14 @@
             <option value="EUR">EUR €</option>
             <option value="USD">USD $</option>
           </select>
+
+          <!-- ✅ NEW: Shipping country (stored in localStorage) -->
+          <select class="shipCountry" id="shipCountry" title="Shipping country">
+            <option value="DE">Germany (DE)</option>
+            <option value="EU">Europe (EU)</option>
+            <option value="US">United States (US)</option>
+            <option value="CA">Canada (CA)</option>
+          </select>
         </div>
       </div>
 
@@ -769,7 +779,7 @@
         <span class="sep">|</span>
         <a href="/reviews">Reviews</a>
         <span class="sep">|</span>
-        <a href="mailto:support@mosaipins.space">support@mosaipins.space</a>
+        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
       </footer>
     </main>
   </div>
@@ -842,6 +852,11 @@
   const API_CHECKOUT = "/api/checkout";
 
   const CART_KEY = "mp_cart";
+
+  // ✅ NEW: persisted settings
+  const MP_CUR_KEY = "mp_currency";
+  const MP_SHIP_KEY = "mp_ship_country";
+
   function readCart(){
     try{
       const raw = localStorage.getItem(CART_KEY);
@@ -862,6 +877,7 @@
   const elQ = document.getElementById("q");
   const elStock = document.getElementById("inStockOnly");
   const elCurrency = document.getElementById("currency");
+  const elShipCountry = document.getElementById("shipCountry");
   const elSbCount = document.getElementById("sbCount");
 
   const elDiaCount = document.getElementById("diaCount");
@@ -907,6 +923,42 @@
       "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
     }[m]));
   }
+
+  // ✅ NEW: restore persisted selects (currency + shipping)
+  (function restoreSettings(){
+    try{
+      const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
+      if (cur && ["EUR","USD"].includes(cur)) elCurrency.value = cur;
+
+      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
+      if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
+
+      // if nothing saved yet — try guess from locale (DE default)
+      if (!localStorage.getItem(MP_SHIP_KEY)) {
+        let guess = "DE";
+        try{
+          const loc = (navigator.language || "").split("-")[1] || "";
+          const cc = String(loc).toUpperCase();
+          if (cc === "US") guess = "US";
+          else if (cc === "CA") guess = "CA";
+          else if (cc === "DE") guess = "DE";
+          else if (cc) guess = "EU";
+        }catch(_){}
+        elShipCountry.value = guess;
+        localStorage.setItem(MP_SHIP_KEY, guess);
+      }
+    }catch(_){}
+  })();
+
+  // ✅ persist on change
+  elCurrency.addEventListener("change", () => {
+    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
+    render(); renderCart();
+  });
+  elShipCountry.addEventListener("change", () => {
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+    toast("Shipping", `Destination: ${elShipCountry.value}`);
+  });
 
   function priceText(priceObj){
     const cur = elCurrency.value;
@@ -1082,12 +1134,25 @@
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
+  // ✅ Map UI selection -> ISO2 for API
+  function getShippingCountryISO2(){
+    const v = String(elShipCountry.value || "DE").toUpperCase();
+    if (v === "EU") return "DE";   // default ISO2 for EU bucket (Stripe will still ask real address)
+    if (v === "US") return "US";
+    if (v === "CA") return "CA";
+    return "DE";
+  }
+
   async function startCheckout(){
     const cart = readCart();
     if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
 
+    // ✅ ensure country saved
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+
     const payload = {
       currency: elCurrency.value,
+      shippingCountry: getShippingCountryISO2(), // ✅ NEW REQUIRED FIELD
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
 
@@ -1390,7 +1455,6 @@
 
   elQ.addEventListener("input", applyFilters);
   elStock.addEventListener("change", applyFilters);
-  elCurrency.addEventListener("change", () => { render(); renderCart(); });
 
   window.addEventListener("resize", () => { if (window.innerWidth > 980) closeSheet(); });
 
