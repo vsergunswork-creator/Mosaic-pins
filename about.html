@@ -187,6 +187,7 @@
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
 
     .top-right{display:flex; align-items:center; gap:10px}
+
     .cartBtn{
       display:inline-flex;
       align-items:center;
@@ -214,6 +215,20 @@
       line-height:1;
       min-width:24px;
       text-align:center;
+    }
+
+    /* ✅ NEW: shipping country select like Shop */
+    .shipCountry{
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-size:13px;
+      outline:none;
+      white-space:nowrap;
+      min-height:44px;
+      appearance:none;
     }
 
     .content{
@@ -836,6 +851,14 @@
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
+
+          <!-- ✅ NEW: Shipping country (stored in localStorage) -->
+          <select class="shipCountry" id="shipCountry" title="Shipping country">
+            <option value="DE">Germany (DE)</option>
+            <option value="EU">Europe (EU)</option>
+            <option value="US">United States (US)</option>
+            <option value="CA">Canada (CA)</option>
+          </select>
         </div>
       </div>
 
@@ -920,7 +943,7 @@
     </div>
   </div>
 
-  <!-- ✅ CART DRAWER (added) -->
+  <!-- ✅ CART DRAWER -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -952,6 +975,9 @@
   const CART_KEY = "mp_cart";
   const CUR_KEY = "mp_currency";
 
+  // ✅ NEW: persisted shipping country
+  const MP_SHIP_KEY = "mp_ship_country";
+
   function readCart(){
     try{
       const raw = localStorage.getItem(CART_KEY);
@@ -961,7 +987,7 @@
   }
   function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
   function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
-  function getCurrency(){ return localStorage.getItem(CUR_KEY) || "EUR"; }
+  function getCurrency(){ return (localStorage.getItem(CUR_KEY) || "EUR").toUpperCase(); }
 
   const elCartBadge = document.getElementById("cartBadge");
   const elOpenCart = document.getElementById("openCart");
@@ -973,6 +999,8 @@
   const elCartTotal = document.getElementById("cartTotal");
   const elCartCheckout = document.getElementById("cartCheckout");
   const elCartClear = document.getElementById("cartClear");
+
+  const elShipCountry = document.getElementById("shipCountry");
 
   const elToast = document.getElementById("toast");
   const elToastTitle = document.getElementById("toastTitle");
@@ -989,6 +1017,45 @@
     return String(s||"").replace(/[&<>"']/g, m => ({
       "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
     }[m]));
+  }
+
+  // ✅ NEW: restore shipping select + guess locale
+  (function restoreShipping(){
+    try{
+      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
+      if (ship && ["DE","EU","US","CA"].includes(ship)) {
+        elShipCountry.value = ship;
+      }
+
+      if (!localStorage.getItem(MP_SHIP_KEY)) {
+        let guess = "DE";
+        try{
+          const loc = (navigator.language || "").split("-")[1] || "";
+          const cc = String(loc).toUpperCase();
+          if (cc === "US") guess = "US";
+          else if (cc === "CA") guess = "CA";
+          else if (cc === "DE") guess = "DE";
+          else if (cc) guess = "EU";
+        }catch(_){}
+        elShipCountry.value = guess;
+        localStorage.setItem(MP_SHIP_KEY, guess);
+      }
+    }catch(_){}
+  })();
+
+  // ✅ persist on change
+  elShipCountry.addEventListener("change", () => {
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+    toast("Shipping", `Destination: ${elShipCountry.value}`);
+  });
+
+  // ✅ Map UI selection -> ISO2 for API
+  function getShippingCountryISO2(){
+    const v = String(elShipCountry.value || "DE").toUpperCase();
+    if (v === "EU") return "DE";
+    if (v === "US") return "US";
+    if (v === "CA") return "CA";
+    return "DE";
   }
 
   function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
@@ -1114,8 +1181,12 @@
     const cart = readCart();
     if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
 
+    // ✅ ensure country saved
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+
     const payload = {
       currency: getCurrency(),
+      shippingCountry: getShippingCountryISO2(), // ✅ NEW
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
 
