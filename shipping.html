@@ -94,7 +94,6 @@
 
     .content{
       padding: 18px;
-      /* ✅ space for mobile bottom nav */
       padding-bottom: 18px;
     }
 
@@ -138,6 +137,7 @@
       line-height: 1.55;
     }
     .card ul{margin:10px 0 0 18px; padding:0;}
+
     .pill{
       display:inline-block;
       margin-top:10px;
@@ -174,8 +174,46 @@
     .footer a:hover{opacity:1}
     .sep{opacity:.35}
 
+    /* ✅ shipping prices */
+    .priceRow{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid rgba(255,255,255,.08);
+    }
+    .priceLeft{
+      min-width:0;
+    }
+    .priceTitle{
+      font-weight:950;
+      font-size:13px;
+      margin:0;
+      letter-spacing:.2px;
+      color:var(--text);
+    }
+    .priceSub{
+      margin-top:4px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .priceTag{
+      flex:0 0 auto;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid rgba(34,197,94,.25);
+      background: rgba(34,197,94,.14);
+      color: var(--text);
+      font-weight:950;
+      font-size:12px;
+      white-space:nowrap;
+    }
+
     /* ==========================
-       ✅ MOBILE BOTTOM NAV (Shop/About/Shipping/Returns/Reviews)
+       ✅ MOBILE BOTTOM NAV
     ========================== */
     .mobileNav{
       display:none;
@@ -219,7 +257,6 @@
     }
 
     @media (max-width:980px){
-      /* ✅ add space so nav doesn't cover content */
       .content{
         padding:14px;
         padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
@@ -265,8 +302,8 @@
           <div class="card">
             <h2>Shipping &amp; tracking</h2>
             <p>
-              Shipping options and cost are calculated at checkout.
-              Whenever possible we provide a <b>tracking number</b>.
+              All shipments include a <b>tracking number</b>.
+              Packages are sent as tracked parcels (up to <b>2 kg</b>).
             </p>
             <ul>
               <li>Tracking updates may appear with a delay.</li>
@@ -274,13 +311,43 @@
             </ul>
           </div>
 
+          <!-- ✅ NEW: Shipping prices -->
+          <div class="card">
+            <h2>Shipping prices</h2>
+
+            <div class="priceRow">
+              <div class="priceLeft">
+                <p class="priceTitle">🇩🇪 Germany</p>
+                <div class="priceSub">Tracked shipping • up to 2 kg</div>
+              </div>
+              <div class="priceTag">6.00 €</div>
+            </div>
+
+            <div class="priceRow">
+              <div class="priceLeft">
+                <p class="priceTitle">🇪🇺 Europe</p>
+                <div class="priceSub">Tracked shipping • up to 2 kg</div>
+              </div>
+              <div class="priceTag">14.50 €</div>
+            </div>
+
+            <div class="priceRow">
+              <div class="priceLeft">
+                <p class="priceTitle">🇺🇸 USA / 🇨🇦 Canada</p>
+                <div class="priceSub">Tracked shipping • up to 2 kg</div>
+              </div>
+              <div class="priceTag">27.00 €</div>
+            </div>
+
+            <span class="pill">Prices shown in EUR</span>
+          </div>
+
           <div class="card">
             <h2>Delivery estimates</h2>
             <ul>
-              <li><b>EU</b>: usually 3–10 business days</li>
-              <li><b>UK</b>: usually 5–12 business days</li>
+              <li><b>Germany</b>: usually 1–3 business days</li>
+              <li><b>Europe</b>: usually 3–10 business days</li>
               <li><b>USA / Canada</b>: usually 7–18 business days</li>
-              <li><b>Worldwide</b>: usually 10–25 business days</li>
             </ul>
             <p>These are estimates, not guarantees.</p>
           </div>
@@ -337,7 +404,7 @@
       else document.getElementById("mShop")?.classList.add("active");
     })();
 
-    // если пользователь пришёл со Stripe success/canceled на эти страницы — перекинем на главную с тостом
+    // если пользователь пришёл со Stripe success/canceled на эти страницы — перекинем на главную
     (function(){
       const u = new URL(window.location.href);
       const ok = u.searchParams.get("success")==="1";
