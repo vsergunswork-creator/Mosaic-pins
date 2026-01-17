@@ -1,6 +1,6 @@
 // functions/api/checkout.js
 // POST /api/checkout
-// body: { currency: "EUR"|"USD", items: [{ pin: "G7N21g", qty: 1 }, ...] }
+// body: { currency: "EUR"|"USD", shippingCountry: "DE"|"US"|..., items: [{ pin: "G7N21g", qty: 1 }, ...] }
 
 export function onRequestOptions(ctx) {
   const { request } = ctx;
@@ -16,8 +16,15 @@ export async function onRequestPost(ctx) {
     const currency = String(body.currency || "EUR").toUpperCase();
     const items = Array.isArray(body.items) ? body.items : [];
 
+    // ✅ NEW: shipping country (ISO2)
+    const shippingCountry = String(body.shippingCountry || "").trim().toUpperCase();
+
     if (!["EUR", "USD"].includes(currency)) {
       return json({ ok: false, error: "Invalid currency" }, 400, headers);
+    }
+
+    if (!shippingCountry || shippingCountry.length !== 2) {
+      return json({ ok: false, error: "shippingCountry is required (ISO2, e.g. DE, US, CA)" }, 400, headers);
     }
 
     // --- ENV ---
@@ -83,7 +90,7 @@ export async function onRequestPost(ctx) {
 
     // --- 2) Validate cart + build Stripe line_items ---
     const line_items = [];
-    const metaItems = []; // for webhook stock update + Orders link
+    const metaItems = [];
 
     for (const pin of pins) {
       const qty = cartMap.get(pin);
@@ -105,16 +112,13 @@ export async function onRequestPost(ctx) {
         price_data: {
           currency: currency.toLowerCase(),
           unit_amount: Math.round(unit * 100),
-          product_data: {
-            name: `${p.title} • ${p.pin}`,
-          },
+          product_data: { name: `${p.title} • ${p.pin}` },
         },
       });
 
       metaItems.push({ recordId: p.recordId, pin: p.pin, qty });
     }
 
-    // --- metadata size safety ---
     const itemsStr = JSON.stringify(metaItems);
     if (itemsStr.length > 450) {
       return json(
@@ -127,24 +131,61 @@ export async function onRequestPost(ctx) {
       );
     }
 
-    // ✅ Европа (широко) + США + Канада
-    const SHIPPING_COUNTRIES = [
+    // =========================
+    // ✅ Shipping zones + цены
+    // Germany: 6
+    // Europe: 14.50
+    // USA/Canada: 27
+    // =========================
+
+    const EUROPE_COUNTRIES = [
       // EU
       "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
       // EEA + UK + CH
       "NO","IS","LI","GB","CH",
       // Europe nearby
       "AL","BA","ME","MK","RS","MD","UA",
-      // US/CA
-      "US","CA"
     ];
 
-    // ✅ Shipping prices (cents)
-    // В EUR: DE=6, Europe=14.50, US/CA=27
-    // В USD: ставим те же числа (но в USD). Если хотите другие значения для USD — скажите, поменяю.
-    const shipDE = moneyToCents(6.00);
-    const shipEU = moneyToCents(14.50);
-    const shipUSCA = moneyToCents(27.00);
+    const USCA_COUNTRIES = ["US", "CA"];
+
+    function detectZone(cc) {
+      if (cc === "DE") return "DE";
+      if (USCA_COUNTRIES.includes(cc)) return "USCA";
+      if (EUROPE_COUNTRIES.includes(cc)) return "EU";
+      return "UNSUPPORTED";
+    }
+
+    const zone = detectZone(shippingCountry);
+    if (zone === "UNSUPPORTED") {
+      return json(
+        {
+          ok: false,
+          error: `Shipping is not available to ${shippingCountry}.`,
+        },
+        400,
+        headers
+      );
+    }
+
+    // ✅ allowed countries in Stripe (so customer cannot change to “wrong” country)
+    let allowedCountries = [];
+    let shippingName = "";
+    let shippingCents = 0;
+
+    if (zone === "DE") {
+      allowedCountries = ["DE"];
+      shippingName = "Germany shipping (tracked)";
+      shippingCents = moneyToCents(6.0);
+    } else if (zone === "EU") {
+      allowedCountries = EUROPE_COUNTRIES; // including DE is ok, but Germany customers should send DE => zone DE on your site
+      shippingName = "Europe shipping (tracked)";
+      shippingCents = moneyToCents(14.5);
+    } else {
+      allowedCountries = USCA_COUNTRIES;
+      shippingName = "USA / Canada shipping (tracked)";
+      shippingCents = moneyToCents(27.0);
+    }
 
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
@@ -157,42 +198,24 @@ export async function onRequestPost(ctx) {
         metadata: {
           currency,
           items: itemsStr,
+          shippingCountry,
+          shippingZone: zone,
         },
 
         // ✅ address + phone
-        shipping_address_collection: { allowed_countries: SHIPPING_COUNTRIES },
+        shipping_address_collection: { allowed_countries: allowedCountries },
         phone_number_collection: { enabled: true },
 
-        // ✅ REAL shipping prices
+        // ✅ ONLY ONE shipping option (auto)
         shipping_options: [
           {
             shipping_rate_data: {
               type: "fixed_amount",
               fixed_amount: {
-                amount: shipDE,
+                amount: shippingCents,
                 currency: currency.toLowerCase(),
               },
-              display_name: "Germany shipping (tracked)",
-            },
-          },
-          {
-            shipping_rate_data: {
-              type: "fixed_amount",
-              fixed_amount: {
-                amount: shipEU,
-                currency: currency.toLowerCase(),
-              },
-              display_name: "Europe shipping (tracked)",
-            },
-          },
-          {
-            shipping_rate_data: {
-              type: "fixed_amount",
-              fixed_amount: {
-                amount: shipUSCA,
-                currency: currency.toLowerCase(),
-              },
-              display_name: "USA / Canada shipping (tracked)",
+              display_name: shippingName,
             },
           },
         ],
@@ -262,9 +285,7 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
   form.set("success_url", payload.success_url);
   form.set("cancel_url", payload.cancel_url);
 
-  if (payload.client_reference_id) {
-    form.set("client_reference_id", String(payload.client_reference_id));
-  }
+  if (payload.client_reference_id) form.set("client_reference_id", String(payload.client_reference_id));
 
   if (payload.metadata) {
     for (const [k, v] of Object.entries(payload.metadata)) {
@@ -283,7 +304,6 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
     form.set(`phone_number_collection[enabled]`, "true");
   }
 
-  // ✅ shipping_options
   if (Array.isArray(payload.shipping_options) && payload.shipping_options.length) {
     payload.shipping_options.forEach((opt, i) => {
       const srd = opt?.shipping_rate_data;
