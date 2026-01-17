@@ -200,6 +200,20 @@
       text-align:center;
     }
 
+    /* ✅ NEW: Shipping country select (like Shop/About) */
+    .shipCountry{
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-size:13px;
+      outline:none;
+      white-space:nowrap;
+      min-height:44px;
+      appearance:none;
+    }
+
     /* ✅ content fills height */
     .content{
       padding:18px;
@@ -769,7 +783,6 @@
 
         <div class="sb-card">
           <h3>Contact</h3>
-          <!-- ✅ fixed email domain -->
           <p><a style="color:var(--text); text-decoration:none; opacity:.9" href="mailto:support@mosaicpins.space">support@mosaicpins.space</a></p>
         </div>
       </div>
@@ -788,6 +801,14 @@
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
+
+          <!-- ✅ NEW: Shipping country (stored in localStorage) -->
+          <select class="shipCountry" id="shipCountry" title="Shipping country">
+            <option value="DE">Germany (DE)</option>
+            <option value="EU">Europe (EU)</option>
+            <option value="US">United States (US)</option>
+            <option value="CA">Canada (CA)</option>
+          </select>
         </div>
       </div>
 
@@ -868,7 +889,6 @@
         <span class="sep">|</span>
         <a href="/returns">Returns & Refunds</a>
         <span class="sep">|</span>
-        <!-- ✅ fixed email domain -->
         <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
       </footer>
     </main>
@@ -885,7 +905,7 @@
     </div>
   </nav>
 
-  <!-- ✅ Cart Drawer (now real, like Shop) -->
+  <!-- ✅ Cart Drawer -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -934,7 +954,8 @@
   const API_CHECKOUT = "/api/checkout";
 
   const CART_KEY = "mp_cart";
-  const CURRENCY_KEY = "mp_currency"; // optional shared key
+  const CURRENCY_KEY = "mp_currency";
+  const SHIP_KEY = "mp_ship_country"; // ✅ NEW
 
   function readCart(){
     try{
@@ -964,18 +985,57 @@
   }
 
   // ==========================
+  // ✅ SHIPPING (same as Shop/About)
+  // ==========================
+  const elShipCountry = document.getElementById("shipCountry");
+
+  (function restoreShipping(){
+    try{
+      const ship = (localStorage.getItem(SHIP_KEY) || "").toUpperCase();
+      if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
+
+      if (!localStorage.getItem(SHIP_KEY)) {
+        let guess = "DE";
+        try{
+          const loc = (navigator.language || "").split("-")[1] || "";
+          const cc = String(loc).toUpperCase();
+          if (cc === "US") guess = "US";
+          else if (cc === "CA") guess = "CA";
+          else if (cc === "DE") guess = "DE";
+          else if (cc) guess = "EU";
+        }catch(_){}
+        elShipCountry.value = guess;
+        localStorage.setItem(SHIP_KEY, guess);
+      }
+    }catch(_){}
+  })();
+
+  elShipCountry.addEventListener("change", () => {
+    try{ localStorage.setItem(SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+    toast("Shipping", `Destination: ${elShipCountry.value}`);
+  });
+
+  function getShippingCountryISO2(){
+    const v = String(elShipCountry.value || "DE").toUpperCase();
+    if (v === "EU") return "DE"; // EU group -> default ISO2
+    if (v === "US") return "US";
+    if (v === "CA") return "CA";
+    return "DE";
+  }
+
+  // ==========================
   // ✅ CART (same behaviour as Shop)
   // ==========================
-  const elCartBadge   = document.getElementById("cartBadge");
-  const elOpenCart    = document.getElementById("openCart");
-  const elCartBack    = document.getElementById("cartBack");
-  const elCartDrawer  = document.getElementById("cartDrawer");
-  const elCloseCart   = document.getElementById("closeCart");
-  const elCartBody    = document.getElementById("cartBody");
-  const elCartTotal   = document.getElementById("cartTotal");
-  const elCartCheckout= document.getElementById("cartCheckout");
-  const elCartClear   = document.getElementById("cartClear");
-  const elCurrency    = document.getElementById("currency");
+  const elCartBadge    = document.getElementById("cartBadge");
+  const elOpenCart     = document.getElementById("openCart");
+  const elCartBack     = document.getElementById("cartBack");
+  const elCartDrawer   = document.getElementById("cartDrawer");
+  const elCloseCart    = document.getElementById("closeCart");
+  const elCartBody     = document.getElementById("cartBody");
+  const elCartTotal    = document.getElementById("cartTotal");
+  const elCartCheckout = document.getElementById("cartCheckout");
+  const elCartClear    = document.getElementById("cartClear");
+  const elCurrency     = document.getElementById("currency");
 
   function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
 
@@ -1121,8 +1181,12 @@
 
     const currency = getCurrency();
 
+    // ✅ ensure country saved
+    try{ localStorage.setItem(SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+
     const payload = {
       currency,
+      shippingCountry: getShippingCountryISO2(), // ✅ NEW
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
 
@@ -1176,7 +1240,7 @@
   })();
 
   // ==========================
-  // ⭐ Reviews logic (your original, unchanged)
+  // ⭐ Reviews logic (original)
   // ==========================
   function starsText(r){
     r = Number(r)||0;
