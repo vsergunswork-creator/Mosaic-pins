@@ -139,8 +139,13 @@ export async function onRequestPost(ctx) {
       "US","CA"
     ];
 
-    // ✅ NEW: делаем адрес "обязательным" через shipping_options
-    // (это и есть фикс, чтобы shipping_details реально пришёл в webhook)
+    // ✅ Shipping prices (cents)
+    // В EUR: DE=6, Europe=14.50, US/CA=27
+    // В USD: ставим те же числа (но в USD). Если хотите другие значения для USD — скажите, поменяю.
+    const shipDE = moneyToCents(6.00);
+    const shipEU = moneyToCents(14.50);
+    const shipUSCA = moneyToCents(27.00);
+
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
       payload: {
@@ -158,16 +163,36 @@ export async function onRequestPost(ctx) {
         shipping_address_collection: { allowed_countries: SHIPPING_COUNTRIES },
         phone_number_collection: { enabled: true },
 
-        // ✅ IMPORTANT: without this Stripe may not persist shipping_details
+        // ✅ REAL shipping prices
         shipping_options: [
           {
             shipping_rate_data: {
               type: "fixed_amount",
               fixed_amount: {
-                amount: 0, // free shipping
+                amount: shipDE,
                 currency: currency.toLowerCase(),
               },
-              display_name: "Standard shipping",
+              display_name: "Germany shipping (tracked)",
+            },
+          },
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              fixed_amount: {
+                amount: shipEU,
+                currency: currency.toLowerCase(),
+              },
+              display_name: "Europe shipping (tracked)",
+            },
+          },
+          {
+            shipping_rate_data: {
+              type: "fixed_amount",
+              fixed_amount: {
+                amount: shipUSCA,
+                currency: currency.toLowerCase(),
+              },
+              display_name: "USA / Canada shipping (tracked)",
             },
           },
         ],
@@ -206,6 +231,10 @@ function json(obj, status = 200, headers = {}) {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
   });
+}
+
+function moneyToCents(amount) {
+  return Math.round(Number(amount) * 100);
 }
 
 async function airtableFetchByPins({ token, baseId, table, pins }) {
@@ -254,17 +283,15 @@ async function stripeCreateCheckoutSession({ secretKey, payload }) {
     form.set(`phone_number_collection[enabled]`, "true");
   }
 
-  // ✅ NEW: shipping_options (required to get shipping_details reliably)
+  // ✅ shipping_options
   if (Array.isArray(payload.shipping_options) && payload.shipping_options.length) {
     payload.shipping_options.forEach((opt, i) => {
       const srd = opt?.shipping_rate_data;
       if (!srd) return;
 
-      // type + display_name
       if (srd.type) form.set(`shipping_options[${i}][shipping_rate_data][type]`, String(srd.type));
       if (srd.display_name) form.set(`shipping_options[${i}][shipping_rate_data][display_name]`, String(srd.display_name));
 
-      // fixed_amount
       if (srd.fixed_amount?.amount != null) {
         form.set(`shipping_options[${i}][shipping_rate_data][fixed_amount][amount]`, String(srd.fixed_amount.amount));
       }
