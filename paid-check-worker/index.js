@@ -117,7 +117,7 @@ async function runPaidCheck(env) {
 
       const text = `Hello ${name || "friend"},
 
-Thank you for your order ${niceOrderId}! 💚
+Thank you for your order ${niceOrderId}!
 We’ve received your payment and your order is now in processing.
 
 ${amountLine}
@@ -164,7 +164,7 @@ If you have any questions, just reply to this email.
 
       <div style="color:#a8b3c7; font-size:14px; line-height:1.5; margin-bottom:16px;">
         Thank you for your order <b style="color:#e9eef7;">${escapeHtml(niceOrderId)}</b> 💚<br/>
-        We’ve received your payment. Your order is now being processed. ✅
+        We’ve received your payment. Your order is now being processed.✅
       </div>
 
       <div style="
