@@ -311,7 +311,7 @@
             </ul>
           </div>
 
-          <!-- ✅ NEW: Shipping prices -->
+          <!-- ✅ Shipping prices (AUTO: shows EUR or USD) -->
           <div class="card">
             <h2>Shipping prices</h2>
 
@@ -320,7 +320,7 @@
                 <p class="priceTitle">🇩🇪 Germany</p>
                 <div class="priceSub">Tracked shipping • up to 2 kg</div>
               </div>
-              <div class="priceTag">6.00 €</div>
+              <div class="priceTag" id="pDE">—</div>
             </div>
 
             <div class="priceRow">
@@ -328,7 +328,7 @@
                 <p class="priceTitle">🇪🇺 Europe</p>
                 <div class="priceSub">Tracked shipping • up to 2 kg</div>
               </div>
-              <div class="priceTag">14.50 €</div>
+              <div class="priceTag" id="pEU">—</div>
             </div>
 
             <div class="priceRow">
@@ -336,10 +336,10 @@
                 <p class="priceTitle">🇺🇸 USA / 🇨🇦 Canada</p>
                 <div class="priceSub">Tracked shipping • up to 2 kg</div>
               </div>
-              <div class="priceTag">27.00 €</div>
+              <div class="priceTag" id="pUSCA">—</div>
             </div>
 
-            <span class="pill">Prices shown in EUR</span>
+            <span class="pill" id="priceHint">—</span>
           </div>
 
           <div class="card">
@@ -412,6 +412,46 @@
       if(ok || cn){
         window.location.replace("/index.html?" + (ok ? "success=1" : "canceled=1"));
       }
+    })();
+
+    // ✅ AUTO PRICES: based on saved mp_currency OR mp_ship_country
+    (function(){
+      const MP_CUR_KEY = "mp_currency";
+      const MP_SHIP_KEY = "mp_ship_country";
+
+      const SHIPPING = {
+        EUR: { DE: 6.00, EU: 14.50, USCA: 27.00 },
+        USD: { DE: 8.00, EU: 16.00, USCA: 29.00 },
+      };
+
+      function getCurrency(){
+        const c = String(localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
+        if (c === "EUR" || c === "USD") return c;
+
+        // fallback: by shipping country
+        const ship = String(localStorage.getItem(MP_SHIP_KEY) || "DE").toUpperCase();
+        if (ship === "US" || ship === "CA") return "USD";
+        return "EUR";
+      }
+
+      function fmt(cur, v){
+        if (!Number.isFinite(v)) return "—";
+        return cur === "EUR" ? `${v.toFixed(2)} €` : `$${v.toFixed(2)}`;
+      }
+
+      const cur = getCurrency();
+      const p = SHIPPING[cur] || SHIPPING.EUR;
+
+      const elDE = document.getElementById("pDE");
+      const elEU = document.getElementById("pEU");
+      const elUSCA = document.getElementById("pUSCA");
+      const elHint = document.getElementById("priceHint");
+
+      if (elDE) elDE.textContent = fmt(cur, p.DE);
+      if (elEU) elEU.textContent = fmt(cur, p.EU);
+      if (elUSCA) elUSCA.textContent = fmt(cur, p.USCA);
+
+      if (elHint) elHint.textContent = `Prices shown in ${cur}`;
     })();
   </script>
 </body>
