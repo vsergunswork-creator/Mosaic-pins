@@ -1094,6 +1094,9 @@ elShipCountry.addEventListener("change", () => {
     writeCart([]);
     updateCartBadge();
     renderCart();
+
+    // ✅ apply correct currency after restoring settings
+autoCurrencyByShippingCountry();
   }
 
   function cartTotal(){
