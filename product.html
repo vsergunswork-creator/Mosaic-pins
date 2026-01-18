@@ -158,6 +158,7 @@
       overflow:auto;
       min-height:0;
       overscroll-behavior: none;
+      /* ✅ space for footer */
       padding-bottom: calc(18px + max(34px, env(safe-area-inset-bottom, 0px)) + 40px);
     }
 
@@ -177,6 +178,7 @@
       .content{
         padding:14px;
         overflow:auto;
+        /* ✅ space for footer */
         padding-bottom: calc(14px + max(44px, env(safe-area-inset-bottom, 0px)) + 56px);
       }
     }
@@ -536,6 +538,57 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
+    /* ✅ FOOTER (same style as index) */
+    .footer{
+      margin-top:auto;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding:14px 18px;
+      flex: 0 0 auto;
+    }
+    .footerRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .footerBrand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .footerLinks{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .footerLinks a{
+      text-decoration:none;
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+    }
+    .footerLinks a:hover{
+      background:rgba(255,255,255,.08);
+      transform: translateY(-1px);
+      color:var(--text);
+    }
+    @media (max-width:980px){
+      .footer{padding:12px 14px;}
+      .footerRow{justify-content:center;}
+      .footerLinks{justify-content:center;}
+    }
+
     @media (prefers-reduced-motion: reduce){
       .hero-inner{will-change:auto}
     }
@@ -633,6 +686,24 @@
           </aside>
         </div>
       </div>
+
+      <!-- ✅ FOOTER (added only) -->
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span class="dot" aria-hidden="true"></span>
+            <span>© <span id="year"></span> Mosaic Pins</span>
+          </div>
+
+          <div class="footerLinks" aria-label="Footer links">
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns & Refunds</a>
+            <a href="/reviews">Reviews</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
+          </div>
+        </div>
+      </footer>
     </main>
   </div>
 
@@ -661,7 +732,11 @@
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
+
 <script>
+  // ✅ footer year
+  document.getElementById("year").textContent = String(new Date().getFullYear());
+
   const API_PRODUCT = "/api/product";
   const API_CHECKOUT = "/api/checkout";
 
@@ -1032,7 +1107,7 @@
     const thumbs = el("thumbs");
     if (!thumbs) return;
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
+    const active = thumbs.querySelector(\`.t[data-idx="\${currentIndex}"]\`);
     if (active) active.classList.add("active");
   }
 
@@ -1067,7 +1142,7 @@
     carousel.innerHTML = "";
 
     if (!imagesState.length){
-      carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
+      carousel.innerHTML = \`<div class="heroEmpty">No image</div>\`;
       updateNav();
       return;
     }
@@ -1075,7 +1150,7 @@
     imagesState.forEach((u) => {
       const s = document.createElement("div");
       s.className = "slide";
-      s.innerHTML = `<img src="${escapeHtml(u)}" alt="${escapeHtml(title)}" draggable="false" />`;
+      s.innerHTML = \`<img src="\${escapeHtml(u)}" alt="\${escapeHtml(title)}" draggable="false" />\`;
       carousel.appendChild(s);
     });
 
@@ -1091,7 +1166,7 @@
       const d = document.createElement("div");
       d.className = "t" + (idx===0 ? " active" : "");
       d.dataset.idx = String(idx);
-      d.innerHTML = `<img src="${escapeHtml(u)}" alt="${escapeHtml(title)}" draggable="false" />`;
+      d.innerHTML = \`<img src="\${escapeHtml(u)}" alt="\${escapeHtml(title)}" draggable="false" />\`;
       d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
@@ -1165,7 +1240,7 @@
       curr.ry += (target.ry - curr.ry) * k;
 
       heroInner.style.transform =
-        `translate3d(${curr.x}px, ${curr.y}px, 0) rotateX(${curr.rx}deg) rotateY(${curr.ry}deg) scale(${target.s})`;
+        \`translate3d(\${curr.x}px, \${curr.y}px, 0) rotateX(\${curr.rx}deg) rotateY(\${curr.ry}deg) scale(\${target.s})\`;
 
       requestAnimationFrame(apply);
     }
