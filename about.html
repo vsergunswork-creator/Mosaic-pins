@@ -838,12 +838,14 @@
       </nav>
 
       <div class="sb-scroll">
-        <div class="sb-section"><span>Info</span><span class="pill">mosaicipns.space</span></div>
+        <!-- ✅ fixed typo: mosaicpins.space -->
+        <div class="sb-section"><span>Info</span><span class="pill">mosaicpins.space</span></div>
 
         <div class="sb-card">
           <h3>Contact</h3>
           <p>
-            <a href="mailto:support@mosaiсpins.space">support@mosaiсpins.space</a>
+            <!-- ✅ fixed: latin 'c' in domain -->
+            <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
           </p>
         </div>
       </div>
@@ -921,7 +923,8 @@
         <a href="/reviews">Reviews</a>
         <span class="sep">|</span>
 
-        <a href="mailto:support@mosaiсpins.space">support@mosaiсpins.space</a>
+        <!-- ✅ fixed: latin 'c' in domain -->
+        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
       </footer>
     </main>
   </div>
@@ -1034,7 +1037,7 @@
   const elShipCountry = document.getElementById("shipCountry");
   const elCurrency = document.getElementById("currency");
 
-  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
+  function updateCartBadge(){ if (elCartBadge) elCartBadge.textContent = String(cartCount()); }
 
   function getCurrency(){
     const saved = (localStorage.getItem(CUR_KEY) || "").toUpperCase();
@@ -1050,7 +1053,7 @@
 
   // ✅ hard rule: US/CA => USD, DE/EU => EUR
   function enforceCurrencyByShipping(){
-    const ship = String(elShipCountry.value || "DE").toUpperCase();
+    const ship = String(elShipCountry?.value || "DE").toUpperCase();
     const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
     if (getCurrency() !== must){
       setCurrency(must);
@@ -1067,10 +1070,10 @@
 
       // shipping
       const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
-      if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
+      if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
 
       // first time guess shipping if not set
-      if (!localStorage.getItem(MP_SHIP_KEY)){
+      if (!localStorage.getItem(MP_SHIP_KEY) && elShipCountry){
         let guess = "DE";
         try{
           const loc = (navigator.language || "").split("-")[1] || "";
@@ -1081,7 +1084,7 @@
           else if (cc) guess = "EU";
         }catch(_){}
         elShipCountry.value = guess;
-        localStorage.setItem(MP_SHIP_KEY, guess);
+        try{ localStorage.setItem(MP_SHIP_KEY, guess); }catch(_){}
       }
 
       // ✅ enforce currency once on load
@@ -1091,23 +1094,27 @@
   })();
 
   // events
-  elCurrency.addEventListener("change", () => {
-    setCurrency(elCurrency.value);
-    enforceCurrencyByShipping(); // ✅ do not allow wrong currency
-    renderCart();
-  });
+  if (elCurrency){
+    elCurrency.addEventListener("change", () => {
+      setCurrency(elCurrency.value);
+      enforceCurrencyByShipping(); // ✅ do not allow wrong currency
+      renderCart();
+    });
+  }
 
-  elShipCountry.addEventListener("change", () => {
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
-    enforceCurrencyByShipping();
-    renderCart();
-    toast("Shipping", `Destination: ${elShipCountry.value}`);
-  });
+  if (elShipCountry){
+    elShipCountry.addEventListener("change", () => {
+      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+      enforceCurrencyByShipping();
+      renderCart();
+      toast("Shipping", `Destination: ${elShipCountry.value}`);
+    });
+  }
 
   // ✅ Map UI selection -> ISO2 for API
   // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
-    const v = String(elShipCountry.value || "DE").toUpperCase();
+    const v = String(elShipCountry?.value || "DE").toUpperCase();
     if (v === "US") return "US";
     if (v === "CA") return "CA";
     if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
@@ -1116,21 +1123,28 @@
 
   // cart drawer
   function openCart(){
-    elCartBack.classList.add("show");
-    elCartDrawer.classList.add("show");
+    elCartBack?.classList.add("show");
+    elCartDrawer?.classList.add("show");
     document.body.style.overflow = "hidden";
     renderCart();
   }
   function closeCart(){
-    elCartBack.classList.remove("show");
-    elCartDrawer.classList.remove("show");
+    elCartBack?.classList.remove("show");
+    elCartDrawer?.classList.remove("show");
     document.body.style.overflow = "";
   }
 
-  elOpenCart.addEventListener("click", openCart);
-  elCloseCart.addEventListener("click", closeCart);
-  elCartBack.addEventListener("click", closeCart);
-  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeCart(); });
+  elOpenCart?.addEventListener("click", openCart);
+  elCloseCart?.addEventListener("click", closeCart);
+  elCartBack?.addEventListener("click", closeCart);
+
+  // ✅ Escape closes cart only if cart is open AND lightbox is NOT open
+  window.addEventListener("keydown", (e)=>{
+    if (e.key !== "Escape") return;
+    const lbOpen = document.getElementById("lightbox")?.classList.contains("show");
+    const cartOpen = elCartDrawer?.classList.contains("show");
+    if (cartOpen && !lbOpen) closeCart();
+  });
 
   function setCartQty(pin, qty){
     const cart = readCart();
@@ -1174,6 +1188,8 @@
   }
 
   function renderCart(){
+    if (!elCartBody || !elCartTotal || !elCartCheckout) return;
+
     const cart = readCart();
     const cur = getCurrency();
 
@@ -1199,7 +1215,7 @@
         : "—";
 
       return `
-        <div class="cartItem" data-pin="${escapeHtml(it.pin)}">
+        <div class="cartItem" data-pin="${escapeHtml(String(it.pin || ""))}">
           <div class="cartImg">${img}</div>
           <div>
             <p class="cartName">${escapeHtml(it.title || it.pin)}</p>
@@ -1207,7 +1223,7 @@
             <div class="cartRow">
               <div class="cartQty">
                 <button type="button" data-act="minus">−</button>
-                <input value="${escapeHtml(it.qty)}" inputmode="numeric" />
+                <input value="${escapeHtml(String(it.qty || 1))}" inputmode="numeric" />
                 <button type="button" data-act="plus">+</button>
               </div>
               <button class="cartRemove" type="button" data-act="remove">✕</button>
@@ -1221,24 +1237,32 @@
     [...elCartBody.querySelectorAll(".cartItem")].forEach(row => {
       const pin = row.getAttribute("data-pin");
       const input = row.querySelector("input");
-      row.querySelector('button[data-act="minus"]').addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
-      row.querySelector('button[data-act="plus"]').addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
-      input.addEventListener("change", () => setCartQty(pin, Number(input.value)));
-      row.querySelector('button[data-act="remove"]').addEventListener("click", () => removeFromCart(pin));
+
+      row.querySelector('button[data-act="minus"]')?.addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
+      row.querySelector('button[data-act="plus"]')?.addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
+
+      // ✅ better than "change": reacts immediately on mobile
+      input?.addEventListener("input", () => {
+        const v = Number(input.value);
+        if (!Number.isFinite(v)) return;
+        setCartQty(pin, v);
+      });
+
+      row.querySelector('button[data-act="remove"]')?.addEventListener("click", () => removeFromCart(pin));
     });
 
     const sum = cartTotal();
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
   }
 
-  elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+  elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
   async function startCheckout(){
     const cart = readCart();
     if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
 
     // ✅ ensure ship saved
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
 
     // ✅ enforce currency before sending
     enforceCurrencyByShipping();
@@ -1249,8 +1273,10 @@
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
 
-    elCartCheckout.disabled = true;
-    elCartCheckout.textContent = "Redirecting…";
+    if (elCartCheckout){
+      elCartCheckout.disabled = true;
+      elCartCheckout.textContent = "Redirecting…";
+    }
 
     try{
       const r = await fetch(API_CHECKOUT, {
@@ -1267,11 +1293,13 @@
       window.location.href = data.url;
     }catch(e){
       toast("Checkout", String(e?.message || e));
-      elCartCheckout.disabled = false;
-      elCartCheckout.textContent = "Checkout";
+      if (elCartCheckout){
+        elCartCheckout.disabled = false;
+        elCartCheckout.textContent = "Checkout";
+      }
     }
   }
-  elCartCheckout.addEventListener("click", startCheckout);
+  elCartCheckout?.addEventListener("click", startCheckout);
 
   // ==========================
   // Airtable content load (original)
