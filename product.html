@@ -574,7 +574,6 @@
             <option value="USD">USD $</option>
           </select>
 
-          <!-- ✅ NEW: Shipping country (stored in localStorage) -->
           <select class="shipCountry" id="shipCountry" title="Shipping country">
             <option value="DE">Germany (DE)</option>
             <option value="EU">Europe (EU)</option>
@@ -652,7 +651,7 @@
         <div id="cartTotal">—</div>
       </div>
       <div class="cartActions">
-        <button class="btn" id="cartCheckout" type="button">Checkout (later)</button>
+        <button class="btn" id="cartCheckout" type="button">Checkout</button>
         <button class="btn2" id="cartClear" type="button">Clear cart</button>
       </div>
     </div>
@@ -669,9 +668,14 @@
 
   const CART_KEY = "mp_cart";
 
-  // ✅ NEW: persisted settings (same keys as main shop)
+  // ✅ same keys as main shop
   const MP_CUR_KEY = "mp_currency";
   const MP_SHIP_KEY = "mp_ship_country";
+
+  const el = (id) => document.getElementById(id);
+
+  const elCurrency = el("currency");
+  const elShipCountry = el("shipCountry");
 
   function readCart(){
     try{
@@ -682,8 +686,6 @@
   }
   function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
   function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
-
-  const el = (id) => document.getElementById(id);
 
   function updateCartBadge(){ el("cartBadge").textContent = String(cartCount()); }
 
@@ -705,7 +707,7 @@
   }
 
   function priceText(priceObj){
-    const cur = el("currency").value;
+    const cur = elCurrency.value;
     const v = priceObj?.[cur];
     if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
@@ -719,17 +721,40 @@
     return q;
   }
 
-  // ✅ NEW: restore persisted selects (currency + shipping)
+  // ✅ auto currency by shipping country
+  function autoCurrencyByShippingCountry(){
+    const ship = String(elShipCountry.value || "DE").toUpperCase();
+
+    // US/CA => USD
+    if (ship === "US" || ship === "CA"){
+      if (elCurrency.value !== "USD"){
+        elCurrency.value = "USD";
+        try{ localStorage.setItem(MP_CUR_KEY, "USD"); }catch(_){}
+      }
+      return;
+    }
+
+    // DE/EU => EUR
+    if (ship === "DE" || ship === "EU"){
+      if (elCurrency.value !== "EUR"){
+        elCurrency.value = "EUR";
+        try{ localStorage.setItem(MP_CUR_KEY, "EUR"); }catch(_){}
+      }
+      return;
+    }
+  }
+
+  // ✅ restore persisted selects (currency + shipping)
   (function restoreSettings(){
     try{
       const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
-      if (cur && ["EUR","USD"].includes(cur)) el("currency").value = cur;
+      if (cur && ["EUR","USD"].includes(cur)) elCurrency.value = cur;
 
       const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
-      if (ship && ["DE","EU","US","CA"].includes(ship)) el("shipCountry").value = ship;
+      if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
 
       // if nothing saved yet — try guess from locale (DE default)
-      if (!localStorage.getItem(MP_SHIP_KEY)) {
+      if (!localStorage.getItem(MP_SHIP_KEY)){
         let guess = "DE";
         try{
           const loc = (navigator.language || "").split("-")[1] || "";
@@ -739,26 +764,46 @@
           else if (cc === "DE") guess = "DE";
           else if (cc) guess = "EU";
         }catch(_){}
-        el("shipCountry").value = guess;
+        elShipCountry.value = guess;
         localStorage.setItem(MP_SHIP_KEY, guess);
       }
+
+      // ✅ ensure currency matches shipping on first load
+      autoCurrencyByShippingCountry();
+      try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
     }catch(_){}
   })();
 
-  // ✅ persist on change
-  el("currency").addEventListener("change", () => {
-    try{ localStorage.setItem(MP_CUR_KEY, String(el("currency").value || "EUR").toUpperCase()); }catch(_){}
+  // will be set later after product loads
+  let currentProduct = null;
+  function refreshCurrencyUI(){
     renderCart();
+    if (currentProduct){
+      el("price").textContent = priceText(currentProduct.price);
+    }
+  }
+
+  // ✅ persist on change
+  elCurrency.addEventListener("change", () => {
+    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
+    refreshCurrencyUI();
   });
-  el("shipCountry").addEventListener("change", () => {
-    try{ localStorage.setItem(MP_SHIP_KEY, String(el("shipCountry").value || "DE").toUpperCase()); }catch(_){}
-    toast("Shipping", `Destination: ${el("shipCountry").value}`);
+
+  elShipCountry.addEventListener("change", () => {
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+
+    // ✅ switch currency automatically
+    autoCurrencyByShippingCountry();
+    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
+
+    refreshCurrencyUI();
+    toast("Shipping", `Destination: ${elShipCountry.value}`);
   });
 
   // ✅ Map UI selection -> ISO2 for API
   function getShippingCountryISO2(){
-    const v = String(el("shipCountry").value || "DE").toUpperCase();
-    if (v === "EU") return "DE";   // default ISO2 for EU bucket (Stripe will still ask real address)
+    const v = String(elShipCountry.value || "DE").toUpperCase();
+    if (v === "EU") return "DE"; // EU bucket -> we still send ISO2 (Stripe will ask full address)
     if (v === "US") return "US";
     if (v === "CA") return "CA";
     return "DE";
@@ -794,7 +839,7 @@
   window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeCart(); });
 
   function cartTotal(){
-    const cur = el("currency").value;
+    const cur = elCurrency.value;
     const cart = readCart();
     let sum = 0;
     for (const it of cart){
@@ -848,7 +893,7 @@
 
     elCartBody.innerHTML = cart.map(it => {
       const img = it.image ? `<img src="${it.image}" alt="${escapeHtml(it.title)}" />` : `<span>—</span>`;
-      const cur = el("currency").value;
+      const cur = elCurrency.value;
       const unit = it?.price?.[cur];
       const unitText = (typeof unit === "number")
         ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`)
@@ -891,15 +936,15 @@
     });
 
     const sum = cartTotal();
-    const cur = el("currency").value;
+    const cur = elCurrency.value;
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  // ✅ ✅ ✅ WORKING CHECKOUT FROM CART (Stripe) + shippingCountry
+  // ✅ checkout from cart
   elCartCheckout.addEventListener("click", async () => {
-    const cur = String(el("currency").value || "EUR").toUpperCase();
+    const cur = String(elCurrency.value || "EUR").toUpperCase();
     const cart = readCart();
 
     if (!cart.length){
@@ -907,8 +952,7 @@
       return;
     }
 
-    // ✅ ensure country saved
-    try{ localStorage.setItem(MP_SHIP_KEY, String(el("shipCountry").value || "DE").toUpperCase()); }catch(_){}
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
 
     const items = cart.map(it => ({
       pin: String(it.pin),
@@ -925,7 +969,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currency: cur,
-          shippingCountry: getShippingCountryISO2(), // ✅ NEW
+          shippingCountry: getShippingCountryISO2(),
           items
         }),
       });
@@ -957,7 +1001,6 @@
 
   let currentIndex = 0;
   let imagesState = [];
-  let currentProduct = null;
   let carouselWired = false;
 
   function updateNav(){
@@ -1160,14 +1203,14 @@
   }
 
   async function buyNowOneItem(p, qty){
-    const currency = String(el("currency").value || "EUR").toUpperCase();
+    const currency = String(elCurrency.value || "EUR").toUpperCase();
 
     // ✅ ensure country saved
-    try{ localStorage.setItem(MP_SHIP_KEY, String(el("shipCountry").value || "DE").toUpperCase()); }catch(_){}
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
 
     const payload = {
       currency,
-      shippingCountry: getShippingCountryISO2(), // ✅ NEW
+      shippingCountry: getShippingCountryISO2(),
       items: [{ pin: String(p.pin), qty: Number(qty) || 1 }],
     };
 
@@ -1187,6 +1230,11 @@
 
   async function load(){
     updateCartBadge();
+    renderCart();
+
+    // keep currency consistent if user changed ship on another page
+    autoCurrencyByShippingCountry();
+    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
 
     const url = new URL(window.location.href);
     const pin = (url.searchParams.get("pin") || "").trim();
@@ -1261,7 +1309,7 @@
     qtyInput.addEventListener("input", () => setQty(qtyInput.value));
 
     const renderPrice = () => { el("price").textContent = priceText(p.price); };
-    el("currency").addEventListener("change", renderPrice);
+    elCurrency.addEventListener("change", renderPrice);
     renderPrice();
 
     addBtn.addEventListener("click", () => {
