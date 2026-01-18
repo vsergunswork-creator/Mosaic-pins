@@ -217,7 +217,7 @@
       text-align:center;
     }
 
-    /* ✅ NEW: shipping country select like Shop */
+    /* ✅ shipping country select */
     .shipCountry{
       padding:10px 12px;
       border-radius:999px;
@@ -562,7 +562,7 @@
     .lbNext{ right: 10px; }
 
     /* ==========================
-       ✅ MOBILE BOTTOM NAV (Shop/About/Shipping/Returns/Reviews)
+       ✅ MOBILE BOTTOM NAV
     ========================== */
     .mobileNav{
       display:none; /* desktop hidden */
@@ -612,7 +612,6 @@
       .main{height:auto; min-height:100vh}
       .content{
         padding:14px;
-        /* ✅ место под нижнюю панель */
         padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
       }
       .aboutWrap{grid-template-columns:1fr;}
@@ -634,7 +633,6 @@
       .slide{flex: 0 0 calc((100% - 14px) / 2);}
       .carPrev,.carNext{display:none;}
 
-      /* ✅ show mobile bottom nav */
       .mobileNav{display:block;}
     }
     @media (max-width:520px){
@@ -650,7 +648,7 @@
     }
 
     /* ==========================
-       ✅ CART DRAWER (copied from Shop)
+       ✅ CART DRAWER
     ========================== */
     .cartBack{
       position:fixed;
@@ -807,6 +805,19 @@
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
+
+    /* ✅ currency select INSIDE cart drawer */
+    .currency{
+      width:100%;
+      padding:10px 12px;
+      border-radius:14px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-size:13px;
+      outline:none;
+      white-space:nowrap;
+    }
   </style>
 </head>
 
@@ -852,7 +863,6 @@
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
 
-          <!-- ✅ NEW: Shipping country (stored in localStorage) -->
           <select class="shipCountry" id="shipCountry" title="Shipping country">
             <option value="DE">Germany (DE)</option>
             <option value="EU">Europe (EU)</option>
@@ -916,7 +926,6 @@
     </main>
   </div>
 
-  <!-- ✅ MOBILE BOTTOM NAV -->
   <nav class="mobileNav" aria-label="Bottom navigation">
     <div class="mobileNavRow">
       <a class="mItem" href="/" id="mShop">Shop</a>
@@ -952,6 +961,14 @@
     </div>
     <div class="cartBody" id="cartBody"></div>
     <div class="cartFoot">
+      <!-- ✅ currency inside drawer -->
+      <div style="margin-bottom:10px;">
+        <select class="currency" id="currency" title="Currency">
+          <option value="EUR">EUR €</option>
+          <option value="USD">USD $</option>
+        </select>
+      </div>
+
       <div class="cartSumRow">
         <div>Total</div>
         <div id="cartTotal">—</div>
@@ -970,12 +987,10 @@
 
 <script>
   const API_CONTENT = "/api/content?key=";
-
   const API_CHECKOUT = "/api/checkout";
+
   const CART_KEY = "mp_cart";
   const CUR_KEY = "mp_currency";
-
-  // ✅ NEW: persisted shipping country
   const MP_SHIP_KEY = "mp_ship_country";
 
   function readCart(){
@@ -987,11 +1002,27 @@
   }
   function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
   function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
-  function getCurrency(){ return (localStorage.getItem(CUR_KEY) || "EUR").toUpperCase(); }
 
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  // toast
+  const elToast = document.getElementById("toast");
+  const elToastTitle = document.getElementById("toastTitle");
+  const elToastMsg = document.getElementById("toastMsg");
+  function toast(title, msg){
+    elToastTitle.textContent = title;
+    elToastMsg.textContent = msg;
+    elToast.classList.add("show");
+    setTimeout(()=> elToast.classList.remove("show"), 2600);
+  }
+
+  // UI
   const elCartBadge = document.getElementById("cartBadge");
   const elOpenCart = document.getElementById("openCart");
-
   const elCartBack = document.getElementById("cartBack");
   const elCartDrawer = document.getElementById("cartDrawer");
   const elCloseCart = document.getElementById("closeCart");
@@ -1001,33 +1032,45 @@
   const elCartClear = document.getElementById("cartClear");
 
   const elShipCountry = document.getElementById("shipCountry");
+  const elCurrency = document.getElementById("currency");
 
-  const elToast = document.getElementById("toast");
-  const elToastTitle = document.getElementById("toastTitle");
-  const elToastMsg = document.getElementById("toastMsg");
+  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
 
-  function toast(title, msg){
-    elToastTitle.textContent = title;
-    elToastMsg.textContent = msg;
-    elToast.classList.add("show");
-    setTimeout(()=> elToast.classList.remove("show"), 2600);
+  function getCurrency(){
+    const saved = (localStorage.getItem(CUR_KEY) || "").toUpperCase();
+    if (saved === "EUR" || saved === "USD") return saved;
+    return (elCurrency?.value || "EUR").toUpperCase();
+  }
+  function setCurrency(cur){
+    cur = String(cur || "EUR").toUpperCase();
+    if (cur !== "EUR" && cur !== "USD") cur = "EUR";
+    try{ localStorage.setItem(CUR_KEY, cur); }catch(_){}
+    if (elCurrency) elCurrency.value = cur;
   }
 
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
+  // ✅ hard rule: US/CA => USD, DE/EU => EUR
+  function enforceCurrencyByShipping(){
+    const ship = String(elShipCountry.value || "DE").toUpperCase();
+    const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
+    if (getCurrency() !== must){
+      setCurrency(must);
+      toast("Currency", `Auto set: ${must}`);
+    }
   }
 
-  // ✅ NEW: restore shipping select + guess locale
-  (function restoreShipping(){
+  // ✅ restore shipping + currency
+  (function restoreSettings(){
     try{
-      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
-      if (ship && ["DE","EU","US","CA"].includes(ship)) {
-        elShipCountry.value = ship;
-      }
+      // currency
+      const cur = (localStorage.getItem(CUR_KEY) || "").toUpperCase();
+      if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
 
-      if (!localStorage.getItem(MP_SHIP_KEY)) {
+      // shipping
+      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
+      if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
+
+      // first time guess shipping if not set
+      if (!localStorage.getItem(MP_SHIP_KEY)){
         let guess = "DE";
         try{
           const loc = (navigator.language || "").split("-")[1] || "";
@@ -1040,26 +1083,38 @@
         elShipCountry.value = guess;
         localStorage.setItem(MP_SHIP_KEY, guess);
       }
+
+      // ✅ enforce currency once on load
+      enforceCurrencyByShipping();
+      setCurrency(getCurrency());
     }catch(_){}
   })();
 
-  // ✅ persist on change
+  // events
+  elCurrency.addEventListener("change", () => {
+    setCurrency(elCurrency.value);
+    enforceCurrencyByShipping(); // ✅ do not allow wrong currency
+    renderCart();
+  });
+
   elShipCountry.addEventListener("change", () => {
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+    enforceCurrencyByShipping();
+    renderCart();
     toast("Shipping", `Destination: ${elShipCountry.value}`);
   });
 
   // ✅ Map UI selection -> ISO2 for API
+  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
     const v = String(elShipCountry.value || "DE").toUpperCase();
-    if (v === "EU") return "DE";
     if (v === "US") return "US";
     if (v === "CA") return "CA";
+    if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
     return "DE";
   }
 
-  function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
-
+  // cart drawer
   function openCart(){
     elCartBack.classList.add("show");
     elCartDrawer.classList.add("show");
@@ -1071,6 +1126,7 @@
     elCartDrawer.classList.remove("show");
     document.body.style.overflow = "";
   }
+
   elOpenCart.addEventListener("click", openCart);
   elCloseCart.addEventListener("click", closeCart);
   elCartBack.addEventListener("click", closeCart);
@@ -1181,12 +1237,15 @@
     const cart = readCart();
     if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
 
-    // ✅ ensure country saved
+    // ✅ ensure ship saved
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+
+    // ✅ enforce currency before sending
+    enforceCurrencyByShipping();
 
     const payload = {
       currency: getCurrency(),
-      shippingCountry: getShippingCountryISO2(), // ✅ NEW
+      shippingCountry: getShippingCountryISO2(),
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
 
@@ -1214,7 +1273,9 @@
   }
   elCartCheckout.addEventListener("click", startCheckout);
 
-  // Airtable content load
+  // ==========================
+  // Airtable content load (original)
+  // ==========================
   const hero = document.getElementById("hero");
   const heroImg = document.getElementById("heroImg");
   const heroTitle = document.getElementById("heroTitle");
@@ -1270,7 +1331,6 @@
 
       setHeroBg(c.heroImage);
 
-      /* ✅ ONLY MOBILE: set aspect-ratio from Airtable if provided (desktop untouched) */
       if (window.matchMedia("(max-width: 980px)").matches) {
         const w = Number(c.heroImageWidth || 0);
         const h = Number(c.heroImageHeight || 0);
@@ -1457,7 +1517,7 @@
     }
   });
 
-  /* ✅ Active state for LEFT sidebar + MOBILE bottom nav */
+  // active nav
   (function navActive(){
     const path = window.location.pathname || "/";
 
@@ -1469,7 +1529,6 @@
       { test: (p)=> p.startsWith("/reviews"),        desk:"navReviews",  mob:"mReviews" },
     ];
 
-    // clear
     ["navShop","navAbout","navShipping","navReturns","navReviews"].forEach(id => document.getElementById(id)?.classList.remove("active"));
     ["mShop","mAbout","mShipping","mReturns","mReviews"].forEach(id => document.getElementById(id)?.classList.remove("active"));
 
