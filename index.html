@@ -758,7 +758,6 @@
             <option value="USD">USD $</option>
           </select>
 
-          <!-- ✅ NEW: Shipping country (stored in localStorage) -->
           <select class="shipCountry" id="shipCountry" title="Shipping country">
             <option value="DE">Germany (DE)</option>
             <option value="EU">Europe (EU)</option>
@@ -784,7 +783,6 @@
     </main>
   </div>
 
-  <!-- ✅ Mobile bottom navigation (same style as other pages) -->
   <nav class="mobileNav" aria-label="Bottom navigation">
     <div class="mobileNavRow">
       <a class="mItem" href="/" id="mShop">Shop</a>
@@ -795,7 +793,6 @@
     </div>
   </nav>
 
-  <!-- Mobile Filters Sheet -->
   <div class="sheetBack" id="sheetBack"></div>
   <div class="sheet" id="sheet">
     <div class="sheetHead">
@@ -822,7 +819,6 @@
     </div>
   </div>
 
-  <!-- Cart Drawer -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -853,7 +849,7 @@
 
   const CART_KEY = "mp_cart";
 
-  // ✅ NEW: persisted settings
+  // ✅ persisted settings
   const MP_CUR_KEY = "mp_currency";
   const MP_SHIP_KEY = "mp_ship_country";
 
@@ -924,7 +920,7 @@
     }[m]));
   }
 
-  // ✅ NEW: restore persisted selects (currency + shipping)
+  // ✅ restore persisted selects (currency + shipping)
   (function restoreSettings(){
     try{
       const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
@@ -933,7 +929,6 @@
       const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
       if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
 
-      // if nothing saved yet — try guess from locale (DE default)
       if (!localStorage.getItem(MP_SHIP_KEY)) {
         let guess = "DE";
         try{
@@ -950,48 +945,49 @@
     }catch(_){}
   })();
 
-  // ✅ NEW: auto currency by shipping country
-function autoCurrencyByShippingCountry() {
-  const ship = String(elShipCountry.value || "DE").toUpperCase();
+  // ✅ auto currency by shipping country
+  function autoCurrencyByShippingCountry() {
+    const ship = String(elShipCountry.value || "DE").toUpperCase();
 
-  // US / CA => USD
-  if (ship === "US" || ship === "CA") {
-    if (elCurrency.value !== "USD") {
-      elCurrency.value = "USD";
-      try { localStorage.setItem(MP_CUR_KEY, "USD"); } catch(_) {}
-      render();
-      renderCart();
+    // US / CA => USD
+    if (ship === "US" || ship === "CA") {
+      if (elCurrency.value !== "USD") {
+        elCurrency.value = "USD";
+        try { localStorage.setItem(MP_CUR_KEY, "USD"); } catch(_) {}
+        render();
+        renderCart();
+      }
+      return;
     }
-    return;
-  }
 
-  // DE / EU => EUR
-  if (ship === "DE" || ship === "EU") {
-    if (elCurrency.value !== "EUR") {
-      elCurrency.value = "EUR";
-      try { localStorage.setItem(MP_CUR_KEY, "EUR"); } catch(_) {}
-      render();
-      renderCart();
+    // DE / EU => EUR
+    if (ship === "DE" || ship === "EU") {
+      if (elCurrency.value !== "EUR") {
+        elCurrency.value = "EUR";
+        try { localStorage.setItem(MP_CUR_KEY, "EUR"); } catch(_) {}
+        render();
+        renderCart();
+      }
+      return;
     }
-    return;
   }
-}
 
   // ✅ persist on change
   elCurrency.addEventListener("change", () => {
     try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
     render(); renderCart();
   });
-elShipCountry.addEventListener("change", () => {
-  try{
-    localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase());
-  }catch(_){}
 
-  // ✅ Auto currency switch based on destination
-  autoCurrencyByShippingCountry();
+  elShipCountry.addEventListener("change", () => {
+    try{
+      localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase());
+    }catch(_){}
 
-  toast("Shipping", `Destination: ${elShipCountry.value}`);
-});
+    // ✅ Auto currency switch based on destination
+    autoCurrencyByShippingCountry();
+
+    toast("Shipping", `Destination: ${elShipCountry.value}`);
+  });
 
   function priceText(priceObj){
     const cur = elCurrency.value;
@@ -1170,7 +1166,7 @@ elShipCountry.addEventListener("change", () => {
   // ✅ Map UI selection -> ISO2 for API
   function getShippingCountryISO2(){
     const v = String(elShipCountry.value || "DE").toUpperCase();
-    if (v === "EU") return "DE";   // default ISO2 for EU bucket (Stripe will still ask real address)
+    if (v === "EU") return "DE";
     if (v === "US") return "US";
     if (v === "CA") return "CA";
     return "DE";
@@ -1180,12 +1176,11 @@ elShipCountry.addEventListener("change", () => {
     const cart = readCart();
     if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
 
-    // ✅ ensure country saved
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
 
     const payload = {
       currency: elCurrency.value,
-      shippingCountry: getShippingCountryISO2(), // ✅ NEW REQUIRED FIELD
+      shippingCountry: getShippingCountryISO2(),
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
 
@@ -1393,7 +1388,6 @@ elShipCountry.addEventListener("change", () => {
       }
     }
 
-    // bigger -> smaller
     const diameters = [...diameterMap.values()].sort((a,b)=>{
       const an = (a.num == null ? -Infinity : a.num);
       const bn = (b.num == null ? -Infinity : b.num);
@@ -1491,9 +1485,13 @@ elShipCountry.addEventListener("change", () => {
 
   window.addEventListener("resize", () => { if (window.innerWidth > 980) closeSheet(); });
 
+  // ✅ initial
   updateCartBadge();
   renderCart();
   loadProducts();
+
+  // ✅ auto-currency on page load
+  autoCurrencyByShippingCountry();
 
   (function handleReturn(){
     const u = new URL(window.location.href);
