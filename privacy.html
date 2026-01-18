@@ -173,6 +173,62 @@
       .sidebar{display:none}
       .content{padding:14px}
     }
+
+    /* ===== Footer ===== */
+    .footer{
+      margin-top:auto;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding:14px 18px;
+    }
+
+    .footerRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    .footerBrand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .footerLinks{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .footerLinks a{
+      text-decoration:none;
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+    }
+
+    .footerLinks a:hover{
+      background:rgba(255,255,255,.08);
+      transform: translateY(-1px);
+      color:var(--text);
+    }
+
+    @media (max-width:980px){
+      .footer{padding:12px 14px;}
+      .footerRow{justify-content:center;}
+      .footerLinks{justify-content:center;}
+    }
   </style>
 </head>
 
@@ -266,7 +322,30 @@
           <a class="btn" href="/index.html">← Back to Shop</a>
         </div>
       </div>
+
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span style="display:inline-flex;align-items:center;gap:8px;">
+              <span class="dot"></span>
+              <span>© <span id="year"></span> Mosaic Pins</span>
+            </span>
+          </div>
+
+          <div class="footerLinks">
+            <a href="/about.html">About</a>
+            <a href="/shipping.html">Shipping</a>
+            <a href="/returns.html">Returns</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="mailto:support@mosaicpins.space">Support</a>
+          </div>
+        </div>
+      </footer>
     </main>
   </div>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
