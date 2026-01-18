@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Privacy Policy • Mosaic Pins</title>
+  <style>
+    :root{
+      --bg:#0b0d11;
+      --text:#e9eef7;
+      --muted:#a8b3c7;
+      --line:rgba(255,255,255,.08);
+      --shadow: 0 12px 30px rgba(0,0,0,.45);
+      --r:18px;
+
+      --overlay: rgba(0,0,0,.72);
+      --overlay2: rgba(0,0,0,.82);
+      --panel: rgba(0,0,0,.28);
+      --panelHover: rgba(255,255,255,.05);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--bg);
+      color:var(--text);
+      overflow:auto;
+      position:relative;
+      isolation:isolate;
+    }
+
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20vh -20vw;
+      z-index:-1;
+      pointer-events:none;
+      background:
+        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+        var(--bg);
+      filter: blur(18px) saturate(1.05);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    .app{
+      display:grid;
+      grid-template-columns: 280px 1fr;
+      min-height:100vh;
+      gap:16px;
+      padding:16px;
+    }
+
+    .sidebar{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+
+    .sb-top{
+      padding:18px 18px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
+    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
+    .pill{
+      padding:8px 10px; border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .sb-nav{padding:6px; display:grid; gap:6px;}
+    .nav-item{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      color:var(--muted);
+      text-decoration:none;
+      border:1px solid transparent;
+    }
+    .nav-item:hover{background:rgba(255,255,255,.05); color:var(--text);}
+    .nav-item.active{
+      background:rgba(34,197,94,.12);
+      border-color: rgba(34,197,94,.22);
+      color:var(--text);
+    }
+
+    .main{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+    }
+
+    .topbar{
+      padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .h-title{font-weight:900; font-size:18px; margin:0;}
+    .sub{color:var(--muted); font-size:12px; margin-top:4px}
+
+    .content{
+      padding:18px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .card{
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+      padding:16px;
+      max-width:900px;
+    }
+
+    h2{
+      margin:0 0 10px;
+      font-size:18px;
+      letter-spacing:.2px;
+    }
+
+    h3{
+      margin:18px 0 8px;
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+
+    p, li{
+      color:var(--text);
+      font-size:13px;
+      line-height:1.55;
+    }
+    ul{margin:8px 0 0 18px; padding:0}
+    .muted{color:var(--muted)}
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      border:none; cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:linear-gradient(135deg,#22c55e,#16a34a);
+      color:#07110b;
+      font-weight:900;
+      box-shadow: 0 10px 18px rgba(34,197,94,.18);
+      transition: filter .15s ease, transform .15s ease;
+      text-decoration:none;
+      margin-top:12px;
+    }
+    .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
+
+    @media (max-width:980px){
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none}
+      .content{padding:14px}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="brand"><span class="dot"></span> Mosaic Pins</div>
+        <div class="pill">Legal</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/index.html">Shop</a>
+        <a class="nav-item" href="/about.html">About</a>
+        <a class="nav-item" href="/shipping.html">Shipping</a>
+        <a class="nav-item" href="/returns.html">Returns</a>
+        <a class="nav-item active" href="/privacy.html">Privacy</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 class="h-title">Privacy Policy</h1>
+          <div class="sub">How we collect, use, and protect your data</div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="card">
+          <h2>Privacy Policy of Vitalijs Serguns / Mosaic Pins</h2>
+          <p class="muted">
+            This Privacy Policy explains how and when I collect, use, and share information when you purchase from me,
+            contact me, or otherwise use my services through <b>mosaicpins.space</b>.
+          </p>
+
+          <h3>1. Information I Collect</h3>
+          <p>
+            To fulfill your order, I need certain information, including your name, email address, mailing address,
+            payment details, and information about the product you ordered.
+          </p>
+          <p>
+            When you contact me directly, you may also provide additional personal information
+            (for example, for custom orders).
+          </p>
+
+          <h3>2. Why I Need Your Information and How I Use It</h3>
+          <p>I collect, use, and share your information based on several legal grounds, including:</p>
+          <ul>
+            <li>When necessary to provide my services, such as fulfilling orders, resolving disputes, and offering customer support;</li>
+            <li>When required to comply with legal obligations, such as storing tax-related information about your purchases;</li>
+            <li>To the extent necessary for my legitimate business interests, provided these interests do not override your rights and interests (for example, to provide and improve my services).</li>
+          </ul>
+          <p><b>I do not use your information for marketing or promotional emails.</b></p>
+
+          <h3>3. Information Sharing and Disclosure</h3>
+          <p>Your information is important to my business. I share your personal information only in the following circumstances:</p>
+          <ul>
+            <li><b>Service Providers:</b> I may use trusted third parties (such as shipping companies) to fulfill orders. These parties receive only the information necessary to perform their services;</li>
+            <li><b>Legal Compliance:</b> I may disclose your information if required by law, to prevent fraud, or to protect the rights and safety of my customers and others.</li>
+          </ul>
+
+          <h3>4. Data Retention</h3>
+          <p>
+            I retain your personal data only as long as necessary to fulfill my obligations and comply with legal requirements.
+            Typically, data is kept for up to <b>4 years</b>.
+          </p>
+
+          <h3>5. International Data Transfers</h3>
+          <p>
+            Your information may be stored and processed by third-party cloud services outside the EU.
+            Where this occurs, I take reasonable steps to ensure such transfers comply with GDPR requirements.
+          </p>
+
+          <h3>6. Your Rights</h3>
+          <p>If you reside in the EU, you have certain rights regarding your personal data, including:</p>
+          <ul>
+            <li>Access and obtaining a copy of your data;</li>
+            <li>Correction, restriction, or deletion of your data;</li>
+            <li>Objecting to processing and marketing communications;</li>
+            <li>Filing complaints with EU data protection authorities.</li>
+          </ul>
+
+          <h3>Contact Me</h3>
+          <p>
+            As the data controller under EU law, I am <b>Vitalijs Serguns</b>.<br/>
+            For any questions or concerns, please contact me at:
+            <b>support@mosaicpins.space</b>
+          </p>
+
+          <a class="btn" href="/index.html">← Back to Shop</a>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
