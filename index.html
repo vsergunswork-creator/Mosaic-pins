@@ -334,7 +334,7 @@
       .filtersBtn{display:inline-flex}
       .content{padding:14px}
 
-      /* ✅ место под нижнюю навигацию */
+      /* ✅ place for mobile nav */
       .main{padding-bottom: calc(86px + env(safe-area-inset-bottom));}
 
       .grid{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px}
@@ -640,7 +640,7 @@
     .siteFooter a:hover{opacity:1}
     .siteFooter .sep{opacity:.35}
 
-    /* ✅ MOBILE NAV — UPDATED to match other pages (same style) */
+    /* ✅ MOBILE NAV */
     .mobileNav{ display:none; }
     .mobileNavRow{ display:flex; gap:10px; justify-content:space-between; }
 
@@ -717,7 +717,7 @@
               <div class="selectedTitle">Selected</div>
               <div class="selectedList" id="selectedList">—</div>
             </div>
-            <button class="clearBtn" id="clearDiameters" title="Clear">✕</button>
+            <button class="clearBtn" id="clearDiameters" title="Clear" type="button">✕</button>
           </div>
         </div>
 
@@ -806,7 +806,7 @@
             <div class="selectedTitle">Selected</div>
             <div class="selectedList" id="mSelectedList">—</div>
           </div>
-          <button class="clearBtn" id="mClearDiameters" title="Clear">✕</button>
+          <button class="clearBtn" id="mClearDiameters" title="Clear" type="button">✕</button>
         </div>
       </div>
 
@@ -832,8 +832,8 @@
         <div id="cartTotal">—</div>
       </div>
       <div class="cartActions">
-        <button class="btn" id="cartCheckout">Checkout</button>
-        <button class="btn2" id="cartClear">Clear cart</button>
+        <button class="btn" id="cartCheckout" type="button">Checkout</button>
+        <button class="btn2" id="cartClear" type="button">Clear cart</button>
       </div>
     </div>
   </div>
@@ -844,7 +844,7 @@
   </div>
 
 <script>
-  const API_PRODUCTS = "/api/products";
+const API_PRODUCTS = "/api/products";
   const API_CHECKOUT = "/api/checkout";
 
   const CART_KEY = "mp_cart";
@@ -920,16 +920,40 @@
     }[m]));
   }
 
+  function getCurrency(){
+    const saved = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
+    if (saved === "EUR" || saved === "USD") return saved;
+    return String(elCurrency?.value || "EUR").toUpperCase();
+  }
+  function setCurrency(cur){
+    cur = String(cur || "EUR").toUpperCase();
+    if (cur !== "EUR" && cur !== "USD") cur = "EUR";
+    try{ localStorage.setItem(MP_CUR_KEY, cur); }catch(_){}
+    if (elCurrency) elCurrency.value = cur;
+  }
+
+  // ✅ hard rule: US/CA => USD, DE/EU => EUR
+  function enforceCurrencyByShipping(){
+    const ship = String(elShipCountry?.value || "DE").toUpperCase();
+    const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
+    if (getCurrency() !== must){
+      setCurrency(must);
+    }
+  }
+
   // ✅ restore persisted selects (currency + shipping)
   (function restoreSettings(){
     try{
+      // currency
       const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
-      if (cur && ["EUR","USD"].includes(cur)) elCurrency.value = cur;
+      if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
 
+      // shipping
       const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
-      if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
+      if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
 
-      if (!localStorage.getItem(MP_SHIP_KEY)) {
+      // if nothing saved yet — try guess from locale (DE default)
+      if (!localStorage.getItem(MP_SHIP_KEY) && elShipCountry){
         let guess = "DE";
         try{
           const loc = (navigator.language || "").split("-")[1] || "";
@@ -940,57 +964,48 @@
           else if (cc) guess = "EU";
         }catch(_){}
         elShipCountry.value = guess;
-        localStorage.setItem(MP_SHIP_KEY, guess);
+        try{ localStorage.setItem(MP_SHIP_KEY, guess); }catch(_){}
       }
+
+      // ✅ enforce once on load
+      enforceCurrencyByShipping();
+      setCurrency(getCurrency());
     }catch(_){}
   })();
 
-  // ✅ auto currency by shipping country
-  function autoCurrencyByShippingCountry() {
-    const ship = String(elShipCountry.value || "DE").toUpperCase();
-
-    // US / CA => USD
-    if (ship === "US" || ship === "CA") {
-      if (elCurrency.value !== "USD") {
-        elCurrency.value = "USD";
-        try { localStorage.setItem(MP_CUR_KEY, "USD"); } catch(_) {}
-        render();
-        renderCart();
-      }
-      return;
-    }
-
-    // DE / EU => EUR
-    if (ship === "DE" || ship === "EU") {
-      if (elCurrency.value !== "EUR") {
-        elCurrency.value = "EUR";
-        try { localStorage.setItem(MP_CUR_KEY, "EUR"); } catch(_) {}
-        render();
-        renderCart();
-      }
-      return;
-    }
+  // ✅ Map UI selection -> ISO2 for API
+  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
+  function getShippingCountryISO2(){
+    const v = String(elShipCountry?.value || "DE").toUpperCase();
+    if (v === "US") return "US";
+    if (v === "CA") return "CA";
+    if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
+    return "DE";
   }
 
-  // ✅ persist on change
-  elCurrency.addEventListener("change", () => {
-    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
-    render(); renderCart();
-  });
+  // ✅ persist on change (but do not allow wrong currency)
+  if (elCurrency){
+    elCurrency.addEventListener("change", () => {
+      setCurrency(elCurrency.value);
+      enforceCurrencyByShipping();  // ✅ snaps back if not allowed
+      render();
+      renderCart();
+    });
+  }
 
-  elShipCountry.addEventListener("change", () => {
-    try{
-      localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase());
-    }catch(_){}
-
-    // ✅ Auto currency switch based on destination
-    autoCurrencyByShippingCountry();
-
-    toast("Shipping", `Destination: ${elShipCountry.value}`);
-  });
+  if (elShipCountry){
+    elShipCountry.addEventListener("change", () => {
+      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+      enforceCurrencyByShipping();
+      setCurrency(getCurrency());
+      render();
+      renderCart();
+      toast("Shipping", `Destination: ${elShipCountry.value}`);
+    });
+  }
 
   function priceText(priceObj){
-    const cur = elCurrency.value;
+    const cur = getCurrency();
     const v = priceObj?.[cur];
     if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
@@ -1024,7 +1039,13 @@
   elOpenCart.addEventListener("click", openCart);
   elCloseCart.addEventListener("click", closeCart);
   elCartBack.addEventListener("click", closeCart);
-  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") { closeCart(); closeSheet(); } });
+
+  // ✅ Escape closes only what is open
+  window.addEventListener("keydown", (e)=>{
+    if (e.key !== "Escape") return;
+    if (elCartDrawer.classList.contains("show")) closeCart();
+    if (elSheet.classList.contains("show")) closeSheet();
+  });
 
   function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
 
@@ -1093,7 +1114,7 @@
   }
 
   function cartTotal(){
-    const cur = elCurrency.value;
+    const cur = getCurrency();
     const cart = readCart();
     let sum = 0;
     for (const it of cart){
@@ -1116,15 +1137,20 @@
     elCartCheckout.disabled = false;
     elCartCheckout.textContent = "Checkout";
 
+    const cur = getCurrency();
+
     elCartBody.innerHTML = cart.map(it => {
-      const img = it.image ? `<img src="${it.image}" alt="${escapeHtml(it.title)}" />` : `<span>—</span>`;
-      const cur = elCurrency.value;
+      const img = it.image
+        ? `<img src="${escapeHtml(it.image)}" alt="${escapeHtml(it.title)}" />`
+        : `<span>—</span>`;
+
       const unit = it?.price?.[cur];
       const unitText = (typeof unit === "number")
         ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`)
         : "—";
+
       return `
-        <div class="cartItem" data-pin="${escapeHtml(it.pin)}">
+        <div class="cartItem" data-pin="${escapeHtml(String(it.pin || ""))}">
           <div class="cartImg">${img}</div>
           <div>
             <p class="cartName">${escapeHtml(it.title || it.pin)}</p>
@@ -1132,7 +1158,7 @@
             <div class="cartRow">
               <div class="cartQty">
                 <button type="button" data-act="minus">−</button>
-                <input value="${escapeHtml(it.qty)}" inputmode="numeric" />
+                <input value="${escapeHtml(String(it.qty || 1))}" inputmode="numeric" />
                 <button type="button" data-act="plus">+</button>
               </div>
               <button class="cartRemove" type="button" data-act="remove">✕</button>
@@ -1146,40 +1172,38 @@
     [...elCartBody.querySelectorAll(".cartItem")].forEach(row => {
       const pin = row.getAttribute("data-pin");
       const input = row.querySelector("input");
+
       row.querySelector('button[data-act="minus"]').addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
       row.querySelector('button[data-act="plus"]').addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
+
       input.addEventListener("input", () => {
         const v = Number(input.value);
         if (!Number.isFinite(v)) return;
         setCartQty(pin, v);
       });
+
       row.querySelector('button[data-act="remove"]').addEventListener("click", () => removeFromCart(pin));
     });
 
     const sum = cartTotal();
-    const cur = elCurrency.value;
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
   }
 
   elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  // ✅ Map UI selection -> ISO2 for API
-  function getShippingCountryISO2(){
-    const v = String(elShipCountry.value || "DE").toUpperCase();
-    if (v === "EU") return "DE";
-    if (v === "US") return "US";
-    if (v === "CA") return "CA";
-    return "DE";
-  }
-
+  // ✅ checkout
   async function startCheckout(){
     const cart = readCart();
     if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
 
+    // ✅ enforce before sending
+    enforceCurrencyByShipping();
+    setCurrency(getCurrency());
+
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
 
     const payload = {
-      currency: elCurrency.value,
+      currency: getCurrency(),
       shippingCountry: getShippingCountryISO2(),
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
@@ -1286,16 +1310,16 @@
   }
 
   function cardTemplate(p){
-    const img = (p.images && p.images[0]) ? `<img src="${p.images[0]}" alt="${escapeHtml(p.title)}" />` : "";
+    const img = (p.images && p.images[0]) ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.title)}" />` : "";
     const soldOut = !(Number(p.stock||0) > 0);
 
     const diaText = p.diameterDisplay ? p.diameterDisplay : (p.diameterNum != null ? String(p.diameterNum).replace(".",",") : "—");
 
     return `
-      <div class="card" data-open="${escapeHtml(p.pin)}">
+      <div class="card" data-open="${escapeHtml(String(p.pin))}">
         <div class="thumb">
           ${img}
-          <div class="badge ${soldOut ? "sold" : ""}">${soldOut ? "Sold out" : `In stock: ${p.stock}`}</div>
+          <div class="badge ${soldOut ? "sold" : ""}">${soldOut ? "Sold out" : `In stock: ${escapeHtml(p.stock)}`}</div>
         </div>
         <div class="meta">
           <p class="name">${escapeHtml(p.title)} <span style="color:var(--muted); font-weight:700;">• ${escapeHtml(p.pin)}</span></p>
@@ -1306,8 +1330,8 @@
               <div style="color:var(--muted); font-size:12px; margin-top:2px;">Ø ${escapeHtml(diaText)}</div>
             </div>
             <div style="display:flex; gap:8px;">
-              <button class="btn2" ${soldOut ? "disabled" : ""} data-add="${escapeHtml(p.pin)}" title="Add to cart">＋</button>
-              <button class="btn" ${soldOut ? "disabled" : ""} data-openbuy="${escapeHtml(p.pin)}">Buy</button>
+              <button class="btn2" ${soldOut ? "disabled" : ""} data-add="${escapeHtml(p.pin)}" title="Add to cart" type="button">＋</button>
+              <button class="btn" ${soldOut ? "disabled" : ""} data-openbuy="${escapeHtml(p.pin)}" type="button">Buy</button>
             </div>
           </div>
         </div>
@@ -1345,7 +1369,7 @@
     });
   }
 
-  function normalizeProducts(data){
+   function normalizeProducts(data){
     const arr = Array.isArray(data) ? data : (data.products || []);
     return arr.map(x => {
       const pin = x.pin || x.pin_code || x.PIN || x["PIN Code"] || "—";
@@ -1449,6 +1473,7 @@
         buildDiameterLists();
         applyFilters();
 
+        // ✅ refresh cart items with latest product data
         const cart = readCart();
         if (cart.length){
           const next = cart.map(it => {
@@ -1490,8 +1515,9 @@
   renderCart();
   loadProducts();
 
-  // ✅ auto-currency on page load
-  autoCurrencyByShippingCountry();
+  // ✅ enforce currency on first load too
+  enforceCurrencyByShipping();
+  setCurrency(getCurrency());
 
   (function handleReturn(){
     const u = new URL(window.location.href);
