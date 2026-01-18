@@ -621,24 +621,56 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    .siteFooter{
-      padding: 12px 18px;
-      border-top: 1px solid var(--line);
-      background: rgba(0,0,0,.20);
-      color: var(--muted);
-      font-size: 12px;
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
+    /* ✅ NEW Footer */
+    .footer{
+      margin-top:auto;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding:14px 18px;
       flex: 0 0 auto;
     }
-    .siteFooter a{
-      color: var(--text);
-      text-decoration:none;
-      opacity:.9;
+    .footerRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
     }
-    .siteFooter a:hover{opacity:1}
-    .siteFooter .sep{opacity:.35}
+    .footerBrand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .footerLinks{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .footerLinks a{
+      text-decoration:none;
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+    }
+    .footerLinks a:hover{
+      background:rgba(255,255,255,.08);
+      transform: translateY(-1px);
+      color:var(--text);
+    }
+    @media (max-width:980px){
+      .footer{padding:12px 14px;}
+      .footerRow{justify-content:center;}
+      .footerLinks{justify-content:center;}
+    }
 
     /* ✅ MOBILE NAV */
     .mobileNav{ display:none; }
@@ -688,8 +720,8 @@
     }
   </style>
 </head>
-
 <body>
+
   <div class="app">
     <aside class="sidebar">
       <div class="sb-top">
@@ -771,17 +803,22 @@
         <div class="grid" id="grid"></div>
       </div>
 
-      <!-- ✅ Footer UPDATED: Privacy Policy added -->
-      <footer class="siteFooter">
-        <a href="/shipping">Shipping</a>
-        <span class="sep">|</span>
-        <a href="/returns">Returns & Refunds</a>
-        <span class="sep">|</span>
-        <a href="/reviews">Reviews</a>
-        <span class="sep">|</span>
-        <a href="/privacy.html">Privacy Policy</a>
-        <span class="sep">|</span>
-        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
+      <!-- ✅ NEW красивый Footer -->
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span class="dot" aria-hidden="true"></span>
+            <span>© <span id="year"></span> Mosaic Pins</span>
+          </div>
+
+          <div class="footerLinks" aria-label="Footer links">
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns & Refunds</a>
+            <a href="/reviews">Reviews</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
+          </div>
+        </div>
       </footer>
     </main>
   </div>
@@ -847,7 +884,10 @@
   </div>
 
 <script>
-const API_PRODUCTS = "/api/products";
+  // footer year
+  document.getElementById("year").textContent = String(new Date().getFullYear());
+
+  const API_PRODUCTS = "/api/products";
   const API_CHECKOUT = "/api/checkout";
 
   const CART_KEY = "mp_cart";
@@ -978,6 +1018,7 @@ const API_PRODUCTS = "/api/products";
 
   // ✅ Map UI selection -> ISO2 for API
   // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
+  // (ВАЖНО: у Вас специально так сделано для разной цены DE vs EU — оставляем FR)
   function getShippingCountryISO2(){
     const v = String(elShipCountry?.value || "DE").toUpperCase();
     if (v === "US") return "US";
@@ -1372,7 +1413,7 @@ const API_PRODUCTS = "/api/products";
     });
   }
 
-   function normalizeProducts(data){
+  function normalizeProducts(data){
     const arr = Array.isArray(data) ? data : (data.products || []);
     return arr.map(x => {
       const pin = x.pin || x.pin_code || x.PIN || x["PIN Code"] || "—";
