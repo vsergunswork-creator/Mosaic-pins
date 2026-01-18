@@ -661,14 +661,11 @@
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
-
 <script>
   const API_PRODUCT = "/api/product";
   const API_CHECKOUT = "/api/checkout";
 
   const CART_KEY = "mp_cart";
-
-  // ✅ same keys as main shop
   const MP_CUR_KEY = "mp_currency";
   const MP_SHIP_KEY = "mp_ship_country";
 
@@ -687,13 +684,17 @@
   function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
   function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
 
-  function updateCartBadge(){ el("cartBadge").textContent = String(cartCount()); }
+  function updateCartBadge(){
+    const badge = el("cartBadge");
+    if (badge) badge.textContent = String(cartCount());
+  }
 
   const toastEl = el("toast");
   const toastTitle = el("toastTitle");
   const toastMsg = el("toastMsg");
 
   function toast(title, msg){
+    if (!toastEl || !toastTitle || !toastMsg) return;
     toastTitle.textContent = title;
     toastMsg.textContent = msg;
     toastEl.classList.add("show");
@@ -706,8 +707,99 @@
     }[m]));
   }
 
+  function getCurrency(){
+    const saved = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
+    if (saved === "EUR" || saved === "USD") return saved;
+    return String(elCurrency?.value || "EUR").toUpperCase();
+  }
+  function setCurrency(cur){
+    cur = String(cur || "EUR").toUpperCase();
+    if (cur !== "EUR" && cur !== "USD") cur = "EUR";
+    try{ localStorage.setItem(MP_CUR_KEY, cur); }catch(_){}
+    if (elCurrency) elCurrency.value = cur;
+  }
+
+  // ✅ hard rule: US/CA => USD, DE/EU => EUR
+  function enforceCurrencyByShipping(){
+    const ship = String(elShipCountry?.value || "DE").toUpperCase();
+    const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
+    if (getCurrency() !== must){
+      setCurrency(must);
+      toast("Currency", `Auto set: ${must}`);
+    }
+  }
+
+  // ✅ restore persisted selects (currency + shipping)
+  (function restoreSettings(){
+    try{
+      // currency
+      const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
+      if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
+
+      // shipping
+      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
+      if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
+
+      // if nothing saved yet — try guess from locale (DE default)
+      if (!localStorage.getItem(MP_SHIP_KEY) && elShipCountry){
+        let guess = "DE";
+        try{
+          const loc = (navigator.language || "").split("-")[1] || "";
+          const cc = String(loc).toUpperCase();
+          if (cc === "US") guess = "US";
+          else if (cc === "CA") guess = "CA";
+          else if (cc === "DE") guess = "DE";
+          else if (cc) guess = "EU";
+        }catch(_){}
+        elShipCountry.value = guess;
+        try{ localStorage.setItem(MP_SHIP_KEY, guess); }catch(_){}
+      }
+
+      // ✅ enforce once on load
+      enforceCurrencyByShipping();
+      setCurrency(getCurrency());
+    }catch(_){}
+  })();
+
+  // ✅ Map UI selection -> ISO2 for API
+  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
+  function getShippingCountryISO2(){
+    const v = String(elShipCountry?.value || "DE").toUpperCase();
+    if (v === "US") return "US";
+    if (v === "CA") return "CA";
+    if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
+    return "DE";
+  }
+
+  // will be set later after product loads
+  let currentProduct = null;
+  function refreshCurrencyUI(){
+    renderCart();
+    if (currentProduct){
+      el("price").textContent = priceText(currentProduct.price);
+    }
+  }
+
+  // ✅ persist on change (but do not allow wrong currency)
+  if (elCurrency){
+    elCurrency.addEventListener("change", () => {
+      setCurrency(elCurrency.value);
+      enforceCurrencyByShipping();  // ✅ snaps back if not allowed
+      refreshCurrencyUI();
+    });
+  }
+
+  if (elShipCountry){
+    elShipCountry.addEventListener("change", () => {
+      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+      enforceCurrencyByShipping();
+      refreshCurrencyUI();
+      toast("Shipping", `Destination: ${elShipCountry.value}`);
+    });
+  }
+
   function priceText(priceObj){
-    const cur = elCurrency.value;
+    const cur = getCurrency();
     const v = priceObj?.[cur];
     if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
@@ -719,94 +811,6 @@
     if (q < 1) q = 1;
     if (max >= 1 && q > max) q = max;
     return q;
-  }
-
-  // ✅ auto currency by shipping country
-  function autoCurrencyByShippingCountry(){
-    const ship = String(elShipCountry.value || "DE").toUpperCase();
-
-    // US/CA => USD
-    if (ship === "US" || ship === "CA"){
-      if (elCurrency.value !== "USD"){
-        elCurrency.value = "USD";
-        try{ localStorage.setItem(MP_CUR_KEY, "USD"); }catch(_){}
-      }
-      return;
-    }
-
-    // DE/EU => EUR
-    if (ship === "DE" || ship === "EU"){
-      if (elCurrency.value !== "EUR"){
-        elCurrency.value = "EUR";
-        try{ localStorage.setItem(MP_CUR_KEY, "EUR"); }catch(_){}
-      }
-      return;
-    }
-  }
-
-  // ✅ restore persisted selects (currency + shipping)
-  (function restoreSettings(){
-    try{
-      const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
-      if (cur && ["EUR","USD"].includes(cur)) elCurrency.value = cur;
-
-      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
-      if (ship && ["DE","EU","US","CA"].includes(ship)) elShipCountry.value = ship;
-
-      // if nothing saved yet — try guess from locale (DE default)
-      if (!localStorage.getItem(MP_SHIP_KEY)){
-        let guess = "DE";
-        try{
-          const loc = (navigator.language || "").split("-")[1] || "";
-          const cc = String(loc).toUpperCase();
-          if (cc === "US") guess = "US";
-          else if (cc === "CA") guess = "CA";
-          else if (cc === "DE") guess = "DE";
-          else if (cc) guess = "EU";
-        }catch(_){}
-        elShipCountry.value = guess;
-        localStorage.setItem(MP_SHIP_KEY, guess);
-      }
-
-      // ✅ ensure currency matches shipping on first load
-      autoCurrencyByShippingCountry();
-      try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
-    }catch(_){}
-  })();
-
-  // will be set later after product loads
-  let currentProduct = null;
-  function refreshCurrencyUI(){
-    renderCart();
-    if (currentProduct){
-      el("price").textContent = priceText(currentProduct.price);
-    }
-  }
-
-  // ✅ persist on change
-  elCurrency.addEventListener("change", () => {
-    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
-    refreshCurrencyUI();
-  });
-
-  elShipCountry.addEventListener("change", () => {
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
-
-    // ✅ switch currency automatically
-    autoCurrencyByShippingCountry();
-    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
-
-    refreshCurrencyUI();
-    toast("Shipping", `Destination: ${elShipCountry.value}`);
-  });
-
-  // ✅ Map UI selection -> ISO2 for API
-  function getShippingCountryISO2(){
-    const v = String(elShipCountry.value || "DE").toUpperCase();
-    if (v === "EU") return "DE"; // EU bucket -> we still send ISO2 (Stripe will ask full address)
-    if (v === "US") return "US";
-    if (v === "CA") return "CA";
-    return "DE";
   }
 
   /* =========================
@@ -822,24 +826,30 @@
   const elCartClear = el("cartClear");
 
   function openCart(){
-    elCartBack.classList.add("show");
-    elCartDrawer.classList.add("show");
+    elCartBack?.classList.add("show");
+    elCartDrawer?.classList.add("show");
     document.body.style.overflow = "hidden";
     renderCart();
   }
   function closeCart(){
-    elCartBack.classList.remove("show");
-    elCartDrawer.classList.remove("show");
+    elCartBack?.classList.remove("show");
+    elCartDrawer?.classList.remove("show");
     document.body.style.overflow = "";
   }
 
-  elOpenCart.addEventListener("click", openCart);
-  elCloseCart.addEventListener("click", closeCart);
-  elCartBack.addEventListener("click", closeCart);
-  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeCart(); });
+  elOpenCart?.addEventListener("click", openCart);
+  elCloseCart?.addEventListener("click", closeCart);
+  elCartBack?.addEventListener("click", closeCart);
+
+  // ✅ Escape closes cart only if cart is open
+  window.addEventListener("keydown", (e)=>{
+    if (e.key !== "Escape") return;
+    const cartOpen = elCartDrawer?.classList.contains("show");
+    if (cartOpen) closeCart();
+  });
 
   function cartTotal(){
-    const cur = elCurrency.value;
+    const cur = getCurrency();
     const cart = readCart();
     let sum = 0;
     for (const it of cart){
@@ -880,27 +890,35 @@
   }
 
   function renderCart(){
+    if (!elCartBody || !elCartTotal || !elCartCheckout) return;
+
     const cart = readCart();
 
     if (!cart.length){
       elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
       elCartTotal.textContent = "—";
       elCartCheckout.disabled = true;
+      elCartCheckout.textContent = "Checkout";
       return;
     }
 
     elCartCheckout.disabled = false;
+    elCartCheckout.textContent = "Checkout";
+
+    const cur = getCurrency();
 
     elCartBody.innerHTML = cart.map(it => {
-      const img = it.image ? `<img src="${it.image}" alt="${escapeHtml(it.title)}" />` : `<span>—</span>`;
-      const cur = elCurrency.value;
+      const img = it.image
+        ? `<img src="${escapeHtml(it.image)}" alt="${escapeHtml(it.title)}" />`
+        : `<span>—</span>`;
+
       const unit = it?.price?.[cur];
       const unitText = (typeof unit === "number")
         ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`)
         : "—";
 
       return `
-        <div class="cartItem" data-pin="${escapeHtml(it.pin)}">
+        <div class="cartItem" data-pin="${escapeHtml(String(it.pin || ""))}">
           <div class="cartImg">${img}</div>
           <div>
             <p class="cartName">${escapeHtml(it.title || it.pin)}</p>
@@ -908,7 +926,7 @@
             <div class="cartRow">
               <div class="cartQty">
                 <button type="button" data-act="minus">−</button>
-                <input value="${escapeHtml(it.qty)}" inputmode="numeric" />
+                <input value="${escapeHtml(String(it.qty || 1))}" inputmode="numeric" />
                 <button type="button" data-act="plus">+</button>
               </div>
               <button class="cartRemove" type="button" data-act="remove">✕</button>
@@ -923,28 +941,27 @@
       const pin = row.getAttribute("data-pin");
       const input = row.querySelector("input");
 
-      row.querySelector('button[data-act="minus"]').addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
-      row.querySelector('button[data-act="plus"]').addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
+      row.querySelector('button[data-act="minus"]')?.addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
+      row.querySelector('button[data-act="plus"]')?.addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
 
-      input.addEventListener("input", () => {
+      input?.addEventListener("input", () => {
         const v = Number(input.value);
         if (!Number.isFinite(v)) return;
         setCartQty(pin, v);
       });
 
-      row.querySelector('button[data-act="remove"]').addEventListener("click", () => removeFromCart(pin));
+      row.querySelector('button[data-act="remove"]')?.addEventListener("click", () => removeFromCart(pin));
     });
 
     const sum = cartTotal();
-    const cur = elCurrency.value;
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
   }
 
-  elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+  elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
   // ✅ checkout from cart
-  elCartCheckout.addEventListener("click", async () => {
-    const cur = String(elCurrency.value || "EUR").toUpperCase();
+  elCartCheckout?.addEventListener("click", async () => {
+    const cur = getCurrency();
     const cart = readCart();
 
     if (!cart.length){
@@ -952,12 +969,11 @@
       return;
     }
 
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+    // ✅ ensure ship saved + enforce currency before sending
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
+    enforceCurrencyByShipping();
 
-    const items = cart.map(it => ({
-      pin: String(it.pin),
-      qty: Number(it.qty) || 1,
-    }));
+    const items = cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 }));
 
     elCartCheckout.disabled = true;
     const oldText = elCartCheckout.textContent;
@@ -968,20 +984,18 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currency: cur,
+          currency: getCurrency(),
           shippingCountry: getShippingCountryISO2(),
           items
         }),
       });
 
       const data = await r.json().catch(()=>({}));
-
       if (!r.ok || !data?.ok || !data?.url){
         throw new Error(data?.error || "Checkout failed");
       }
 
       window.location.href = data.url;
-
     }catch(e){
       toast("Checkout", String(e?.message || e));
       elCartCheckout.disabled = false;
@@ -1006,14 +1020,17 @@
   function updateNav(){
     const n = imagesState.length;
     const hasMany = n > 1;
-    counter.style.display = n >= 2 ? "block" : "none";
-    counter.textContent = `${Math.min(currentIndex+1, n)} / ${n}`;
-    prevBtn.disabled = !hasMany || currentIndex <= 0;
-    nextBtn.disabled = !hasMany || currentIndex >= n-1;
+    if (counter){
+      counter.style.display = n >= 2 ? "block" : "none";
+      counter.textContent = `${Math.min(currentIndex+1, n)} / ${n}`;
+    }
+    if (prevBtn) prevBtn.disabled = !hasMany || currentIndex <= 0;
+    if (nextBtn) nextBtn.disabled = !hasMany || currentIndex >= n-1;
   }
 
   function syncThumbs(){
     const thumbs = el("thumbs");
+    if (!thumbs) return;
     thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
     const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
     if (active) active.classList.add("active");
@@ -1021,7 +1038,7 @@
 
   function scrollToIndex(idx, smooth=true){
     const n = imagesState.length;
-    if (!n) return;
+    if (!n || !carousel) return;
     currentIndex = Math.max(0, Math.min(idx, n-1));
     const x = carousel.clientWidth * currentIndex;
     carousel.scrollTo({ left: x, behavior: smooth ? "smooth" : "auto" });
@@ -1030,6 +1047,7 @@
   }
 
   function detectIndexFromScroll(){
+    if (!carousel) return;
     const w = carousel.clientWidth || 1;
     const idx = Math.round(carousel.scrollLeft / w);
     const n = imagesState.length;
@@ -1045,7 +1063,9 @@
     imagesState = images.slice();
     currentIndex = 0;
 
+    if (!carousel) return;
     carousel.innerHTML = "";
+
     if (!imagesState.length){
       carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
       updateNav();
@@ -1055,7 +1075,7 @@
     imagesState.forEach((u) => {
       const s = document.createElement("div");
       s.className = "slide";
-      s.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
+      s.innerHTML = `<img src="${escapeHtml(u)}" alt="${escapeHtml(title)}" draggable="false" />`;
       carousel.appendChild(s);
     });
 
@@ -1064,18 +1084,22 @@
 
   function renderThumbs(images, title){
     const thumbs = el("thumbs");
+    if (!thumbs) return;
     thumbs.innerHTML = "";
+
     images.forEach((u, idx) => {
       const d = document.createElement("div");
       d.className = "t" + (idx===0 ? " active" : "");
       d.dataset.idx = String(idx);
-      d.innerHTML = `<img src="${u}" alt="${escapeHtml(title)}" draggable="false" />`;
+      d.innerHTML = `<img src="${escapeHtml(u)}" alt="${escapeHtml(title)}" draggable="false" />`;
       d.addEventListener("click", () => scrollToIndex(idx));
       thumbs.appendChild(d);
     });
   }
 
   function enableDragScroll(){
+    if (!carousel) return;
+
     let isDown = false;
     let startX = 0;
     let startLeft = 0;
@@ -1113,11 +1137,11 @@
     if (carouselWired) return;
     carouselWired = true;
 
-    prevBtn.addEventListener("click", () => scrollToIndex(currentIndex - 1));
-    nextBtn.addEventListener("click", () => scrollToIndex(currentIndex + 1));
+    prevBtn?.addEventListener("click", () => scrollToIndex(currentIndex - 1));
+    nextBtn?.addEventListener("click", () => scrollToIndex(currentIndex + 1));
 
     let t;
-    carousel.addEventListener("scroll", () => {
+    carousel?.addEventListener("scroll", () => {
       clearTimeout(t);
       t = setTimeout(detectIndexFromScroll, 80);
     });
@@ -1128,7 +1152,7 @@
 
   function setupParallax(){
     const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion) return;
+    if (reduceMotion || !hero || !heroInner) return;
 
     let target = { x:0, y:0, rx:0, ry:0, s:1.02 };
     let curr   = { x:0, y:0, rx:0, ry:0, s:1.02 };
@@ -1198,18 +1222,19 @@
 
     writeCart(cart);
     updateCartBadge();
-    if (elCartDrawer.classList.contains("show")) renderCart();
+    if (elCartDrawer?.classList.contains("show")) renderCart();
     toast("Cart", "Added ✅");
   }
 
   async function buyNowOneItem(p, qty){
-    const currency = String(elCurrency.value || "EUR").toUpperCase();
+    // ✅ enforce currency just before checkout
+    enforceCurrencyByShipping();
 
     // ✅ ensure country saved
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
 
     const payload = {
-      currency,
+      currency: getCurrency(),
       shippingCountry: getShippingCountryISO2(),
       items: [{ pin: String(p.pin), qty: Number(qty) || 1 }],
     };
@@ -1232,9 +1257,9 @@
     updateCartBadge();
     renderCart();
 
-    // keep currency consistent if user changed ship on another page
-    autoCurrencyByShippingCountry();
-    try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
+    // ✅ keep currency consistent if user changed ship on another page
+    enforceCurrencyByShipping();
+    setCurrency(getCurrency());
 
     const url = new URL(window.location.href);
     const pin = (url.searchParams.get("pin") || "").trim();
@@ -1309,7 +1334,7 @@
     qtyInput.addEventListener("input", () => setQty(qtyInput.value));
 
     const renderPrice = () => { el("price").textContent = priceText(p.price); };
-    elCurrency.addEventListener("change", renderPrice);
+    if (elCurrency) elCurrency.addEventListener("change", renderPrice);
     renderPrice();
 
     addBtn.addEventListener("click", () => {
