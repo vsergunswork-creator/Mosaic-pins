@@ -950,6 +950,33 @@
     }catch(_){}
   })();
 
+  // ✅ NEW: auto currency by shipping country
+function autoCurrencyByShippingCountry() {
+  const ship = String(elShipCountry.value || "DE").toUpperCase();
+
+  // US / CA => USD
+  if (ship === "US" || ship === "CA") {
+    if (elCurrency.value !== "USD") {
+      elCurrency.value = "USD";
+      try { localStorage.setItem(MP_CUR_KEY, "USD"); } catch(_) {}
+      render();
+      renderCart();
+    }
+    return;
+  }
+
+  // DE / EU => EUR
+  if (ship === "DE" || ship === "EU") {
+    if (elCurrency.value !== "EUR") {
+      elCurrency.value = "EUR";
+      try { localStorage.setItem(MP_CUR_KEY, "EUR"); } catch(_) {}
+      render();
+      renderCart();
+    }
+    return;
+  }
+}
+
   // ✅ persist on change
   elCurrency.addEventListener("change", () => {
     try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
