@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://mosaicpins.space/sitemap.xml
+Sitemap:https://mosaicpins.space/sitemap.xml
