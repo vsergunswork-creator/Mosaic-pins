@@ -19,6 +19,7 @@
       --panel: rgba(0,0,0,.28);
       --panelHover: rgba(255,255,255,.05);
     }
+
     *{box-sizing:border-box}
     html,body{height:100%}
 
@@ -47,7 +48,7 @@
       will-change: transform;
     }
 
-    /* Dark scrollbar like main */
+    /* scrollbars */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
@@ -59,6 +60,7 @@
 
     .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
 
+    /* ===== Sidebar ===== */
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
@@ -148,6 +150,7 @@
       white-space:pre-line;
     }
 
+    /* ===== Main ===== */
     .main{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       border:1px solid var(--line);
@@ -171,7 +174,8 @@
     .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
 
-    .top-right{display:flex; align-items:center; gap:10px}
+    .top-right{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+
     .cartBtn{
       display:inline-flex;
       align-items:center;
@@ -201,7 +205,7 @@
       text-align:center;
     }
 
-    .shipCountry{
+    .shipCountry, .currency{
       padding:10px 12px;
       border-radius:999px;
       background:rgba(0,0,0,.25);
@@ -221,7 +225,49 @@
       flex: 1 1 auto;
     }
 
-    /* ===== REVIEWS PAGE ===== */
+    /* ===== Buttons ===== */
+    .btn{
+      border:none; cursor:pointer;
+      padding:12px 14px;
+      border-radius:14px;
+      background:linear-gradient(135deg,#22c55e,#16a34a);
+      color:#07110b;
+      font-weight:950;
+      box-shadow: 0 10px 18px rgba(34,197,94,.18);
+      transition: filter .15s ease, transform .15s ease;
+      white-space:nowrap;
+      width:100%;
+    }
+    .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
+    .btn:disabled{
+      cursor:not-allowed;
+      background:rgba(255,255,255,.10);
+      color:rgba(255,255,255,.55);
+      box-shadow:none;
+      transform:none;
+    }
+
+    .btn2{
+      border:none; cursor:pointer;
+      padding:12px 14px;
+      border-radius:14px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      transition: background .15s ease, transform .15s ease;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      text-decoration:none;
+      width:100%;
+      min-height:44px;
+    }
+    .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
+    .btn2:disabled{opacity:.45; cursor:not-allowed}
+
+    /* ===== Reviews blocks ===== */
     .hero{
       border-radius:18px;
       border:1px solid var(--line);
@@ -260,15 +306,8 @@
       background:rgba(0,0,0,.22);
       min-height:44px;
     }
-    .avgNum{
-      font-weight:950;
-      font-size:18px;
-      letter-spacing:.2px;
-    }
-    .avgSub{
-      color:var(--muted);
-      font-size:12px;
-    }
+    .avgNum{font-weight:950; font-size:18px; letter-spacing:.2px;}
+    .avgSub{color:var(--muted); font-size:12px;}
 
     .grid2{
       margin-top:14px;
@@ -294,14 +333,8 @@
       justify-content:space-between;
       gap:10px;
     }
-    .panelTitle{
-      margin:0;
-      font-weight:950;
-      letter-spacing:.2px;
-      font-size:14px;
-    }
+    .panelTitle{margin:0; font-weight:950; letter-spacing:.2px; font-size:14px;}
     .hint{font-size:12px; color:var(--muted); opacity:.9;}
-
     .panelBody{padding:14px 16px 16px;}
 
     .field{display:grid; gap:8px; margin-bottom:12px;}
@@ -332,8 +365,7 @@
       flex-wrap:wrap;
     }
     .starBtn{
-      width:38px;
-      height:38px;
+      width:38px; height:38px;
       border-radius:12px;
       border:1px solid var(--line);
       background:rgba(255,255,255,.04);
@@ -341,38 +373,12 @@
       cursor:pointer;
       font-size:18px;
       line-height:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
+      display:flex; align-items:center; justify-content:center;
       transition: transform .12s ease, background .12s ease;
     }
     .starBtn:hover{background:rgba(255,255,255,.08); transform: translateY(-1px);}
-    .starBtn.active{
-      background:rgba(34,197,94,.16);
-      border-color: rgba(34,197,94,.25);
-    }
+    .starBtn.active{background:rgba(34,197,94,.16); border-color: rgba(34,197,94,.25);}
     .ratingText{color:var(--muted); font-size:12px;}
-
-    .btn{
-      border:none; cursor:pointer;
-      padding:12px 14px;
-      border-radius:14px;
-      background:linear-gradient(135deg,#22c55e,#16a34a);
-      color:#07110b;
-      font-weight:950;
-      box-shadow: 0 10px 18px rgba(34,197,94,.18);
-      transition: filter .15s ease, transform .15s ease;
-      white-space:nowrap;
-      width:100%;
-    }
-    .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
-    .btn:disabled{
-      cursor:not-allowed;
-      background:rgba(255,255,255,.10);
-      color:rgba(255,255,255,.55);
-      box-shadow:none;
-      transform:none;
-    }
 
     .list{display:grid; gap:12px;}
     .review{
@@ -387,20 +393,9 @@
       justify-content:space-between;
       gap:10px;
     }
-    .rName{
-      font-weight:950;
-      letter-spacing:.2px;
-      margin:0;
-      font-size:13px;
-    }
+    .rName{font-weight:950; letter-spacing:.2px; margin:0; font-size:13px;}
     .rDate{color:var(--muted); font-size:12px;}
-    .rStars{
-      display:flex;
-      gap:2px;
-      font-size:14px;
-      line-height:1;
-      white-space:nowrap;
-    }
+    .rStars{display:flex; gap:2px; font-size:14px; line-height:1; white-space:nowrap;}
     .rText{
       margin:10px 0 0;
       color:var(--muted);
@@ -418,6 +413,23 @@
       font-size:13px;
     }
 
+    /* ✅ photos grid inside review */
+    .rPhotos{
+      margin-top:10px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .rPhoto{
+      width:72px;height:72px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      overflow:hidden;
+      cursor:pointer;
+    }
+    .rPhoto img{width:100%;height:100%;object-fit:cover;display:block;}
+
     /* ✅ MOBILE BOTTOM NAV */
     .mobileNav{
       display:none;
@@ -431,13 +443,10 @@
       border: 1px solid var(--line);
       background: rgba(0,0,0,.55);
       backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       box-shadow: 0 18px 40px rgba(0,0,0,.55);
     }
-    .mobileNavRow{
-      display:flex;
-      gap:10px;
-      justify-content:space-between;
-    }
+    .mobileNavRow{display:flex; gap:10px; justify-content:space-between;}
     .mItem{
       flex:1 1 0;
       text-align:center;
@@ -454,13 +463,9 @@
       -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
     .mItem:hover{ color: var(--text); background: rgba(255,255,255,.07); }
-    .mItem.active{
-      color: var(--text);
-      background: rgba(34,197,94,.16);
-      border-color: rgba(34,197,94,.25);
-    }
+    .mItem.active{ color: var(--text); background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.25); }
 
-    /* ✅ NEW Footer */
+    /* ✅ Footer */
     .footer{
       margin-top:auto;
       border-top:1px solid var(--line);
@@ -506,12 +511,225 @@
       color:var(--text);
     }
 
-    /* ✅ Show Back to Shop button ONLY on mobile */
-    .onlyMobile{display:none;}
-    @media (max-width:980px){
-      .onlyMobile{display:block;}
+    /* ✅ Cart Drawer (ВАЖНО: это нужно, иначе "не открывается") */
+    .cartBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.74);
+      display:none;
+      z-index:1100;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .cartBack.show{display:block}
+
+    .cartDrawer{
+      position:fixed;
+      top:0; right:0; bottom:0;
+      width:min(420px, 92vw);
+      border-left:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
+      box-shadow: -18px 0 40px rgba(0,0,0,.60);
+      transform: translateX(100%);
+      transition: transform .18s ease;
+      z-index:1101;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .cartDrawer.show{transform: translateX(0)}
+    .cartHead{
+      padding:14px 14px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .cartTitle{font-weight:950; letter-spacing:.2px;}
+    .cartClose{
+      border:none;
+      cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.30);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .cartClose:hover{background:rgba(255,255,255,.06)}
+    .cartBody{padding:12px; overflow:auto; min-height:0;}
+    .cartEmpty{
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+    }
+    .cartItem{
+      display:grid;
+      grid-template-columns:64px 1fr;
+      gap:10px;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      margin-bottom:10px;
+    }
+    .cartImg{
+      width:64px;height:64px;border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      overflow:hidden;
+      display:flex;align-items:center;justify-content:center;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .cartImg img{width:100%;height:100%;object-fit:cover;display:block;}
+    .cartName{font-weight:900; font-size:13px; margin:0}
+    .cartMeta{color:var(--muted); font-size:12px; margin:4px 0 0}
+    .cartRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
+    .cartQty{
+      display:flex; align-items:center; gap:6px;
+      padding:6px 8px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+    }
+    .cartQty button{
+      width:30px;height:30px;border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+    }
+    .cartQty input{
+      width:44px;
+      background:transparent;
+      border:none;
+      outline:none;
+      color:var(--text);
+      text-align:center;
+      font-weight:900;
+    }
+    .cartRemove{
+      border:none;
+      cursor:pointer;
+      padding:8px 10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:900;
+      line-height:1;
+    }
+    .cartRemove:hover{background:rgba(255,255,255,.06)}
+    .cartFoot{
+      padding:12px;
+      border-top:1px solid var(--line);
+      background:rgba(0,0,0,.40);
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+    .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
+    .cartActions{display:grid; gap:10px;}
+
+    /* ✅ Lightbox */
+    .lightboxBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.72);
+      display:none;
+      z-index:2200;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .lightboxBack.show{display:block}
+    .lightbox{
+      position:fixed;
+      inset:0;
+      display:none;
+      z-index:2201;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+    }
+    .lightbox.show{display:flex}
+    .lightboxCard{
+      width:min(920px, 96vw);
+      border-radius:18px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.55);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .lbTop{
+      padding:12px 12px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.12), rgba(0,0,0,0));
+    }
+    .lbPill{
+      padding:8px 10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .lbClose{
+      border:none;
+      cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.30);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .lbClose:hover{background:rgba(255,255,255,.06)}
+    .lightboxImg{
+      width:100%;
+      height:auto;
+      display:block;
+      max-height: 78vh;
+      object-fit: contain;
+      background: rgba(0,0,0,.35);
     }
 
+    /* ✅ Toast */
+    .toast{
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      background: rgba(0,0,0,.65);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: var(--text);
+      box-shadow: var(--shadow);
+      max-width: 360px;
+      display:none;
+      z-index:2605;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .toast.show{display:block}
+    .toast small{color:var(--muted)}
+
+    /* ✅ Back to shop ONLY on mobile */
+    .onlyMobile{display:none;}
+
+    /* ===== Responsive ===== */
     @media (max-width:980px){
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
@@ -526,10 +744,21 @@
       }
 
       .mobileNav{display:block;}
+      .onlyMobile{display:block;}
 
       .footer{padding:12px 14px;}
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
+
+      /* ✅ remove heavy blur on mobile (less lag) */
+      .mobileNav,
+      .cartDrawer,
+      .cartBack,
+      .toast,
+      .lightboxBack{
+        backdrop-filter:none !important;
+        -webkit-backdrop-filter:none !important;
+      }
     }
 
     @media (max-width:520px){
@@ -538,6 +767,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="app">
     <aside class="sidebar">
@@ -594,7 +824,7 @@
       </div>
 
       <div class="content">
-        <section class="hero">
+<section class="hero">
           <div class="heroRow">
             <div>
               <h2 class="heroTitle">Customer reviews</h2>
@@ -634,7 +864,7 @@
               <div class="field">
                 <div class="label">Rating</div>
                 <div class="starsPick" id="starsPick" aria-label="Choose rating">
-                  <div class="ratingText" id="ratingText">Select 5 stars</div>
+                  <div class="ratingText" id="ratingText">Selected: 5/5</div>
                 </div>
               </div>
 
@@ -651,7 +881,7 @@
 
               <!-- ✅ Back button ONLY on mobile -->
               <div class="onlyMobile" style="margin-top:12px;">
-                <a class="btn2" href="/index.html" style="display:inline-flex; width:100%; justify-content:center;">
+                <a class="btn2" href="/" aria-label="Back to shop">
                   ← Back to Shop
                 </a>
               </div>
@@ -675,13 +905,11 @@
       <footer class="footer">
         <div class="footerRow">
           <div class="footerBrand">
-            <span style="display:inline-flex;align-items:center;gap:8px;">
-              <span class="dot"></span>
-              <span>© <span id="year"></span> Mosaic Pins</span>
-            </span>
+            <span class="dot" aria-hidden="true"></span>
+            <span>© <span id="year"></span> Mosaic Pins</span>
           </div>
 
-          <div class="footerLinks">
+          <div class="footerLinks" aria-label="Footer links">
             <a href="/about">About</a>
             <a href="/shipping">Shipping</a>
             <a href="/returns">Returns</a>
@@ -701,17 +929,20 @@
       <a class="mItem" href="/about" id="mAbout">About</a>
       <a class="mItem" href="/shipping" id="mShipping">Shipping</a>
       <a class="mItem" href="/returns" id="mReturns">Returns</a>
-      <a class="mItem" href="/reviews" id="mReviews">Reviews</a>
+      <a class="mItem active" href="/reviews" id="mReviews">Reviews</a>
     </div>
   </nav>
 
+  <!-- ✅ CART (drawer) -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
       <div class="cartTitle">Cart</div>
       <button class="cartClose" id="closeCart" type="button">✕</button>
     </div>
+
     <div class="cartBody" id="cartBody"></div>
+
     <div class="cartFoot">
       <div style="margin-bottom:10px;">
         <select class="currency" id="currency" title="Currency">
@@ -724,15 +955,17 @@
         <div>Total</div>
         <div id="cartTotal">—</div>
       </div>
+
       <div class="cartActions">
-        <button class="btn" id="cartCheckout">Checkout</button>
-        <button class="btn2" id="cartClear">Clear cart</button>
+        <button class="btn" id="cartCheckout" type="button">Checkout</button>
+        <button class="btn2" id="cartClear" type="button">Clear cart</button>
       </div>
     </div>
   </div>
 
+  <!-- ✅ LIGHTBOX (photos) -->
   <div class="lightboxBack" id="lightboxBack"></div>
-  <div class="lightbox" id="lightbox">
+  <div class="lightbox" id="lightbox" aria-hidden="true">
     <div class="lightboxCard">
       <div class="lbTop">
         <div class="lbPill" id="lbCounter">Photo</div>
@@ -748,585 +981,638 @@
   </div>
 
 <script>
-  // ✅ footer year (same as Privacy/Impressum)
-  (function(){
-    const y = document.getElementById("year");
-    if (y) y.textContent = new Date().getFullYear();
-  })();
+    // ✅ footer year
+    (function(){
+      const y = document.getElementById("year");
+      if (y) y.textContent = String(new Date().getFullYear());
+    })();
 
-  const API_REVIEWS = "/api/reviews";
-  const API_CHECKOUT = "/api/checkout";
+    const API_REVIEWS  = "/api/reviews";
+    const API_CHECKOUT = "/api/checkout";
 
-  const CART_KEY = "mp_cart";
-  const CURRENCY_KEY = "mp_currency";
-  const SHIP_KEY = "mp_ship_country";
+    const CART_KEY     = "mp_cart";
+    const CURRENCY_KEY = "mp_currency";
+    const SHIP_KEY     = "mp_ship_country";
 
-  function readCart(){
-    try{
-      const raw = localStorage.getItem(CART_KEY);
-      const arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
-    }catch(_){ return []; }
-  }
-  function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
-  function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
+    function el(id){ return document.getElementById(id); }
 
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-  }
-
-  // toast
-  const elToast = document.getElementById("toast");
-  const elToastTitle = document.getElementById("toastTitle");
-  const elToastMsg = document.getElementById("toastMsg");
-  function toast(title, msg){
-    elToastTitle.textContent = title;
-    elToastMsg.textContent = msg;
-    elToast.classList.add("show");
-    setTimeout(()=> elToast.classList.remove("show"), 2600);
-  }
-
-  // ==========================
-  // ✅ SHIPPING + AUTO CURRENCY (same rules as About)
-  // ==========================
-  const elShipCountry = document.getElementById("shipCountry");
-  const elCurrency    = document.getElementById("currency");
-
-  function getCurrency(){
-    const saved = (localStorage.getItem(CURRENCY_KEY) || "").toUpperCase();
-    if (saved === "EUR" || saved === "USD") return saved;
-    return (elCurrency?.value || "EUR").toUpperCase();
-  }
-  function setCurrency(cur){
-    cur = String(cur || "EUR").toUpperCase();
-    if (cur !== "EUR" && cur !== "USD") cur = "EUR";
-    try{ localStorage.setItem(CURRENCY_KEY, cur); }catch(_){}
-    if (elCurrency) elCurrency.value = cur;
-  }
-
-  // ✅ hard rule: US/CA => USD, DE/EU => EUR
-  function enforceCurrencyByShipping(){
-    const ship = String(elShipCountry?.value || "DE").toUpperCase();
-    const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
-    if (getCurrency() !== must){
-      setCurrency(must);
-      toast("Currency", `Auto set: ${must}`);
+    function readCart(){
+      try{
+        const raw = localStorage.getItem(CART_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      }catch(_){ return []; }
     }
-  }
+    function writeCart(arr){
+      try{ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }catch(_){}
+    }
+    function cartCount(){
+      return readCart().reduce((s,it)=> s + (Number(it?.qty)||0), 0);
+    }
 
-  (function restoreShippingAndCurrency(){
-    try{
-      // restore currency
-      const cur = (localStorage.getItem(CURRENCY_KEY) || "").toUpperCase();
-      if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
+    function escapeHtml(s){
+      return String(s||"").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
+    }
 
-      // restore shipping
-      const ship = (localStorage.getItem(SHIP_KEY) || "").toUpperCase();
-      if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
+    // ======================
+    // Toast
+    // ======================
+    const toastEl    = el("toast");
+    const toastTitle = el("toastTitle");
+    const toastMsg   = el("toastMsg");
 
-      // first time guess shipping if not set
-      if (!localStorage.getItem(SHIP_KEY) && elShipCountry){
-        let guess = "DE";
-        try{
-          const loc = (navigator.language || "").split("-")[1] || "";
-          const cc = String(loc).toUpperCase();
-          if (cc === "US") guess = "US";
-          else if (cc === "CA") guess = "CA";
-          else if (cc === "DE") guess = "DE";
-          else if (cc) guess = "EU";
-        }catch(_){}
-        elShipCountry.value = guess;
-        try{ localStorage.setItem(SHIP_KEY, guess); }catch(_){}
+    function toast(title, msg){
+      if (!toastEl || !toastTitle || !toastMsg) return;
+      toastTitle.textContent = String(title || "Notice");
+      toastMsg.textContent   = String(msg || "");
+      toastEl.classList.add("show");
+      clearTimeout(toastEl.__t);
+      toastEl.__t = setTimeout(()=> toastEl.classList.remove("show"), 2600);
+    }
+
+    // ==========================
+    // Shipping + Currency
+    // ==========================
+    const elShipCountry = el("shipCountry");
+    const elCurrency    = el("currency");
+
+    function getCurrency(){
+      const saved = (localStorage.getItem(CURRENCY_KEY) || "").toUpperCase();
+      if (saved === "EUR" || saved === "USD") return saved;
+      return String(elCurrency?.value || "EUR").toUpperCase();
+    }
+    function setCurrency(cur){
+      cur = String(cur || "EUR").toUpperCase();
+      if (cur !== "EUR" && cur !== "USD") cur = "EUR";
+      try{ localStorage.setItem(CURRENCY_KEY, cur); }catch(_){}
+      if (elCurrency) elCurrency.value = cur;
+    }
+
+    // ✅ hard rule: US/CA => USD, DE/EU => EUR
+    function enforceCurrencyByShipping(){
+      const ship = String(elShipCountry?.value || "DE").toUpperCase();
+      const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
+      if (getCurrency() !== must){
+        setCurrency(must);
+        toast("Currency", `Auto set: ${must}`);
       }
-
-      // ✅ enforce currency once on load
-      if (elShipCountry) enforceCurrencyByShipping();
-      setCurrency(getCurrency());
-    }catch(_){}
-  })();
-
-  // ✅ safe listeners
-  if (elShipCountry){
-    elShipCountry.addEventListener("change", () => {
-      try{ localStorage.setItem(SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
-      enforceCurrencyByShipping();
-      renderCart();
-      toast("Shipping", `Destination: ${elShipCountry.value}`);
-    });
-  }
-
-  if (elCurrency){
-    elCurrency.addEventListener("change", () => {
-      setCurrency(elCurrency.value);
-      enforceCurrencyByShipping(); // ✅ do not allow wrong currency
-      renderCart();
-    });
-  }
-
-  // ✅ Map UI selection -> ISO2 for API
-  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
-  function getShippingCountryISO2(){
-    const v = String(elShipCountry?.value || "DE").toUpperCase();
-    if (v === "US") return "US";
-    if (v === "CA") return "CA";
-    if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
-    return "DE";
-  }
-
-  // ==========================
-  // ✅ CART
-  // ==========================
-  const elCartBadge    = document.getElementById("cartBadge");
-  const elOpenCart     = document.getElementById("openCart");
-  const elCartBack     = document.getElementById("cartBack");
-  const elCartDrawer   = document.getElementById("cartDrawer");
-  const elCloseCart    = document.getElementById("closeCart");
-  const elCartBody     = document.getElementById("cartBody");
-  const elCartTotal    = document.getElementById("cartTotal");
-  const elCartCheckout = document.getElementById("cartCheckout");
-  const elCartClear    = document.getElementById("cartClear");
-
-  function updateCartBadge(){ if (elCartBadge) elCartBadge.textContent = String(cartCount()); }
-
-  function openCart(){
-    elCartBack?.classList.add("show");
-    elCartDrawer?.classList.add("show");
-    document.body.style.overflow = "hidden";
-    renderCart();
-  }
-  function closeCart(){
-    elCartBack?.classList.remove("show");
-    elCartDrawer?.classList.remove("show");
-    document.body.style.overflow = "";
-  }
-
-  elOpenCart?.addEventListener("click", openCart);
-  elCloseCart?.addEventListener("click", closeCart);
-  elCartBack?.addEventListener("click", closeCart);
-
-  // ✅ Escape closes cart + photo
-  window.addEventListener("keydown", (e)=>{
-    if(e.key==="Escape") { closeCart(); closePhoto(); }
-  });
-
-  function setCartQty(pin, qty){
-    const cart = readCart();
-    const idx = cart.findIndex(x => String(x.pin) === String(pin));
-    if (idx < 0) return;
-
-    const stock = Number(cart[idx].stock ?? 0);
-    qty = Number(qty);
-    if (!Number.isFinite(qty)) qty = 1;
-    qty = Math.max(1, qty);
-    if (stock > 0) qty = Math.min(stock, qty);
-
-    cart[idx].qty = qty;
-    writeCart(cart);
-    updateCartBadge();
-    renderCart();
-  }
-
-  function removeFromCart(pin){
-    const cart = readCart().filter(x => String(x.pin) !== String(pin));
-    writeCart(cart);
-    updateCartBadge();
-    renderCart();
-  }
-
-  function clearCart(){
-    writeCart([]);
-    updateCartBadge();
-    renderCart();
-  }
-
-  function cartTotal(){
-    const cur = getCurrency();
-    const cart = readCart();
-    let sum = 0;
-    for (const it of cart){
-      const unit = Number(it?.price?.[cur]);
-      if (Number.isFinite(unit)) sum += unit * (Number(it?.qty)||0);
-    }
-    return sum;
-  }
-
-  function renderCart(){
-    if (!elCartBody || !elCartTotal || !elCartCheckout) return;
-
-    const cart = readCart();
-    const cur = getCurrency();
-
-    if (!cart.length){
-      elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
-      elCartTotal.textContent = "—";
-      elCartCheckout.disabled = true;
-      elCartCheckout.textContent = "Checkout";
-      return;
     }
 
-    elCartCheckout.disabled = false;
-    elCartCheckout.textContent = "Checkout";
+    (function restoreShippingAndCurrency(){
+      try{
+        // restore currency
+        const cur = (localStorage.getItem(CURRENCY_KEY) || "").toUpperCase();
+        if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
 
-    elCartBody.innerHTML = cart.map(it => {
-      const img = it.image ? `<img src="${escapeHtml(it.image)}" alt="${escapeHtml(it.title)}" />` : `<span>—</span>`;
+        // restore shipping
+        const ship = (localStorage.getItem(SHIP_KEY) || "").toUpperCase();
+        if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
+
+        // first time guess shipping if not set
+        if (!localStorage.getItem(SHIP_KEY) && elShipCountry){
+          let guess = "DE";
+          try{
+            const loc = (navigator.language || "").split("-")[1] || "";
+            const cc = String(loc).toUpperCase();
+            if (cc === "US") guess = "US";
+            else if (cc === "CA") guess = "CA";
+            else if (cc === "DE") guess = "DE";
+            else if (cc) guess = "EU";
+          }catch(_){}
+          elShipCountry.value = guess;
+          try{ localStorage.setItem(SHIP_KEY, guess); }catch(_){}
+        }
+
+        // enforce once
+        if (elShipCountry) enforceCurrencyByShipping();
+        setCurrency(getCurrency());
+      }catch(_){}
+    })();
+
+    if (elShipCountry){
+      elShipCountry.addEventListener("change", () => {
+        try{ localStorage.setItem(SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+        enforceCurrencyByShipping();
+        renderCart();
+        toast("Shipping", `Destination: ${elShipCountry.value}`);
+      });
+    }
+
+    if (elCurrency){
+      elCurrency.addEventListener("change", () => {
+        setCurrency(elCurrency.value);
+        enforceCurrencyByShipping(); // snap back if not allowed
+        renderCart();
+      });
+    }
+
+    // ✅ Map UI selection -> ISO2 for API
+    // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
+    function getShippingCountryISO2(){
+      const v = String(elShipCountry?.value || "DE").toUpperCase();
+      if (v === "US") return "US";
+      if (v === "CA") return "CA";
+      if (v === "EU") return "FR"; // any EU ISO2 works (FR/ES/IT/NL...)
+      return "DE";
+    }
+
+    // ==========================
+    // CART (Drawer)  ✅ FIXED: all CSS classes + safe open/close
+    // ==========================
+    const elCartBadge    = el("cartBadge");
+    const elOpenCart     = el("openCart");
+    const elCartBack     = el("cartBack");
+    const elCartDrawer   = el("cartDrawer");
+    const elCloseCart    = el("closeCart");
+    const elCartBody     = el("cartBody");
+    const elCartTotal    = el("cartTotal");
+    const elCartCheckout = el("cartCheckout");
+    const elCartClear    = el("cartClear");
+
+    function updateCartBadge(){
+      if (elCartBadge) elCartBadge.textContent = String(cartCount());
+    }
+
+    function isMobile(){
+      return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
+    }
+
+    function openCart(){
+      if (!elCartBack || !elCartDrawer) return;
+      elCartBack.classList.add("show");
+      elCartDrawer.classList.add("show");
+      // On desktop lock scroll, on mobile don't (less lag)
+      if (!isMobile()) document.body.style.overflow = "hidden";
+      renderCart();
+    }
+
+    function closeCart(){
+      elCartBack?.classList.remove("show");
+      elCartDrawer?.classList.remove("show");
+      document.body.style.overflow = "";
+    }
+
+    // ✅ IMPORTANT: ensure click listeners are attached
+    elOpenCart?.addEventListener("click", openCart);
+    elCloseCart?.addEventListener("click", closeCart);
+    elCartBack?.addEventListener("click", closeCart);
+
+    // ESC closes cart (and photo)
+    window.addEventListener("keydown", (e)=>{
+      if (e.key !== "Escape") return;
+      closeCart();
+      closePhoto();
+    });
+
+    function setCartQty(pin, qty){
+      const cart = readCart();
+      const idx = cart.findIndex(x => String(x.pin) === String(pin));
+      if (idx < 0) return;
+
+      const stock = Number(cart[idx].stock ?? 0);
+      qty = Number(qty);
+      if (!Number.isFinite(qty)) qty = 1;
+      qty = Math.max(1, qty);
+      if (stock > 0) qty = Math.min(stock, qty);
+
+      cart[idx].qty = qty;
+      writeCart(cart);
+      updateCartBadge();
+      renderCart();
+    }
+
+    function removeFromCart(pin){
+      const cart = readCart().filter(x => String(x.pin) !== String(pin));
+      writeCart(cart);
+      updateCartBadge();
+      renderCart();
+    }
+
+    function clearCart(){
+      writeCart([]);
+      updateCartBadge();
+      renderCart();
+    }
+
+    function cartTotal(){
+      const cur = getCurrency();
+      const cart = readCart();
+      let sum = 0;
+      for (const it of cart){
+        const unit = Number(it?.price?.[cur]);
+        if (Number.isFinite(unit)) sum += unit * (Number(it?.qty)||0);
+      }
+      return sum;
+    }
+
+    function priceTextFromItem(it, cur){
       const unit = it?.price?.[cur];
-      const unitText = (typeof unit === "number")
-        ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`)
-        : "—";
-
-      return `
-        <div class="cartItem" data-pin="${escapeHtml(String(it.pin || ""))}">
-          <div class="cartImg">${img}</div>
-          <div>
-            <p class="cartName">${escapeHtml(it.title || it.pin)}</p>
-            <div class="cartMeta">${escapeHtml(it.pin)} • ${unitText}</div>
-            <div class="cartRow">
-              <div class="cartQty">
-                <button type="button" data-act="minus">−</button>
-                <input value="${escapeHtml(String(it.qty))}" inputmode="numeric" />
-                <button type="button" data-act="plus">+</button>
-              </div>
-              <button class="cartRemove" type="button" data-act="remove">✕</button>
-            </div>
-            <div class="cartMeta" style="margin-top:8px;">Stock: ${escapeHtml(it.stock ?? "—")}</div>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    [...elCartBody.querySelectorAll(".cartItem")].forEach(row => {
-      const pin = row.getAttribute("data-pin");
-      const input = row.querySelector("input");
-
-      row.querySelector('button[data-act="minus"]')?.addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
-      row.querySelector('button[data-act="plus"]')?.addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
-      input?.addEventListener("input", () => {
-        const v = Number(input.value);
-        if (!Number.isFinite(v)) return;
-        setCartQty(pin, v);
-      });
-      row.querySelector('button[data-act="remove"]')?.addEventListener("click", () => removeFromCart(pin));
-    });
-
-    const sum = cartTotal();
-    elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
-  }
-
-  elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
-
-  async function startCheckout(){
-    const cart = readCart();
-    if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
-
-    // ✅ ensure ship saved
-    try{ localStorage.setItem(SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
-
-    // ✅ enforce currency before sending
-    enforceCurrencyByShipping();
-
-    const payload = {
-      currency: getCurrency(),
-      shippingCountry: getShippingCountryISO2(),
-      items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
-    };
-
-    if (elCartCheckout){
-      elCartCheckout.disabled = true;
-      elCartCheckout.textContent = "Redirecting…";
+      if (typeof unit !== "number") return "—";
+      return cur === "EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`;
     }
 
-    try{
-      const r = await fetch(API_CHECKOUT, {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify(payload),
-      });
+    function renderCart(){
+      if (!elCartBody || !elCartTotal || !elCartCheckout) return;
 
-      const data = await r.json().catch(()=>({}));
-      if (!r.ok || !data?.ok || !data?.url){
-        throw new Error(data?.error || "Checkout failed");
-      }
+      const cart = readCart();
+      const cur = getCurrency();
 
-      window.location.href = data.url;
-    }catch(e){
-      toast("Checkout", String(e?.message || e));
-      if (elCartCheckout){
-        elCartCheckout.disabled = false;
+      if (!cart.length){
+        elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
+        elCartTotal.textContent = "—";
+        elCartCheckout.disabled = true;
         elCartCheckout.textContent = "Checkout";
-      }
-    }
-  }
-  elCartCheckout?.addEventListener("click", startCheckout);
-
-  // init cart
-  updateCartBadge();
-  renderCart();
-
-  // ==========================
-  // ✅ Active state for LEFT sidebar + MOBILE bottom nav
-  // ==========================
-  (function navActive(){
-    const path = (window.location.pathname || "/").toLowerCase();
-
-    const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews"];
-    idsDesktop.forEach(id => document.getElementById(id)?.classList.remove("active"));
-
-    const idsMobile = ["mShop","mAbout","mShipping","mReturns","mReviews"];
-    idsMobile.forEach(id => document.getElementById(id)?.classList.remove("active"));
-
-    const set = (id) => document.getElementById(id)?.classList.add("active");
-
-    if (path.startsWith("/shipping")) { set("navShipping"); set("mShipping"); }
-    else if (path.startsWith("/returns")) { set("navReturns"); set("mReturns"); }
-    else if (path.startsWith("/reviews")) { set("navReviews"); set("mReviews"); }
-    else if (path.startsWith("/about")) { set("navAbout"); set("mAbout"); }
-    else { set("navShop"); set("mShop"); }
-  })();
-
-  // ==========================
-  // ⭐ Reviews logic
-  // ==========================
-  function starsText(r){
-    r = Number(r)||0;
-    let s = "";
-    for (let i=1;i<=5;i++) s += (i<=r ? "★" : "☆");
-    return s;
-  }
-  function starsEl(r){
-    const div = document.createElement("div");
-    div.className = "rStars";
-    div.setAttribute("aria-label", `${r} stars`);
-    div.textContent = starsText(r);
-    return div;
-  }
-
-  // rating picker
-  const starsPick = document.getElementById("starsPick");
-  const ratingText = document.getElementById("ratingText");
-  let rating = 5;
-
-  function renderPicker(){
-    starsPick.querySelectorAll("button.starBtn").forEach(x => x.remove());
-    for (let i=1;i<=5;i++){
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "starBtn" + (i<=rating ? " active" : "");
-      b.textContent = "★";
-      b.setAttribute("aria-label", `${i} stars`);
-      b.addEventListener("click", () => {
-        rating = i;
-        ratingText.textContent = `Selected: ${rating}/5`;
-        renderPicker();
-      });
-      starsPick.insertBefore(b, ratingText);
-    }
-    ratingText.textContent = `Selected: ${rating}/5`;
-  }
-  renderPicker();
-
-  // lightbox for photos
-  const lbBack = document.getElementById("lightboxBack");
-  const lb = document.getElementById("lightbox");
-  const lbImg = document.getElementById("lbImg");
-  const lbClose = document.getElementById("lbClose");
-  const lbCounter = document.getElementById("lbCounter");
-
-  function openPhoto(url){
-    lbImg.src = url;
-    lbCounter.textContent = "Photo";
-    lbBack.classList.add("show");
-    lb.classList.add("show");
-    document.body.style.overflow = "hidden";
-  }
-  function closePhoto(){
-    lbBack.classList.remove("show");
-    lb.classList.remove("show");
-    document.body.style.overflow = "";
-  }
-  lbClose.addEventListener("click", closePhoto);
-  lbBack.addEventListener("click", closePhoto);
-
-  // render reviews
-  const elList = document.getElementById("list");
-  const heroMeta = document.getElementById("heroMeta");
-  const countHint = document.getElementById("countHint");
-
-  const avgNum = document.getElementById("avgNum");
-  const avgStars = document.getElementById("avgStars");
-  const avgSub = document.getElementById("avgSub");
-
-  function fmtDate(value){
-    if (!value) return "";
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleDateString(undefined, { year:"numeric", month:"short", day:"2-digit" });
-  }
-
-  function calcAverage(items){
-    const arr = (items||[]).map(x => Number(x.rating)).filter(n => Number.isFinite(n) && n>=1 && n<=5);
-    if (!arr.length) return { avg:null, count:0 };
-    const sum = arr.reduce((a,b)=>a+b,0);
-    return { avg: sum/arr.length, count: arr.length };
-  }
-
-  function reviewCard(r){
-    const wrap = document.createElement("div");
-    wrap.className = "review";
-
-    const top = document.createElement("div");
-    top.className = "rTop";
-
-    const left = document.createElement("div");
-    const name = document.createElement("p");
-    name.className = "rName";
-    name.textContent = r.name || "Anonymous";
-
-    const date = document.createElement("div");
-    date.className = "rDate";
-    const country = (r.country ? ` • ${r.country}` : "");
-    date.textContent = `${fmtDate(r.createdAt || r.date || "")}${country}`;
-
-    left.appendChild(name);
-    left.appendChild(date);
-
-    const right = starsEl(r.rating || 0);
-
-    top.appendChild(left);
-    top.appendChild(right);
-
-    const text = document.createElement("p");
-    text.className = "rText";
-    text.textContent = r.text || "";
-
-    wrap.appendChild(top);
-    wrap.appendChild(text);
-
-    if (Array.isArray(r.photos) && r.photos.length){
-      const ph = document.createElement("div");
-      ph.className = "rPhotos";
-      r.photos.slice(0, 12).forEach(url => {
-        const box = document.createElement("div");
-        box.className = "rPhoto";
-        box.innerHTML = `<img src="${escapeHtml(url)}" alt="Photo" loading="lazy" />`;
-        box.addEventListener("click", ()=> openPhoto(url));
-        ph.appendChild(box);
-      });
-      wrap.appendChild(ph);
-    }
-
-    return wrap;
-  }
-
-  async function loadReviews(){
-    heroMeta.textContent = "Loading…";
-    elList.innerHTML = "";
-
-    try{
-      const r = await fetch(API_REVIEWS, { method:"GET", cache:"no-store" });
-      const data = await r.json().catch(()=>({}));
-      if (!r.ok) throw new Error(data?.error || "Failed to load reviews");
-
-      const items = Array.isArray(data?.reviews) ? data.reviews : [];
-      const { avg, count } = calcAverage(items);
-
-      const total = items.length;
-
-      heroMeta.textContent = total
-        ? `Showing approved reviews from customers.`
-        : `No approved reviews yet. Be the first 🙂`;
-
-      countHint.textContent = total ? `${total} reviews` : "—";
-
-      if (avg == null){
-        avgNum.textContent = "—";
-        avgStars.textContent = "—";
-        avgSub.textContent = "No ratings yet";
-      } else {
-        avgNum.textContent = avg.toFixed(2);
-        avgStars.textContent = starsText(Math.round(avg));
-        avgSub.textContent = `${count} ratings`;
-      }
-
-      if (!items.length){
-        elList.innerHTML = `<div class="empty">No reviews yet. Your review will appear after approval.</div>`;
         return;
       }
 
-      items.sort((a,b) => {
-        const ad = new Date(a.createdAt || a.date || 0).getTime() || 0;
-        const bd = new Date(b.createdAt || b.date || 0).getTime() || 0;
-        return bd - ad;
+      elCartCheckout.disabled = false;
+      elCartCheckout.textContent = "Checkout";
+
+      elCartBody.innerHTML = cart.map(it => {
+        const img = it.image
+          ? `<img src="${escapeHtml(it.image)}" alt="${escapeHtml(it.title)}" />`
+          : `<span>—</span>`;
+
+        const unitText = priceTextFromItem(it, cur);
+
+        return `
+          <div class="cartItem" data-pin="${escapeHtml(String(it.pin || ""))}">
+            <div class="cartImg">${img}</div>
+            <div>
+              <p class="cartName">${escapeHtml(it.title || it.pin)}</p>
+              <div class="cartMeta">${escapeHtml(it.pin)} • ${unitText}</div>
+              <div class="cartRow">
+                <div class="cartQty">
+                  <button type="button" data-act="minus">−</button>
+                  <input value="${escapeHtml(String(it.qty || 1))}" inputmode="numeric" />
+                  <button type="button" data-act="plus">+</button>
+                </div>
+                <button class="cartRemove" type="button" data-act="remove">✕</button>
+              </div>
+              <div class="cartMeta" style="margin-top:8px;">Stock: ${escapeHtml(it.stock ?? "—")}</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      Array.from(elCartBody.querySelectorAll(".cartItem")).forEach(row => {
+        const pin = row.getAttribute("data-pin") || "";
+        const input = row.querySelector("input");
+
+        row.querySelector('button[data-act="minus"]')?.addEventListener("click", () => {
+          setCartQty(pin, Number(input?.value) - 1);
+        });
+        row.querySelector('button[data-act="plus"]')?.addEventListener("click", () => {
+          setCartQty(pin, Number(input?.value) + 1);
+        });
+
+        input?.addEventListener("input", () => {
+          const v = Number(input.value);
+          if (!Number.isFinite(v)) return;
+          setCartQty(pin, v);
+        });
+
+        row.querySelector('button[data-act="remove"]')?.addEventListener("click", () => removeFromCart(pin));
       });
 
-      items.forEach(it => elList.appendChild(reviewCard(it)));
-    }catch(e){
-      heroMeta.textContent = "Failed to load reviews.";
-      elList.innerHTML = `<div class="empty">Error: ${escapeHtml(String(e?.message || e))}</div>`;
-      toast("Reviews", String(e?.message || e));
+      const sum = cartTotal();
+      elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
     }
-  }
 
-  // submit
-  const elName = document.getElementById("name");
-  const elCountry = document.getElementById("country");
-  const elText = document.getElementById("text");
-  const elSend = document.getElementById("sendBtn");
+    elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  function validate(){
-    const name = (elName.value || "").trim();
-    const text = (elText.value || "").trim();
-    if (name.length < 2) return "Name is too short";
-    if (rating < 1 || rating > 5) return "Rating must be 1..5";
-    if (text.length < 10) return "Text is too short (min 10 chars)";
-    return null;
-  }
+    async function startCheckout(){
+      const cart = readCart();
+      if (!cart.length){ toast("Checkout", "Cart is empty"); return; }
 
-  async function sendReview(){
-    const err = validate();
-    if (err){ toast("Review", err); return; }
+      // save ship
+      try{ localStorage.setItem(SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
 
-    const payload = {
-      name: (elName.value || "").trim(),
-      country: (elCountry.value || "").trim(),
-      rating: rating,
-      text: (elText.value || "").trim(),
-      source: "site",
-    };
+      // enforce currency
+      enforceCurrencyByShipping();
 
-    elSend.disabled = true;
-    elSend.textContent = "Sending…";
+      const payload = {
+        currency: getCurrency(),
+        shippingCountry: getShippingCountryISO2(),
+        items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+      };
 
-    try{
-      const r = await fetch(API_REVIEWS, {
-        method:"POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await r.json().catch(()=>({}));
-      if (!r.ok || !data?.ok){
-        throw new Error(data?.error || "Failed to send review");
+      if (elCartCheckout){
+        elCartCheckout.disabled = true;
+        elCartCheckout.textContent = "Redirecting…";
       }
 
-      toast("Review", "Sent ✅ Waiting for approval");
-      elText.value = "";
-      loadReviews();
-    }catch(e){
-      toast("Review", String(e?.message || e));
-    }finally{
-      elSend.disabled = false;
-      elSend.textContent = "Send review";
+      try{
+        const r = await fetch(API_CHECKOUT, {
+          method: "POST",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await r.json().catch(()=>({}));
+        if (!r.ok || !data?.ok || !data?.url){
+          throw new Error(data?.error || "Checkout failed");
+        }
+
+        window.location.href = data.url;
+      }catch(e){
+        toast("Checkout", String(e?.message || e));
+        if (elCartCheckout){
+          elCartCheckout.disabled = false;
+          elCartCheckout.textContent = "Checkout";
+        }
+      }
     }
-  }
+    elCartCheckout?.addEventListener("click", startCheckout);
 
-  elSend.addEventListener("click", sendReview);
+    // init cart
+    updateCartBadge();
+    renderCart();
 
-  elText.addEventListener("keydown", (e)=>{
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendReview();
-  });
+    // ==========================
+    // Active state (sidebar + mobile bottom nav)
+    // ==========================
+    (function navActive(){
+      const path = (window.location.pathname || "/").toLowerCase();
 
-  loadReviews();
-</script>
+      const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews"];
+      idsDesktop.forEach(id => el(id)?.classList.remove("active"));
+
+      const idsMobile  = ["mShop","mAbout","mShipping","mReturns","mReviews"];
+      idsMobile.forEach(id => el(id)?.classList.remove("active"));
+
+      const set = (id) => el(id)?.classList.add("active");
+
+      if (path.startsWith("/shipping")) { set("navShipping"); set("mShipping"); }
+      else if (path.startsWith("/returns")) { set("navReturns"); set("mReturns"); }
+      else if (path.startsWith("/reviews")) { set("navReviews"); set("mReviews"); }
+      else if (path.startsWith("/about")) { set("navAbout"); set("mAbout"); }
+      else { set("navShop"); set("mShop"); }
+    })();
+
+    // ==========================
+    // Reviews helpers
+    // ==========================
+    function starsText(r){
+      r = Number(r)||0;
+      let s = "";
+      for (let i=1;i<=5;i++) s += (i<=r ? "★" : "☆");
+      return s;
+    }
+    function starsEl(r){
+      const div = document.createElement("div");
+      div.className = "rStars";
+      div.setAttribute("aria-label", `${r} stars`);
+      div.textContent = starsText(r);
+      return div;
+    }
+
+    // rating picker
+    const starsPick  = el("starsPick");
+    const ratingText = el("ratingText");
+    let rating = 5;
+
+    function renderPicker(){
+      if (!starsPick) return;
+      starsPick.querySelectorAll("button.starBtn").forEach(x => x.remove());
+      for (let i=1;i<=5;i++){
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "starBtn" + (i<=rating ? " active" : "");
+        b.textContent = "★";
+        b.setAttribute("aria-label", `${i} stars`);
+        b.addEventListener("click", () => {
+          rating = i;
+          if (ratingText) ratingText.textContent = `Selected: ${rating}/5`;
+          renderPicker();
+        });
+        starsPick.insertBefore(b, ratingText);
+      }
+      if (ratingText) ratingText.textContent = `Selected: ${rating}/5`;
+    }
+    renderPicker();
+
+    // ==========================
+    // Lightbox (photos)
+    // ==========================
+    const lbBack    = el("lightboxBack");
+    const lb        = el("lightbox");
+    const lbImg     = el("lbImg");
+    const lbClose   = el("lbClose");
+    const lbCounter = el("lbCounter");
+
+    function openPhoto(url){
+      if (!lbBack || !lb || !lbImg) return;
+      lbImg.src = url;
+      if (lbCounter) lbCounter.textContent = "Photo";
+      lbBack.classList.add("show");
+      lb.classList.add("show");
+      if (!isMobile()) document.body.style.overflow = "hidden";
+    }
+    function closePhoto(){
+      lbBack?.classList.remove("show");
+      lb?.classList.remove("show");
+      document.body.style.overflow = "";
+    }
+    lbClose?.addEventListener("click", closePhoto);
+    lbBack?.addEventListener("click", closePhoto);
+
+    // ==========================
+    // Reviews rendering
+    // ==========================
+    const elList   = el("list");
+    const heroMeta = el("heroMeta");
+    const countHint= el("countHint");
+
+    const avgNum   = el("avgNum");
+    const avgStars = el("avgStars");
+    const avgSub   = el("avgSub");
+
+    function fmtDate(value){
+      if (!value) return "";
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleDateString(undefined, { year:"numeric", month:"short", day:"2-digit" });
+    }
+
+    function calcAverage(items){
+      const arr = (items||[]).map(x => Number(x.rating)).filter(n => Number.isFinite(n) && n>=1 && n<=5);
+      if (!arr.length) return { avg:null, count:0 };
+      const sum = arr.reduce((a,b)=>a+b,0);
+      return { avg: sum/arr.length, count: arr.length };
+    }
+
+    function reviewCard(r){
+      const wrap = document.createElement("div");
+      wrap.className = "review";
+
+      const top = document.createElement("div");
+      top.className = "rTop";
+
+      const left = document.createElement("div");
+      const name = document.createElement("p");
+      name.className = "rName";
+      name.textContent = r.name || "Anonymous";
+
+      const date = document.createElement("div");
+      date.className = "rDate";
+      const country = (r.country ? ` • ${r.country}` : "");
+      date.textContent = `${fmtDate(r.createdAt || r.date || "")}${country}`;
+
+      left.appendChild(name);
+      left.appendChild(date);
+
+      const right = starsEl(r.rating || 0);
+
+      top.appendChild(left);
+      top.appendChild(right);
+
+      const text = document.createElement("p");
+      text.className = "rText";
+      text.textContent = r.text || "";
+
+      wrap.appendChild(top);
+      wrap.appendChild(text);
+
+      // photos (if your API returns "photos": ["url", ...])
+      if (Array.isArray(r.photos) && r.photos.length){
+        const ph = document.createElement("div");
+        ph.className = "rPhotos";
+        r.photos.slice(0, 12).forEach(url => {
+          const box = document.createElement("div");
+          box.className = "rPhoto";
+          box.innerHTML = `<img src="${escapeHtml(url)}" alt="Photo" loading="lazy" />`;
+          box.addEventListener("click", ()=> openPhoto(url));
+          ph.appendChild(box);
+        });
+        wrap.appendChild(ph);
+      }
+
+      return wrap;
+    }
+
+    async function loadReviews(){
+      if (heroMeta) heroMeta.textContent = "Loading…";
+      if (elList) elList.innerHTML = "";
+
+      try{
+        const r = await fetch(API_REVIEWS, { method:"GET", cache:"no-store" });
+        const data = await r.json().catch(()=>({}));
+        if (!r.ok) throw new Error(data?.error || "Failed to load reviews");
+
+        const items = Array.isArray(data?.reviews) ? data.reviews : [];
+        const { avg, count } = calcAverage(items);
+
+        const total = items.length;
+
+        if (heroMeta){
+          heroMeta.textContent = total
+            ? `Showing approved reviews from customers.`
+            : `No approved reviews yet. Be the first 🙂`;
+        }
+        if (countHint) countHint.textContent = total ? `${total} reviews` : "—";
+
+        if (avg == null){
+          if (avgNum) avgNum.textContent = "—";
+          if (avgStars) avgStars.textContent = "—";
+          if (avgSub) avgSub.textContent = "No ratings yet";
+        } else {
+          if (avgNum) avgNum.textContent = avg.toFixed(2);
+          if (avgStars) avgStars.textContent = starsText(Math.round(avg));
+          if (avgSub) avgSub.textContent = `${count} ratings`;
+        }
+
+        if (!items.length){
+          if (elList){
+            elList.innerHTML = `<div class="empty">No reviews yet. Your review will appear after approval.</div>`;
+          }
+          return;
+        }
+
+        items.sort((a,b) => {
+          const ad = new Date(a.createdAt || a.date || 0).getTime() || 0;
+          const bd = new Date(b.createdAt || b.date || 0).getTime() || 0;
+          return bd - ad;
+        });
+
+        items.forEach(it => elList?.appendChild(reviewCard(it)));
+      }catch(e){
+        if (heroMeta) heroMeta.textContent = "Failed to load reviews.";
+        if (elList){
+          elList.innerHTML = `<div class="empty">Error: ${escapeHtml(String(e?.message || e))}</div>`;
+        }
+        toast("Reviews", String(e?.message || e));
+      }
+    }
+
+    // ==========================
+    // Submit review
+    // ==========================
+    const elName    = el("name");
+    const elCountry = el("country");
+    const elText    = el("text");
+    const elSend    = el("sendBtn");
+
+    function validate(){
+      const name = (elName?.value || "").trim();
+      const text = (elText?.value || "").trim();
+      if (name.length < 2) return "Name is too short";
+      if (rating < 1 || rating > 5) return "Rating must be 1..5";
+      if (text.length < 10) return "Text is too short (min 10 chars)";
+      return null;
+    }
+
+    async function sendReview(){
+      const err = validate();
+      if (err){ toast("Review", err); return; }
+
+      const payload = {
+        name: (elName.value || "").trim(),
+        country: (elCountry.value || "").trim(),
+        rating: rating,
+        text: (elText.value || "").trim(),
+        source: "site",
+      };
+
+      if (elSend){
+        elSend.disabled = true;
+        elSend.textContent = "Sending…";
+      }
+
+      try{
+        const r = await fetch(API_REVIEWS, {
+          method:"POST",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json().catch(()=>({}));
+        if (!r.ok || !data?.ok){
+          throw new Error(data?.error || "Failed to send review");
+        }
+
+        toast("Review", "Sent ✅ Waiting for approval");
+        if (elText) elText.value = "";
+        loadReviews();
+      }catch(e){
+        toast("Review", String(e?.message || e));
+      }finally{
+        if (elSend){
+          elSend.disabled = false;
+          elSend.textContent = "Send review";
+        }
+      }
+    }
+
+    elSend?.addEventListener("click", sendReview);
+
+    elText?.addEventListener("keydown", (e)=>{
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendReview();
+    });
+
+    // load
+    loadReviews();
+  </script>
 </body>
 </html>
