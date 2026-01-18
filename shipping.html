@@ -15,6 +15,7 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
+
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
@@ -24,6 +25,7 @@
       position:relative;
       isolation:isolate;
     }
+
     body::before{
       content:"";
       position:fixed;
@@ -46,56 +48,102 @@
     *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
     *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
 
-    .wrap{
-      max-width: 980px;
-      margin: 0 auto;
-      padding: calc(18px + env(safe-area-inset-top)) 16px 24px;
+    /* ===== Layout like Privacy/Impressum ===== */
+    .app{
+      display:grid;
+      grid-template-columns: 280px 1fr;
+      min-height:100vh;
+      gap:16px;
+      padding:16px;
     }
 
-    .panel{
+    .sidebar{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+
+    .sb-top{
+      padding:18px 18px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
+    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
+    .pill{
+      padding:8px 10px; border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .sb-nav{padding:6px; display:grid; gap:6px;}
+    .nav-item{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      color:var(--muted);
+      text-decoration:none;
+      border:1px solid transparent;
+      background: rgba(255,255,255,.00);
+    }
+    .nav-item:hover{background:rgba(255,255,255,.05); color:var(--text);}
+    .nav-item.active{
+      background:rgba(34,197,94,.12);
+      border-color: rgba(34,197,94,.22);
+      color:var(--text);
+    }
+
+    .main{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       border:1px solid var(--line);
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
     }
 
     .topbar{
-      padding: 16px 18px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
+      padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
     }
-    .brand{display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.3px;}
-    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
-
-    .nav{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .nav a{
-      text-decoration:none;
-      color:var(--muted);
-      padding:10px 12px;
-      border-radius:999px;
-      border:1px solid transparent;
-      background: rgba(0,0,0,.22);
-    }
-    .nav a:hover{color:var(--text); background: rgba(255,255,255,.06);}
-    .nav a.active{
-      color:var(--text);
-      border-color: rgba(34,197,94,.22);
-      background: rgba(34,197,94,.12);
-    }
+    .h-title{font-weight:900; font-size:18px; margin:0;}
+    .sub{color:var(--muted); font-size:12px; margin-top:4px}
 
     .content{
-      padding: 18px;
-      padding-bottom: 18px;
+      padding:18px;
+      overflow:auto;
+      min-height:0;
     }
+
+    /* Button same as legal pages */
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      border:none; cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:linear-gradient(135deg,#22c55e,#16a34a);
+      color:#07110b;
+      font-weight:900;
+      box-shadow: 0 10px 18px rgba(34,197,94,.18);
+      transition: filter .15s ease, transform .15s ease;
+      text-decoration:none;
+      white-space:nowrap;
+    }
+    .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
 
     h1{
       margin: 0 0 10px;
@@ -103,7 +151,7 @@
       font-weight: 950;
       letter-spacing:.2px;
     }
-    .sub{
+    .subtext{
       margin: 0 0 18px;
       color: var(--muted);
       font-size: 13px;
@@ -138,7 +186,7 @@
     }
     .card ul{margin:10px 0 0 18px; padding:0;}
 
-    .pill{
+    .pill2{
       display:inline-block;
       margin-top:10px;
       padding:8px 10px;
@@ -160,20 +208,6 @@
     }
     .note small{color: var(--muted); display:block; margin-top:6px}
 
-    .footer{
-      padding: 12px 18px;
-      border-top:1px solid var(--line);
-      background: rgba(0,0,0,.20);
-      color: var(--muted);
-      font-size: 12px;
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-    .footer a{color: var(--text); text-decoration:none; opacity:.9;}
-    .footer a:hover{opacity:1}
-    .sep{opacity:.35}
-
     /* ✅ shipping prices */
     .priceRow{
       display:flex;
@@ -184,9 +218,7 @@
       padding-top:10px;
       border-top:1px solid rgba(255,255,255,.08);
     }
-    .priceLeft{
-      min-width:0;
-    }
+    .priceLeft{min-width:0;}
     .priceTitle{
       font-weight:950;
       font-size:13px;
@@ -212,6 +244,75 @@
       white-space:nowrap;
     }
 
+    /* ✅ Mobile: topbar button full width + bottom nav spacing */
+    @media (max-width:980px){
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none}
+      .content{
+        padding:14px;
+        padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
+      }
+
+      .topbar{
+        flex-direction:column;
+        align-items:stretch;
+        gap:12px;
+      }
+      .btn.backBtn{
+        width:100%;
+      }
+    }
+
+    /* ===== Footer (same across pages) ===== */
+    .footer{
+      margin-top:auto;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding:14px 18px;
+    }
+    .footerRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .footerBrand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .footerLinks{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .footerLinks a{
+      text-decoration:none;
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+    }
+    .footerLinks a:hover{
+      background:rgba(255,255,255,.08);
+      transform: translateY(-1px);
+      color:var(--text);
+    }
+    @media (max-width:980px){
+      .footer{padding:12px 14px;}
+      .footerRow{justify-content:center;}
+      .footerLinks{justify-content:center;}
+    }
+
     /* ==========================
        ✅ MOBILE BOTTOM NAV
     ========================== */
@@ -229,11 +330,7 @@
       backdrop-filter: blur(12px);
       box-shadow: 0 18px 40px rgba(0,0,0,.55);
     }
-    .mobileNavRow{
-      display:flex;
-      gap:10px;
-      justify-content:space-between;
-    }
+    .mobileNavRow{ display:flex; gap:10px; justify-content:space-between; }
     .mItem{
       flex:1 1 0;
       text-align:center;
@@ -255,14 +352,7 @@
       background: rgba(34,197,94,.16);
       border-color: rgba(34,197,94,.25);
     }
-
-    @media (max-width:980px){
-      .content{
-        padding:14px;
-        padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
-      }
-      .mobileNav{display:block;}
-    }
+    @media (max-width:980px){ .mobileNav{display:block;} }
     @media (max-width:520px){
       .mobileNavRow{gap:8px;}
       .mItem{font-size:12px; padding: 12px 8px;}
@@ -271,21 +361,36 @@
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="panel">
-      <div class="topbar">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
         <div class="brand"><span class="dot"></span> Mosaic Pins</div>
-        <nav class="nav">
-          <a href="/index.html">Shop</a>
-          <a class="active" href="/shipping.html">Shipping</a>
-          <a href="/returns.html">Returns</a>
-          <a href="/reviews.html">Reviews</a>
-        </nav>
+        <div class="pill">Info</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/index.html">Shop</a>
+        <a class="nav-item" href="/about.html">About</a>
+        <a class="nav-item active" href="/shipping.html">Shipping</a>
+        <a class="nav-item" href="/returns.html">Returns</a>
+        <a class="nav-item" href="/reviews.html">Reviews</a>
+        <a class="nav-item" href="/privacy.html">Privacy</a>
+        <a class="nav-item" href="/impressum.html">Impressum</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 class="h-title">Shipping</h1>
+          <div class="sub">Worldwide tracked shipping • Processing & delivery info</div>
+        </div>
+
+        <a class="btn backBtn" href="/index.html">← Back to Shop</a>
       </div>
 
       <div class="content">
-        <h1>Shipping</h1>
-        <p class="sub">
+        <p class="subtext">
           We ship mosaic pins worldwide. Below is a simple overview of processing time, delivery and tracking.
         </p>
 
@@ -296,7 +401,7 @@
               Orders are typically processed within <b>1–3 business days</b>.
               During peak periods it may take a little longer.
             </p>
-            <span class="pill">Handcrafted &amp; carefully packed</span>
+            <span class="pill2">Handcrafted &amp; carefully packed</span>
           </div>
 
           <div class="card">
@@ -311,7 +416,6 @@
             </ul>
           </div>
 
-          <!-- ✅ Shipping prices (AUTO: shows EUR or USD) -->
           <div class="card">
             <h2>Shipping prices</h2>
 
@@ -339,7 +443,7 @@
               <div class="priceTag" id="pUSCA">—</div>
             </div>
 
-            <span class="pill" id="priceHint">—</span>
+            <span class="pill2" id="priceHint">—</span>
           </div>
 
           <div class="card">
@@ -367,16 +471,27 @@
         </div>
       </div>
 
-      <div class="footer">
-        <a href="/shipping.html">Shipping</a>
-        <span class="sep">|</span>
-        <a href="/returns.html">Returns &amp; Refunds</a>
-        <span class="sep">|</span>
-        <a href="/reviews.html">Reviews</a>
-        <span class="sep">|</span>
-        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
-      </div>
-    </div>
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span style="display:inline-flex;align-items:center;gap:8px;">
+              <span class="dot"></span>
+              <span>© <span id="year"></span> Mosaic Pins</span>
+            </span>
+          </div>
+
+          <div class="footerLinks">
+            <a href="/about.html">About</a>
+            <a href="/shipping.html">Shipping</a>
+            <a href="/returns.html">Returns</a>
+            <a href="/reviews.html">Reviews</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/impressum.html">Impressum</a>
+            <a href="mailto:support@mosaicpins.space">Support</a>
+          </div>
+        </div>
+      </footer>
+    </main>
   </div>
 
   <!-- ✅ MOBILE BOTTOM NAV -->
@@ -391,6 +506,9 @@
   </nav>
 
   <script>
+    // ✅ year in footer
+    document.getElementById("year").textContent = new Date().getFullYear();
+
     // ✅ active state for mobile bottom nav
     (function navActive(){
       const path = (window.location.pathname || "/").toLowerCase();
@@ -404,7 +522,7 @@
       else document.getElementById("mShop")?.classList.add("active");
     })();
 
-    // если пользователь пришёл со Stripe success/canceled на эти страницы — перекинем на главную
+    // ✅ if user came from Stripe success/canceled — redirect to main
     (function(){
       const u = new URL(window.location.href);
       const ok = u.searchParams.get("success")==="1";
@@ -428,7 +546,6 @@
         const c = String(localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
         if (c === "EUR" || c === "USD") return c;
 
-        // fallback: by shipping country
         const ship = String(localStorage.getItem(MP_SHIP_KEY) || "DE").toUpperCase();
         if (ship === "US" || ship === "CA") return "USD";
         return "EUR";
@@ -442,16 +559,11 @@
       const cur = getCurrency();
       const p = SHIPPING[cur] || SHIPPING.EUR;
 
-      const elDE = document.getElementById("pDE");
-      const elEU = document.getElementById("pEU");
-      const elUSCA = document.getElementById("pUSCA");
-      const elHint = document.getElementById("priceHint");
+      document.getElementById("pDE").textContent = fmt(cur, p.DE);
+      document.getElementById("pEU").textContent = fmt(cur, p.EU);
+      document.getElementById("pUSCA").textContent = fmt(cur, p.USCA);
 
-      if (elDE) elDE.textContent = fmt(cur, p.DE);
-      if (elEU) elEU.textContent = fmt(cur, p.EU);
-      if (elUSCA) elUSCA.textContent = fmt(cur, p.USCA);
-
-      if (elHint) elHint.textContent = `Prices shown in ${cur}`;
+      document.getElementById("priceHint").textContent = `Prices shown in ${cur}`;
     })();
   </script>
 </body>
