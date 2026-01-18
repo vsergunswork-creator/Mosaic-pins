@@ -982,10 +982,16 @@ function autoCurrencyByShippingCountry() {
     try{ localStorage.setItem(MP_CUR_KEY, String(elCurrency.value || "EUR").toUpperCase()); }catch(_){}
     render(); renderCart();
   });
-  elShipCountry.addEventListener("change", () => {
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
-    toast("Shipping", `Destination: ${elShipCountry.value}`);
-  });
+elShipCountry.addEventListener("change", () => {
+  try{
+    localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase());
+  }catch(_){}
+
+  // ✅ Auto currency switch based on destination
+  autoCurrencyByShippingCountry();
+
+  toast("Shipping", `Destination: ${elShipCountry.value}`);
+});
 
   function priceText(priceObj){
     const cur = elCurrency.value;
