@@ -16,7 +16,7 @@ export async function onRequestPost(ctx) {
     const currency = String(body.currency || "EUR").toUpperCase();
     const items = Array.isArray(body.items) ? body.items : [];
 
-    // ✅ NEW: shipping country (ISO2)
+    // ✅ shipping country (ISO2)
     const shippingCountry = String(body.shippingCountry || "").trim().toUpperCase();
 
     if (!["EUR", "USD"].includes(currency)) {
@@ -132,12 +132,8 @@ export async function onRequestPost(ctx) {
     }
 
     // =========================
-    // ✅ Shipping zones + цены
-    // Germany: 6
-    // Europe: 14.50
-    // USA/Canada: 27
+    // ✅ Shipping zones
     // =========================
-
     const EUROPE_COUNTRIES = [
       // EU
       "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
@@ -146,7 +142,6 @@ export async function onRequestPost(ctx) {
       // Europe nearby
       "AL","BA","ME","MK","RS","MD","UA",
     ];
-
     const USCA_COUNTRIES = ["US", "CA"];
 
     function detectZone(cc) {
@@ -158,34 +153,36 @@ export async function onRequestPost(ctx) {
 
     const zone = detectZone(shippingCountry);
     if (zone === "UNSUPPORTED") {
-      return json(
-        {
-          ok: false,
-          error: `Shipping is not available to ${shippingCountry}.`,
-        },
-        400,
-        headers
-      );
+      return json({ ok: false, error: `Shipping is not available to ${shippingCountry}.` }, 400, headers);
     }
 
-    // ✅ allowed countries in Stripe (so customer cannot change to “wrong” country)
+    // ✅ allowed countries in Stripe
     let allowedCountries = [];
-    let shippingName = "";
-    let shippingCents = 0;
+    if (zone === "DE") allowedCountries = ["DE"];
+    else if (zone === "EU") allowedCountries = EUROPE_COUNTRIES;
+    else allowedCountries = USCA_COUNTRIES;
 
-    if (zone === "DE") {
-      allowedCountries = ["DE"];
-      shippingName = "Germany shipping (tracked)";
-      shippingCents = moneyToCents(6.0);
-    } else if (zone === "EU") {
-      allowedCountries = EUROPE_COUNTRIES; // including DE is ok, but Germany customers should send DE => zone DE on your site
-      shippingName = "Europe shipping (tracked)";
-      shippingCents = moneyToCents(14.5);
-    } else {
-      allowedCountries = USCA_COUNTRIES;
-      shippingName = "USA / Canada shipping (tracked)";
-      shippingCents = moneyToCents(27.0);
+    // =========================
+    // ✅ Shipping prices per currency (YOUR TABLE)
+    // EUR: DE 6.00 / EU 14.50 / US+CA 27.00
+    // USD: US+CA 29.00 / DE 8.00 / EU 16.00
+    // =========================
+    const SHIPPING_PRICES = {
+      EUR: { DE: 6.00, EU: 14.50, USCA: 27.00 },
+      USD: { DE: 8.00, EU: 16.00, USCA: 29.00 },
+    };
+
+    const shippingAmount = SHIPPING_PRICES?.[currency]?.[zone];
+    if (!Number.isFinite(shippingAmount)) {
+      return json({ ok: false, error: `Shipping price missing for ${zone} in ${currency}.` }, 500, headers);
     }
+
+    const shippingName =
+      zone === "DE" ? "Germany shipping (tracked)"
+      : zone === "EU" ? "Europe shipping (tracked)"
+      : "USA / Canada shipping (tracked)";
+
+    const shippingCents = moneyToCents(shippingAmount);
 
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
@@ -206,7 +203,7 @@ export async function onRequestPost(ctx) {
         shipping_address_collection: { allowed_countries: allowedCountries },
         phone_number_collection: { enabled: true },
 
-        // ✅ ONLY ONE shipping option (auto)
+        // ✅ ONE shipping option (auto)
         shipping_options: [
           {
             shipping_rate_data: {
@@ -257,7 +254,10 @@ function json(obj, status = 200, headers = {}) {
 }
 
 function moneyToCents(amount) {
-  return Math.round(Number(amount) * 100);
+  // safe rounding
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100);
 }
 
 async function airtableFetchByPins({ token, baseId, table, pins }) {
