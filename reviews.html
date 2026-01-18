@@ -437,22 +437,6 @@
       font-size:13px;
     }
 
-    .siteFooter{
-      padding: 12px 18px;
-      border-top: 1px solid var(--line);
-      background: rgba(0,0,0,.20);
-      color: var(--muted);
-      font-size: 12px;
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      flex: 0 0 auto;
-      margin-top:auto;
-    }
-    .siteFooter a{color: var(--text); text-decoration:none; opacity:.9;}
-    .siteFooter a:hover{opacity:1}
-    .siteFooter .sep{opacity:.35}
-
     /* Lightbox (for photos) */
     .lightboxBack{
       position:fixed; inset:0;
@@ -728,6 +712,52 @@
       white-space:nowrap;
     }
 
+    /* ✅ NEW Footer (same style as Privacy/Impressum) */
+    .footer{
+      margin-top:auto;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding:14px 18px;
+      flex: 0 0 auto;
+    }
+    .footerRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .footerBrand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .footerLinks{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .footerLinks a{
+      text-decoration:none;
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+    }
+    .footerLinks a:hover{
+      background:rgba(255,255,255,.08);
+      transform: translateY(-1px);
+      color:var(--text);
+    }
+
     @media (max-width:980px){
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
@@ -742,7 +772,12 @@
       }
 
       .mobileNav{display:block;}
+
+      .footer{padding:12px 14px;}
+      .footerRow{justify-content:center;}
+      .footerLinks{justify-content:center;}
     }
+
     @media (max-width:520px){
       .mobileNavRow{gap:8px;}
       .mItem{font-size:12px; padding: 12px 8px;}
@@ -777,6 +812,13 @@
         <div class="sb-card">
           <h3>Contact</h3>
           <p><a style="color:var(--text); text-decoration:none; opacity:.9" href="mailto:support@mosaicpins.space">support@mosaicpins.space</a></p>
+        </div>
+
+        <!-- ✅ Back button in sidebar (desktop only) -->
+        <div class="sb-card">
+          <a class="btn2" href="/index.html" style="text-align:center; width:100%; display:inline-flex; justify-content:center;">
+            ← Back to Shop
+          </a>
         </div>
       </div>
     </aside>
@@ -858,6 +900,13 @@
               <div style="margin-top:10px; color:var(--muted); font-size:12px;">
                 Thank you very much for your feedback! 😉
               </div>
+
+              <!-- ✅ Back button for mobile (inside content so it's always visible) -->
+              <div style="margin-top:12px;">
+                <a class="btn2" href="/index.html" style="display:inline-flex; width:100%; justify-content:center;">
+                  ← Back to Shop
+                </a>
+              </div>
             </div>
           </section>
 
@@ -874,12 +923,26 @@
         </div>
       </div>
 
-      <footer class="siteFooter">
-        <a href="/shipping">Shipping</a>
-        <span class="sep">|</span>
-        <a href="/returns">Returns & Refunds</a>
-        <span class="sep">|</span>
-        <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
+      <!-- ✅ NEW Footer (same style as Privacy/Impressum + added pages) -->
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span style="display:inline-flex;align-items:center;gap:8px;">
+              <span class="dot"></span>
+              <span>© <span id="year"></span> Mosaic Pins</span>
+            </span>
+          </div>
+
+          <div class="footerLinks">
+            <a href="/about">About</a>
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns</a>
+            <a href="/reviews">Reviews</a>
+            <a href="/privacy.html">Privacy Policy</a>
+            <a href="/impressum.html">Impressum</a>
+            <a href="mailto:support@mosaicpins.space">Support</a>
+          </div>
+        </div>
       </footer>
     </main>
   </div>
@@ -935,7 +998,14 @@
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
+
 <script>
+  // ✅ footer year (same as Privacy/Impressum)
+  (function(){
+    const y = document.getElementById("year");
+    if (y) y.textContent = new Date().getFullYear();
+  })();
+
   const API_REVIEWS = "/api/reviews";
   const API_CHECKOUT = "/api/checkout";
 
@@ -1088,6 +1158,7 @@
   elCloseCart?.addEventListener("click", closeCart);
   elCartBack?.addEventListener("click", closeCart);
 
+  // ✅ Escape closes cart + photo
   window.addEventListener("keydown", (e)=>{
     if(e.key==="Escape") { closeCart(); closePhoto(); }
   });
@@ -1249,22 +1320,21 @@
   // ✅ Active state for LEFT sidebar + MOBILE bottom nav
   // ==========================
   (function navActive(){
-    const path = window.location.pathname || "/";
+    const path = (window.location.pathname || "/").toLowerCase();
 
-    const map = [
-      { test: (p)=> p==="/" || p.startsWith("/index"), desk:"navShop",  mob:"mShop" },
-      { test: (p)=> p.startsWith("/about"),          desk:"navAbout", mob:"mAbout" },
-      { test: (p)=> p.startsWith("/shipping"),       desk:"navShipping", mob:"mShipping" },
-      { test: (p)=> p.startsWith("/returns"),        desk:"navReturns",  mob:"mReturns" },
-      { test: (p)=> p.startsWith("/reviews"),        desk:"navReviews",  mob:"mReviews" },
-    ];
+    const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews"];
+    idsDesktop.forEach(id => document.getElementById(id)?.classList.remove("active"));
 
-    ["navShop","navAbout","navShipping","navReturns","navReviews"].forEach(id => document.getElementById(id)?.classList.remove("active"));
-    ["mShop","mAbout","mShipping","mReturns","mReviews"].forEach(id => document.getElementById(id)?.classList.remove("active"));
+    const idsMobile = ["mShop","mAbout","mShipping","mReturns","mReviews"];
+    idsMobile.forEach(id => document.getElementById(id)?.classList.remove("active"));
 
-    const hit = map.find(x => x.test(path)) || map[0];
-    document.getElementById(hit.desk)?.classList.add("active");
-    document.getElementById(hit.mob)?.classList.add("active");
+    const set = (id) => document.getElementById(id)?.classList.add("active");
+
+    if (path.startsWith("/shipping")) { set("navShipping"); set("mShipping"); }
+    else if (path.startsWith("/returns")) { set("navReturns"); set("mReturns"); }
+    else if (path.startsWith("/reviews")) { set("navReviews"); set("mReviews"); }
+    else if (path.startsWith("/about")) { set("navAbout"); set("mAbout"); }
+    else { set("navShop"); set("mShop"); }
   })();
 
   // ==========================
