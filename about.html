@@ -832,10 +832,8 @@
         <a class="nav-item" href="/" id="navShop">Shop</a>
         <a class="nav-item active" href="/about" id="navAbout">About</a>
         <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
-        <a class="nav-item" href="/privacy" id="navPrivacy">Privacy</a>
         <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
         <a class="nav-item" href="/returns" id="navReturns">Returns</a>
-        <a class="nav-item" href="/impressum" id="navImpressum">Impressum</a>
       </nav>
 
       <div class="sb-scroll">
@@ -1545,11 +1543,11 @@
     }
   });
 
-  // ✅ Active state for LEFT sidebar ONLY (mobile bottom nav removed)
+  // ✅ Active state for LEFT sidebar ONLY (privacy/impressum removed from sidebar)
   (function navActive(){
     const path = (window.location.pathname || "/").toLowerCase();
 
-    const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews","navPrivacy","navImpressum"];
+    const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews"];
     idsDesktop.forEach(id => document.getElementById(id)?.classList.remove("active"));
 
     const set = (id) => document.getElementById(id)?.classList.add("active");
@@ -1557,8 +1555,6 @@
     if (path.startsWith("/shipping")) { set("navShipping"); }
     else if (path.startsWith("/returns")) { set("navReturns"); }
     else if (path.startsWith("/reviews")) { set("navReviews"); }
-    else if (path.startsWith("/privacy")) { set("navPrivacy"); }
-    else if (path.startsWith("/impressum")) { set("navImpressum"); }
     else if (path.startsWith("/about")) { set("navAbout"); }
     else { set("navShop"); }
   })();
