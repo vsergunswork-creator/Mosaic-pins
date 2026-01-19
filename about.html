@@ -540,59 +540,30 @@
     .lbPrev{ left: 10px; }
     .lbNext{ right: 10px; }
 
-    /* ==========================
-       ✅ MOBILE BOTTOM NAV
-    ========================== */
-    .mobileNav{
-      display:none; /* desktop hidden */
-      position:fixed;
-      left: 12px;
-      right: 12px;
-      bottom: calc(12px + env(safe-area-inset-bottom));
-      z-index: 2500;
-      padding: 10px;
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.55);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 18px 40px rgba(0,0,0,.55);
-    }
-    .mobileNavRow{
-      display:flex;
-      gap:10px;
-      justify-content:space-between;
-    }
-    .mItem{
-      flex:1 1 0;
-      text-align:center;
-      text-decoration:none;
-      color: var(--muted);
-      font-weight: 900;
-      font-size: 13px;
-      padding: 12px 10px;
-      border-radius: 999px;
-      border: 1px solid transparent;
-      background: rgba(255,255,255,.04);
-      white-space: nowrap;
-      user-select:none;
-      -webkit-tap-highlight-color: rgba(0,0,0,0);
-    }
-    .mItem:hover{ color: var(--text); background: rgba(255,255,255,.07); }
-    .mItem.active{
-      color: var(--text);
-      background: rgba(34,197,94,.16);
-      border-color: rgba(34,197,94,.25);
-    }
-
     @media (max-width:980px){
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
       .sidebar{display:none}
       .main{height:auto; min-height:100vh}
+
+      /* ✅ аккуратнее topbar на мобилке (без смены дизайна) */
+      .topbar{flex-wrap:wrap; align-items:flex-start}
+      .top-left{flex:1 1 100%}
+      .top-right{
+        width:100%;
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap:10px;
+      }
+      .cartBtn{justify-content:center; width:100%}
+      .shipCountry{width:100%}
+
       .content{
         padding:14px;
-        padding-bottom: calc(14px + 86px + env(safe-area-inset-bottom));
+        /* ✅ mobile nav убран => лишний отступ снизу больше не нужен */
+        padding-bottom: calc(14px + env(safe-area-inset-bottom));
       }
+
       .aboutWrap{grid-template-columns:1fr;}
 
       .hero{
@@ -611,14 +582,12 @@
 
       .slide{flex: 0 0 calc((100% - 14px) / 2);}
       .carPrev,.carNext{display:none;}
-
-      .mobileNav{display:block;}
     }
+
     @media (max-width:520px){
+      .top-right{grid-template-columns: 1fr;}
       .slide{flex: 0 0 100%;}
       .hero{border-radius: 16px;}
-      .mobileNavRow{gap:8px;}
-      .mItem{font-size:12px; padding: 12px 8px;}
     }
 
     @media (max-width:980px){
@@ -943,7 +912,7 @@
         </div>
       </div>
 
-      <!-- ✅ NEW Footer (same style as Reviews + added pages) -->
+      <!-- ✅ Footer (stay at bottom) -->
       <footer class="footer">
         <div class="footerRow">
           <div class="footerBrand">
@@ -1576,23 +1545,22 @@
     }
   });
 
-  // ✅ Active state for LEFT sidebar + MOBILE bottom nav
+  // ✅ Active state for LEFT sidebar ONLY (mobile bottom nav removed)
   (function navActive(){
     const path = (window.location.pathname || "/").toLowerCase();
 
-    const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews"];
+    const idsDesktop = ["navShop","navAbout","navShipping","navReturns","navReviews","navPrivacy","navImpressum"];
     idsDesktop.forEach(id => document.getElementById(id)?.classList.remove("active"));
-
-    const idsMobile = ["mShop","mAbout","mShipping","mReturns","mReviews"];
-    idsMobile.forEach(id => document.getElementById(id)?.classList.remove("active"));
 
     const set = (id) => document.getElementById(id)?.classList.add("active");
 
-    if (path.startsWith("/shipping")) { set("navShipping"); set("mShipping"); }
-    else if (path.startsWith("/returns")) { set("navReturns"); set("mReturns"); }
-    else if (path.startsWith("/reviews")) { set("navReviews"); set("mReviews"); }
-    else if (path.startsWith("/about")) { set("navAbout"); set("mAbout"); }
-    else { set("navShop"); set("mShop"); }
+    if (path.startsWith("/shipping")) { set("navShipping"); }
+    else if (path.startsWith("/returns")) { set("navReturns"); }
+    else if (path.startsWith("/reviews")) { set("navReviews"); }
+    else if (path.startsWith("/privacy")) { set("navPrivacy"); }
+    else if (path.startsWith("/impressum")) { set("navImpressum"); }
+    else if (path.startsWith("/about")) { set("navAbout"); }
+    else { set("navShop"); }
   })();
 
   // init
