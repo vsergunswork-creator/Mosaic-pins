@@ -36,20 +36,34 @@
 
     html,body{height:100%}
 
-    /* ✅ IMPORTANT:
-       make page scroll normally (footer NOT fixed / NOT cut)
-    */
+    /* ✅ Фон как на остальных страницах (убирает “ступеньки”) */
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      background: radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
-                  radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
-                  var(--bg);
+      background: var(--bg);
       color:var(--text);
-      overflow:auto;          /* ✅ was hidden */
-      overscroll-behavior: auto;
+      overflow:hidden;
+      position:relative;
+      isolation:isolate;
+      overscroll-behavior: none;
     }
 
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20vh -20vw;
+      z-index:-1;
+      pointer-events:none;
+      background:
+        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
+        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
+        var(--bg);
+      filter: blur(18px) saturate(1.05);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    /* ✅ Dark scrollbar like main */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
@@ -59,11 +73,10 @@
     *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
     *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
 
-    /* ✅ page layout should be natural height */
     .app{
       display:grid;
       grid-template-columns: 280px 1fr;
-      min-height:100vh;  /* ✅ was height:100vh */
+      min-height:100vh;
       gap:16px;
       padding:16px;
     }
@@ -74,12 +87,7 @@
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
-      align-self:start;
-      position:sticky;
-      top:16px; /* ✅ nice on desktop */
-      height: fit-content;
     }
-
     .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
     .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
@@ -103,15 +111,16 @@
       display:flex;
       flex-direction:column;
       min-width:0;
-      min-height:100vh; /* ✅ footer can be at bottom, but page still scrolls */
+      min-height:0;
     }
 
     .topbar{
-      padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
+      padding:16px 18px;
       display:flex; align-items:center; justify-content:space-between; gap:12px;
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
       flex-wrap:wrap;
+      flex:0 0 auto;
     }
     .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
@@ -161,32 +170,30 @@
       text-align:center;
     }
 
-    /* ✅ content should NOT be its own scroll container */
+    /* ✅ ВАЖНО: теперь content занимает место между topbar и footer,
+       поэтому footer всегда внизу и не режется */
     .content{
       padding:18px;
-      overflow:visible;    /* ✅ was auto */
+      overflow:auto;
       min-height:0;
+      flex:1 1 auto;
+      overscroll-behavior: none;
     }
 
     .wrap{
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap:16px;
-      align-items:start;
+      align-items:stretch;
     }
 
     @media (max-width:980px){
+      body{overflow:auto}
       .app{grid-template-columns:1fr; min-height:100vh}
       .sidebar{display:none}
       .main{min-height:100vh}
-      .wrap{grid-template-columns:1fr;}
+      .wrap{grid-template-columns:1fr; align-items:start;}
       .content{padding:14px;}
-      .topRight{width:100%; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;}
-      .cartBtn{justify-content:center}
-      .currency,.shipCountry{width:100%}
-    }
-    @media (max-width:520px){
-      .topRight{grid-template-columns: 1fr; }
     }
 
     .panel{
@@ -194,6 +201,18 @@
       background:rgba(0,0,0,.22);
       border-radius:16px;
       overflow:hidden;
+      box-shadow: var(--shadow);
+    }
+
+    #rightPanel{
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    #rightPanel .details{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:auto;
     }
 
     .gallery{padding:12px; display:grid; gap:10px;}
@@ -209,12 +228,8 @@
       user-select:none;
       touch-action: pan-y;
     }
-    .hero-inner{
-      width:100%;
-      height:100%;
-      transform-style: preserve-3d;
-      will-change: transform;
-    }
+
+    .hero-inner{width:100%; height:100%; transform-style: preserve-3d; will-change: transform;}
     .carousel{
       width:100%;
       height:100%;
@@ -291,21 +306,30 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    /* ✅ rich description styling */
+    /* ✅ Rich text styles (Airtable formatting) */
     .meta{
-      color:var(--muted);
+      color:var(--text);
       font-size:13px;
-      line-height:1.65;
+      line-height:1.7;
       word-break: break-word;
       margin-top:10px;
     }
-    .meta p{margin:0 0 10px;}
-    .meta ul{margin:8px 0 12px 18px; padding:0;}
-    .meta li{margin:6px 0;}
-    .meta strong{color:var(--text);}
-    .meta em{color:rgba(233,238,247,.9);}
-    .meta a{color:var(--text); text-decoration:underline; text-underline-offset:2px; opacity:.95;}
-    .meta a:hover{opacity:1}
+    .meta p{margin:0 0 10px}
+    .meta p:last-child{margin-bottom:0}
+    .meta ul, .meta ol{margin:10px 0 10px 18px; padding:0}
+    .meta li{margin:6px 0}
+    .meta strong{font-weight:950}
+    .meta em{opacity:.95}
+    .meta h3, .meta h4, .meta h5{
+      margin:14px 0 8px;
+      font-weight:950;
+      letter-spacing:.2px;
+      color:var(--text);
+    }
+    .meta h3{font-size:15px}
+    .meta h4{font-size:14px}
+    .meta h5{font-size:13px}
+    .meta a{color:inherit; text-decoration:underline; text-underline-offset:2px}
 
     .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
     .chip{
@@ -365,7 +389,7 @@
     .btn{
       border:none; cursor:pointer;
       padding:12px 14px;
-      border-radius:12px;
+      border-radius:14px;
       background:linear-gradient(135deg,#22c55e,#16a34a);
       color:#07110b;
       font-weight:950;
@@ -386,7 +410,7 @@
     .btn2{
       border:none; cursor:pointer;
       padding:12px 14px;
-      border-radius:12px;
+      border-radius:14px;
       background:rgba(255,255,255,.06);
       border:1px solid var(--line);
       color:var(--text);
@@ -416,7 +440,9 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* CART */
+    /* ==========================
+       ✅ CART DRAWER
+    ========================== */
     .cartBack{
       position:fixed;
       inset:0;
@@ -540,7 +566,7 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    /* FOOTER (normal, not fixed) */
+    /* ✅ Footer like About/Privacy/etc */
     .footer{
       margin-top:auto;
       border-top:1px solid var(--line);
@@ -589,20 +615,6 @@
       .footer{padding:12px 14px;}
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
-    }
-    @media (max-width:520px){
-      .footerLinks{
-        width:100%;
-        display:grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap:8px;
-        justify-content:center;
-      }
-      .footerLinks a{
-        text-align:center;
-        padding:10px 10px;
-        font-size:12px;
-      }
     }
 
     @media (prefers-reduced-motion: reduce){
@@ -675,7 +687,7 @@
               <div class="kicker" id="kicker"></div>
               <div class="title" id="title"></div>
 
-              <!-- ✅ IMPORTANT: rendered as rich text from Airtable -->
+              <!-- ✅ Rich text from Airtable -->
               <div class="meta" id="desc"></div>
 
               <div class="chips" id="chips"></div>
@@ -703,22 +715,22 @@
         </div>
       </div>
 
-      <!-- ✅ Footer like everywhere (NOT fixed, not cut) -->
+      <!-- ✅ Footer (same as about.html, NOT fixed) -->
       <footer class="footer">
         <div class="footerRow">
           <div class="footerBrand">
             <span style="display:inline-flex;align-items:center;gap:8px;">
-              <span class="dot" aria-hidden="true"></span>
+              <span class="dot"></span>
               <span>© <span id="year"></span> Mosaic Pins</span>
             </span>
           </div>
 
-          <div class="footerLinks" aria-label="Footer links">
+          <div class="footerLinks">
             <a href="/index.html">Shop</a>
-            <a href="/about.html">About</a>
-            <a href="/shipping.html">Shipping</a>
-            <a href="/returns.html">Returns</a>
-            <a href="/reviews.html">Reviews</a>
+            <a href="/about">About</a>
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns</a>
+            <a href="/reviews">Reviews</a>
             <a href="/privacy.html">Privacy Policy</a>
             <a href="/impressum.html">Impressum</a>
             <a href="mailto:mosaicpinsspace@gmail.com">Support</a>
@@ -797,109 +809,10 @@
     setTimeout(()=> toastEl.classList.remove("show"), 2600);
   }
 
-  // ✅ allow rich text from Airtable while staying safe:
-  // supports: **bold**, *italic*, headings (#, ##, ###), lists (-, *, 1.), line breaks
-  // also supports simple [text](url) links
-  function mdToSafeHtml(md){
-    md = String(md || "").replace(/\r\n/g, "\n");
-
-    // escape first
-    const esc = (s) => String(s).replace(/[&<>"']/g, m => ({
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
       "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
     }[m]));
-
-    const lines = md.split("\n");
-    let out = [];
-    let inUl = false;
-    let inOl = false;
-
-    const closeLists = ()=>{
-      if (inUl){ out.push("</ul>"); inUl=false; }
-      if (inOl){ out.push("</ol>"); inOl=false; }
-    };
-
-    const inline = (s)=>{
-      // links [text](url)
-      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, url) => {
-        return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>`;
-      });
-
-      // bold **text**
-      s = s.replace(/\*\*([^*]+)\*\*/g, (_, t)=> `<strong>${esc(t)}</strong>`);
-      // italic *text* (avoid matching **)
-      s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, (_, p, t)=> `${p}<em>${esc(t)}</em>`);
-
-      // remaining text needs escaping (but we already escaped inside replacements)
-      // so escape the whole string then "unescape" the tags we created would be hard,
-      // instead build by escaping first and then applying patterns:
-      // We'll do it safer: escape first, then apply patterns on escaped string:
-
-      return s;
-    };
-
-    // We must escape whole line before running inline formatting
-    const inlineOnEscaped = (raw)=>{
-      let s = esc(raw);
-
-      // links on escaped
-      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, url) => {
-        return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>`;
-      });
-
-      // bold
-      s = s.replace(/\*\*([^*]+)\*\*/g, (_, t)=> `<strong>${t}</strong>`);
-      // italic
-      s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, (_, p, t)=> `${p}<em>${t}</em>`);
-
-      return s;
-    };
-
-    for (let i=0;i<lines.length;i++){
-      const raw = lines[i];
-
-      // blank line
-      if (!raw.trim()){
-        closeLists();
-        continue;
-      }
-
-      // headings
-      const h3 = raw.match(/^###\s+(.*)$/);
-      const h2 = raw.match(/^##\s+(.*)$/);
-      const h1 = raw.match(/^#\s+(.*)$/);
-      if (h1 || h2 || h3){
-        closeLists();
-        const t = inlineOnEscaped((h1||h2||h3)[1]);
-        const tag = h1 ? "h3" : h2 ? "h4" : "h5"; // keep sizes compact in card
-        out.push(`<${tag}>${t}</${tag}>`);
-        continue;
-      }
-
-      // unordered list
-      const ul = raw.match(/^\s*[-*]\s+(.*)$/);
-      if (ul){
-        if (inOl){ out.push("</ol>"); inOl=false; }
-        if (!inUl){ out.push("<ul>"); inUl=true; }
-        out.push(`<li>${inlineOnEscaped(ul[1])}</li>`);
-        continue;
-      }
-
-      // ordered list
-      const ol = raw.match(/^\s*\d+\.\s+(.*)$/);
-      if (ol){
-        if (inUl){ out.push("</ul>"); inUl=false; }
-        if (!inOl){ out.push("<ol>"); inOl=true; }
-        out.push(`<li>${inlineOnEscaped(ol[1])}</li>`);
-        continue;
-      }
-
-      // paragraph
-      closeLists();
-      out.push(`<p>${inlineOnEscaped(raw)}</p>`);
-    }
-
-    closeLists();
-    return out.join("\n");
   }
 
   function getCurrency(){
@@ -928,12 +841,15 @@
   // ✅ restore persisted selects (currency + shipping)
   (function restoreSettings(){
     try{
+      // currency
       const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
       if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
 
+      // shipping
       const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
       if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
 
+      // if nothing saved yet — try guess from locale (DE default)
       if (!localStorage.getItem(MP_SHIP_KEY) && elShipCountry){
         let guess = "DE";
         try{
@@ -948,28 +864,37 @@
         try{ localStorage.setItem(MP_SHIP_KEY, guess); }catch(_){}
       }
 
+      // ✅ enforce once on load
       enforceCurrencyByShipping();
       setCurrency(getCurrency());
     }catch(_){}
   })();
 
+  // ✅ Map UI selection -> ISO2 for API
+  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
     const v = String(elShipCountry?.value || "DE").toUpperCase();
     if (v === "US") return "US";
     if (v === "CA") return "CA";
-    if (v === "EU") return "FR";
+    if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
     return "DE";
   }
 
+  // ✅ NEW: поддержка ссылок /p/PIN + старых product.html?pin=PIN
   function getPinFromUrl(){
     const u = new URL(window.location.href);
+
     const qPin = (u.searchParams.get("pin") || "").trim();
     if (qPin) return qPin;
+
+    // /p/TEST
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
+
     return "";
   }
 
+  // will be set later after product loads
   let currentProduct = null;
 
   function refreshCurrencyUI(){
@@ -979,10 +904,11 @@
     }
   }
 
+  // ✅ persist on change (but do not allow wrong currency)
   if (elCurrency){
     elCurrency.addEventListener("change", () => {
       setCurrency(elCurrency.value);
-      enforceCurrencyByShipping();
+      enforceCurrencyByShipping(); // ✅ snaps back if not allowed
       refreshCurrencyUI();
     });
   }
@@ -1009,6 +935,85 @@
     if (q < 1) q = 1;
     if (max >= 1 && q > max) q = max;
     return q;
+  }
+
+  /* =========================
+     ✅ RICH TEXT (Airtable -> HTML)
+     - поддерживает:
+       **bold**, *italic*, __underline__
+       - списки "- " и "• "
+       пустые строки => новые абзацы
+       строки начинающиеся с "# " => заголовок
+  ========================== */
+  function mdInlineToHtml(line){
+    // escape first
+    let s = escapeHtml(line);
+
+    // bold **text**
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    // italic *text* (not **)
+    s = s.replace(/(^|[^*])\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "$1<em>$2</em>");
+    // underline __text__
+    s = s.replace(/__(.+?)__/g, "<u>$1</u>");
+
+    // links [text](url)
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline; opacity:.95;">$1</a>`);
+
+    return s;
+  }
+
+  function airtableTextToHtml(raw){
+    const text = String(raw || "").replace(/\r\n/g, "\n").trim();
+    if (!text) return "";
+
+    const lines = text.split("\n");
+    let html = "";
+    let inList = false;
+
+    const closeList = () => {
+      if (inList){
+        html += "</ul>";
+        inList = false;
+      }
+    };
+
+    for (let i=0;i<lines.length;i++){
+      const l0 = lines[i];
+      const line = l0.trimEnd();
+
+      // empty line => paragraph break
+      if (!line.trim()){
+        closeList();
+        html += "<div style='height:10px'></div>";
+        continue;
+      }
+
+      // headings
+      if (line.startsWith("# ")){
+        closeList();
+        html += `<h3 style="margin:14px 0 8px; font-size:14px; letter-spacing:.2px;">${mdInlineToHtml(line.slice(2).trim())}</h3>`;
+        continue;
+      }
+
+      // bullets "- " or "• "
+      const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
+      if (isBullet){
+        if (!inList){
+          html += "<ul style='margin:10px 0 0 18px; padding:0; display:grid; gap:6px;'>";
+          inList = true;
+        }
+        const item = line.trim().replace(/^(- |• )/, "");
+        html += `<li style="color:var(--muted); font-size:13px; line-height:1.55;">${mdInlineToHtml(item)}</li>`;
+        continue;
+      }
+
+      // normal paragraph
+      closeList();
+      html += `<p style="margin:0 0 10px; color:var(--muted); font-size:13px; line-height:1.65;">${mdInlineToHtml(line)}</p>`;
+    }
+
+    closeList();
+    return html;
   }
 
   /* =========================
@@ -1039,6 +1044,7 @@
   elCloseCart?.addEventListener("click", closeCart);
   elCartBack?.addEventListener("click", closeCart);
 
+  // ✅ Escape closes cart only if cart is open
   window.addEventListener("keydown", (e)=>{
     if (e.key !== "Escape") return;
     const cartOpen = elCartDrawer?.classList.contains("show");
@@ -1104,10 +1110,6 @@
 
     const cur = getCurrency();
 
-    const escapeHtml = (s) => String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-
     elCartBody.innerHTML = cart.map(it => {
       const img = it.image
         ? `<img src="${escapeHtml(it.image)}" alt="${escapeHtml(it.title)}" />`
@@ -1160,6 +1162,7 @@
 
   elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
+  // ✅ checkout from cart
   elCartCheckout?.addEventListener("click", async () => {
     const cart = readCart();
 
@@ -1168,6 +1171,7 @@
       return;
     }
 
+    // ✅ ensure ship saved + enforce currency before sending
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
     enforceCurrencyByShipping();
 
@@ -1204,6 +1208,8 @@
   /* =========================
      PRODUCT PAGE
   ========================== */
+  const hero = el("hero");
+  const heroInner = el("heroInner");
   const carousel = el("carousel");
   const prevBtn = el("prevBtn");
   const nextBtn = el("nextBtn");
@@ -1224,12 +1230,21 @@
     if (nextBtn) nextBtn.disabled = !hasMany || currentIndex >= n-1;
   }
 
+  function syncThumbs(){
+    const thumbs = el("thumbs");
+    if (!thumbs) return;
+    thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
+    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
+    if (active) active.classList.add("active");
+  }
+
   function scrollToIndex(idx, smooth=true){
     const n = imagesState.length;
     if (!n || !carousel) return;
     currentIndex = Math.max(0, Math.min(idx, n-1));
     const x = carousel.clientWidth * currentIndex;
     carousel.scrollTo({ left: x, behavior: smooth ? "smooth" : "auto" });
+    syncThumbs();
     updateNav();
   }
 
@@ -1241,6 +1256,7 @@
     const clamped = Math.max(0, Math.min(idx, Math.max(0, n-1)));
     if (clamped !== currentIndex){
       currentIndex = clamped;
+      syncThumbs();
     }
     updateNav();
   }
@@ -1251,10 +1267,6 @@
 
     if (!carousel) return;
     carousel.innerHTML = "";
-
-    const escapeHtml = (s) => String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
 
     if (!imagesState.length){
       carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
@@ -1270,6 +1282,21 @@
     });
 
     requestAnimationFrame(() => scrollToIndex(0, false));
+  }
+
+  function renderThumbs(images, title){
+    const thumbs = el("thumbs");
+    if (!thumbs) return;
+    thumbs.innerHTML = "";
+
+    images.forEach((u, idx) => {
+      const d = document.createElement("div");
+      d.className = "t" + (idx===0 ? " active" : "");
+      d.dataset.idx = String(idx);
+      d.innerHTML = `<img src="${escapeHtml(u)}" alt="${escapeHtml(title)}" draggable="false" />`;
+      d.addEventListener("click", () => scrollToIndex(idx));
+      thumbs.appendChild(d);
+    });
   }
 
   function enableDragScroll(){
@@ -1325,6 +1352,45 @@
     window.addEventListener("resize", () => scrollToIndex(currentIndex, false));
   }
 
+  function setupParallax(){
+    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion || !hero || !heroInner) return;
+
+    let target = { x:0, y:0, rx:0, ry:0, s:1.02 };
+    let curr   = { x:0, y:0, rx:0, ry:0, s:1.02 };
+
+    function apply(){
+      const k = 0.12;
+      curr.x  += (target.x  - curr.x)  * k;
+      curr.y  += (target.y  - curr.y)  * k;
+      curr.rx += (target.rx - curr.rx) * k;
+      curr.ry += (target.ry - curr.ry) * k;
+
+      heroInner.style.transform =
+        `translate3d(${curr.x}px, ${curr.y}px, 0) rotateX(${curr.rx}deg) rotateY(${curr.ry}deg) scale(${target.s})`;
+
+      requestAnimationFrame(apply);
+    }
+    requestAnimationFrame(apply);
+
+    function reset(){ target.x=0; target.y=0; target.rx=0; target.ry=0; }
+
+    hero.addEventListener("mousemove", (e) => {
+      const r = hero.getBoundingClientRect();
+      const nx = (e.clientX - r.left) / r.width  - 0.5;
+      const ny = (e.clientY - r.top)  / r.height - 0.5;
+
+      const maxMove = 6;
+      const maxTilt = 2.0;
+
+      target.x = nx * maxMove;
+      target.y = ny * maxMove;
+      target.rx = (-ny) * maxTilt;
+      target.ry = (nx) * maxTilt;
+    });
+    hero.addEventListener("mouseleave", reset);
+  }
+
   function addToCart(p, qty){
     qty = Number(qty);
     if (!Number.isFinite(qty) || qty <= 0) qty = 1;
@@ -1363,7 +1429,10 @@
   }
 
   async function buyNowOneItem(p, qty){
+    // ✅ enforce currency just before checkout
     enforceCurrencyByShipping();
+
+    // ✅ ensure country saved
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
 
     const payload = {
@@ -1386,35 +1455,17 @@
     window.location.href = data.url;
   }
 
-  // ✅ updates SEO tags from product
-  function setSeo(p){
-    try{
-      const desc = (p?.seoDescription || p?.description || "Handcrafted mosaic pins for knife handles.").trim();
-      let meta = document.querySelector('meta[name="description"]');
-      if (!meta){
-        meta = document.createElement("meta");
-        meta.setAttribute("name","description");
-        document.head.appendChild(meta);
-      }
-      meta.setAttribute("content", desc.slice(0, 160));
-
-      const can = document.querySelector('link[rel="canonical"]');
-      if (can){
-        const url = `https://mosaicpins.space/p/${encodeURIComponent(p.pin)}`;
-        can.setAttribute("href", url);
-      }
-    }catch(_){}
-  }
-
   async function load(){
     updateCartBadge();
     renderCart();
 
+    // ✅ keep currency consistent if user changed ship on another page
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
 
     const pin = getPinFromUrl();
 
+    // ✅ если pin пустой — перекидываем на главную
     if (!pin){
       window.location.replace("/index.html");
       return;
@@ -1440,32 +1491,36 @@
     const p = data.product;
     currentProduct = p;
 
-    setSeo(p);
-
+    // ✅ SEO update
     document.title = `${p.title} • Mosaic Pins`;
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) metaDesc.setAttribute("content", String(p.description || "").slice(0, 155));
+
     el("hTitle").textContent = p.title;
     el("hSub").textContent = `${p.pin} • Ø ${p.diameter ?? "—"} mm`;
 
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
 
-    // ✅ RICH TEXT from Airtable: keep formatting
+    // ✅ IMPORTANT: render Airtable description with formatting
+    const d = (p.description || "").trim();
     const descEl = el("desc");
-    const rawDesc = (p.description || "").trim();
     if (descEl){
-      descEl.innerHTML = mdToSafeHtml(rawDesc);
+      // if description already contains HTML tags => trust as HTML from backend (optional)
+      // else parse as simple markdown-like text
+      if (/<[a-z][\s\S]*>/i.test(d)) descEl.innerHTML = d;
+      else descEl.innerHTML = airtableTextToHtml(d);
     }
 
     const chips = [];
     if (p.color) chips.push(`Color: ${p.color}`);
     if (p.diameter != null) chips.push(`Ø ${p.diameter} mm`);
     (p.materials || []).forEach(m => chips.push(m));
-    el("chips").innerHTML = chips.map(c => `<span class="chip">${String(c).replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]))}</span>`).join("");
+    el("chips").innerHTML = chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("");
 
     const images = Array.isArray(p.images) ? p.images : [];
     buildCarousel(images, p.title);
+    renderThumbs(images, p.title);
     wireCarouselOnce();
     updateNav();
 
@@ -1494,6 +1549,7 @@
     qtyInput.addEventListener("input", () => setQty(qtyInput.value));
 
     const renderPrice = () => { el("price").textContent = priceText(p.price); };
+    if (elCurrency) elCurrency.addEventListener("change", renderPrice);
     renderPrice();
 
     addBtn.addEventListener("click", () => {
@@ -1518,6 +1574,8 @@
         buyBtn.textContent = oldText;
       }
     });
+
+    setupParallax();
   }
 
   load();
