@@ -303,14 +303,23 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
+    /* ✅ Rich text area (for Airtable description with formatting) */
     .meta{
       color:var(--muted);
       font-size:13px;
-      line-height:1.65;
-      white-space: pre-wrap;
-      word-break: break-word;
+      line-height:1.7;
       margin-top:8px;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
+    .meta strong{color:var(--text); font-weight:950;}
+    .meta em{color:var(--text); opacity:.92;}
+    .meta a{color:var(--text); text-decoration:underline; opacity:.95;}
+    .meta a:hover{opacity:1}
+    .meta ul, .meta ol{margin:10px 0 10px 18px; padding:0;}
+    .meta li{margin:6px 0;}
+    .meta p{margin:10px 0;}
+    .meta br{line-height:1.9}
 
     .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
     .chip{
@@ -543,7 +552,7 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    /* FOOTER */
+    /* ✅ FOOTER — как на остальных страницах */
     .footer{
       margin-top:auto;
       border-top:1px solid var(--line);
@@ -592,21 +601,6 @@
       .footer{padding:12px 14px;}
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
-    }
-    /* ✅ красивее на телефоне: аккуратная сетка кнопок */
-    @media (max-width:520px){
-      .footerLinks{
-        width:100%;
-        display:grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap:8px;
-        justify-content:center;
-      }
-      .footerLinks a{
-        text-align:center;
-        padding:10px 10px;
-        font-size:12px;
-      }
     }
 
     @media (prefers-reduced-motion: reduce){
@@ -680,6 +674,8 @@
             <div class="details">
               <div class="kicker" id="kicker"></div>
               <div class="title" id="title"></div>
+
+              <!-- ✅ IMPORTANT: description is rendered as rich text (from Airtable) -->
               <div class="meta" id="desc"></div>
 
               <div class="chips" id="chips"></div>
@@ -707,18 +703,21 @@
         </div>
       </div>
 
+      <!-- ✅ Footer: same style as all other pages -->
       <footer class="footer">
         <div class="footerRow">
           <div class="footerBrand">
-            <span class="dot" aria-hidden="true"></span>
-            <span>© <span id="year"></span> Mosaic Pins</span>
+            <span style="display:inline-flex;align-items:center;gap:8px;">
+              <span class="dot" aria-hidden="true"></span>
+              <span>© <span id="year"></span> Mosaic Pins</span>
+            </span>
           </div>
 
           <div class="footerLinks" aria-label="Footer links">
             <a href="/index.html">Shop</a>
             <a href="/about.html">About</a>
             <a href="/shipping.html">Shipping</a>
-            <a href="/returns.html">Returns &amp; Refunds</a>
+            <a href="/returns.html">Returns</a>
             <a href="/reviews.html">Reviews</a>
             <a href="/privacy.html">Privacy Policy</a>
             <a href="/impressum.html">Impressum</a>
@@ -755,7 +754,7 @@
     <small id="toastMsg">—</small>
   </div>
 
-  <script>
+<script>
   // ✅ footer year
   document.getElementById("year").textContent = String(new Date().getFullYear());
 
@@ -804,6 +803,31 @@
     }[m]));
   }
 
+  // ✅ VERY IMPORTANT:
+  // Render Airtable description as HTML so all formatting (bold/links/line breaks) is preserved.
+  // We still keep it safe by removing scripts/iframes and inline event handlers.
+  function safeRichHtml(html){
+    const t = document.createElement("template");
+    t.innerHTML = String(html || "");
+
+    // remove dangerous tags
+    t.content.querySelectorAll("script, iframe, object, embed, link, style").forEach(n => n.remove());
+
+    // remove on* handlers + javascript: urls
+    t.content.querySelectorAll("*").forEach(node => {
+      [...node.attributes].forEach(a => {
+        const name = a.name.toLowerCase();
+        const val  = String(a.value || "");
+        if (name.startsWith("on")) node.removeAttribute(a.name);
+        if ((name === "href" || name === "src") && val.trim().toLowerCase().startsWith("javascript:")){
+          node.removeAttribute(a.name);
+        }
+      });
+    });
+
+    return t.innerHTML;
+  }
+
   function getCurrency(){
     const saved = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
     if (saved === "EUR" || saved === "USD") return saved;
@@ -830,15 +854,12 @@
   // ✅ restore persisted selects (currency + shipping)
   (function restoreSettings(){
     try{
-      // currency
       const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
       if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
 
-      // shipping
       const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
       if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
 
-      // if nothing saved yet — try guess from locale (DE default)
       if (!localStorage.getItem(MP_SHIP_KEY) && elShipCountry){
         let guess = "DE";
         try{
@@ -853,63 +874,32 @@
         try{ localStorage.setItem(MP_SHIP_KEY, guess); }catch(_){}
       }
 
-      // ✅ enforce once on load
       enforceCurrencyByShipping();
       setCurrency(getCurrency());
     }catch(_){}
   })();
 
-  // ✅ Map UI selection -> ISO2 for API
-  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
     const v = String(elShipCountry?.value || "DE").toUpperCase();
     if (v === "US") return "US";
     if (v === "CA") return "CA";
-    if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
+    if (v === "EU") return "FR";
     return "DE";
   }
 
-  // ✅ NEW: поддержка ссылок /p/PIN + старых product.html?pin=PIN
   function getPinFromUrl(){
     const u = new URL(window.location.href);
 
     const qPin = (u.searchParams.get("pin") || "").trim();
     if (qPin) return qPin;
 
-    // /p/TEST
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
 
     return "";
   }
 
-  // will be set later after product loads
   let currentProduct = null;
-
-  function refreshCurrencyUI(){
-    renderCart();
-    if (currentProduct){
-      el("price").textContent = priceText(currentProduct.price);
-    }
-  }
-
-  // ✅ persist on change (but do not allow wrong currency)
-  if (elCurrency){
-    elCurrency.addEventListener("change", () => {
-      setCurrency(elCurrency.value);
-      enforceCurrencyByShipping(); // ✅ snaps back if not allowed
-      refreshCurrencyUI();
-    });
-  }
-
-  if (elShipCountry){
-    elShipCountry.addEventListener("change", () => {
-      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
-      enforceCurrencyByShipping();
-      refreshCurrencyUI();
-      toast("Shipping", `Destination: ${elShipCountry.value}`);
-    });
-  }
 
   function priceText(priceObj){
     const cur = getCurrency();
@@ -954,7 +944,6 @@
   elCloseCart?.addEventListener("click", closeCart);
   elCartBack?.addEventListener("click", closeCart);
 
-  // ✅ Escape closes cart only if cart is open
   window.addEventListener("keydown", (e)=>{
     if (e.key !== "Escape") return;
     const cartOpen = elCartDrawer?.classList.contains("show");
@@ -1072,7 +1061,6 @@
 
   elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  // ✅ checkout from cart
   elCartCheckout?.addEventListener("click", async () => {
     const cart = readCart();
 
@@ -1081,7 +1069,6 @@
       return;
     }
 
-    // ✅ ensure ship saved + enforce currency before sending
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
     enforceCurrencyByShipping();
 
@@ -1118,8 +1105,6 @@
   /* =========================
      PRODUCT PAGE
   ========================== */
-  const hero = el("hero");
-  const heroInner = el("heroInner");
   const carousel = el("carousel");
   const prevBtn = el("prevBtn");
   const nextBtn = el("nextBtn");
@@ -1262,45 +1247,6 @@
     window.addEventListener("resize", () => scrollToIndex(currentIndex, false));
   }
 
-  function setupParallax(){
-    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion || !hero || !heroInner) return;
-
-    let target = { x:0, y:0, rx:0, ry:0, s:1.02 };
-    let curr   = { x:0, y:0, rx:0, ry:0, s:1.02 };
-
-    function apply(){
-      const k = 0.12;
-      curr.x  += (target.x  - curr.x)  * k;
-      curr.y  += (target.y  - curr.y)  * k;
-      curr.rx += (target.rx - curr.rx) * k;
-      curr.ry += (target.ry - curr.ry) * k;
-
-      heroInner.style.transform =
-        `translate3d(${curr.x}px, ${curr.y}px, 0) rotateX(${curr.rx}deg) rotateY(${curr.ry}deg) scale(${target.s})`;
-
-      requestAnimationFrame(apply);
-    }
-    requestAnimationFrame(apply);
-
-    function reset(){ target.x=0; target.y=0; target.rx=0; target.ry=0; }
-
-    hero.addEventListener("mousemove", (e) => {
-      const r = hero.getBoundingClientRect();
-      const nx = (e.clientX - r.left) / r.width  - 0.5;
-      const ny = (e.clientY - r.top)  / r.height - 0.5;
-
-      const maxMove = 6;
-      const maxTilt = 2.0;
-
-      target.x = nx * maxMove;
-      target.y = ny * maxMove;
-      target.rx = (-ny) * maxTilt;
-      target.ry = (nx) * maxTilt;
-    });
-    hero.addEventListener("mouseleave", reset);
-  }
-
   function addToCart(p, qty){
     qty = Number(qty);
     if (!Number.isFinite(qty) || qty <= 0) qty = 1;
@@ -1339,10 +1285,8 @@
   }
 
   async function buyNowOneItem(p, qty){
-    // ✅ enforce currency just before checkout
     enforceCurrencyByShipping();
 
-    // ✅ ensure country saved
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
 
     const payload = {
@@ -1369,13 +1313,11 @@
     updateCartBadge();
     renderCart();
 
-    // ✅ keep currency consistent if user changed ship on another page
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
 
     const pin = getPinFromUrl();
 
-    // ✅ если pin пустой — перекидываем на главную (как Вы хотели)
     if (!pin){
       window.location.replace("/index.html");
       return;
@@ -1407,7 +1349,21 @@
 
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
-    el("desc").textContent = (p.description || "").trim();
+
+    // ✅ IMPORTANT: use innerHTML for rich text from Airtable
+    // If API provides plain text, it will still render as text.
+    const desc = el("desc");
+    const rawDesc = (p.description || "").trim();
+    if (desc){
+      // If it looks like HTML OR contains Airtable rich markup, render it.
+      // Otherwise, keep it as plain text with preserved line breaks.
+      const looksHtml = /<\/?[a-z][\s\S]*>/i.test(rawDesc);
+      if (looksHtml){
+        desc.innerHTML = safeRichHtml(rawDesc);
+      } else {
+        desc.textContent = rawDesc;
+      }
+    }
 
     const chips = [];
     if (p.color) chips.push(`Color: ${p.color}`);
@@ -1471,8 +1427,6 @@
         buyBtn.textContent = oldText;
       }
     });
-
-    setupParallax();
   }
 
   load();
