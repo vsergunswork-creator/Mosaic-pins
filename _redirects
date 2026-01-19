@@ -1,6 +1,3 @@
-# --- Product page must NOT be eaten by SPA fallback ---
-/product.html   /product.html   200
-
 # --- SEO files ---
 /robots.txt     /robots.txt     200
 /sitemap.xml    /sitemap.xml    200
