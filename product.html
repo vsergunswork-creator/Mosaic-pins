@@ -4,6 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Product • Mosaic Pins</title>
+
+  <!-- ✅ SEO (будет обновляться динамически в JS) -->
+  <meta name="description" content="Handcrafted mosaic pins for knife handles." />
+  <link rel="canonical" href="https://mosaicpins.space/" />
+
   <style>
     :root{
       --bg:#0b0d11;
@@ -588,6 +593,21 @@
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
     }
+    /* ✅ красивее на телефоне: аккуратная сетка кнопок */
+    @media (max-width:520px){
+      .footerLinks{
+        width:100%;
+        display:grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap:8px;
+        justify-content:center;
+      }
+      .footerLinks a{
+        text-align:center;
+        padding:10px 10px;
+        font-size:12px;
+      }
+    }
 
     @media (prefers-reduced-motion: reduce){
       .hero-inner{will-change:auto}
@@ -616,6 +636,7 @@
         </div>
 
         <div class="topRight">
+          <!-- ✅ ВАЖНО: кнопки Back to shop в topbar НЕТ (как Вы просили) -->
 
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
@@ -734,7 +755,7 @@
     <small id="toastMsg">—</small>
   </div>
 
-<script>
+  <script>
   // ✅ footer year
   document.getElementById("year").textContent = String(new Date().getFullYear());
 
@@ -846,6 +867,20 @@
     if (v === "CA") return "CA";
     if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
     return "DE";
+  }
+
+  // ✅ NEW: поддержка ссылок /p/PIN + старых product.html?pin=PIN
+  function getPinFromUrl(){
+    const u = new URL(window.location.href);
+
+    const qPin = (u.searchParams.get("pin") || "").trim();
+    if (qPin) return qPin;
+
+    // /p/TEST
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
+
+    return "";
   }
 
   // will be set later after product loads
@@ -1338,11 +1373,11 @@
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
 
-    const url = new URL(window.location.href);
-    const pin = (url.searchParams.get("pin") || "").trim();
+    const pin = getPinFromUrl();
+
+    // ✅ если pin пустой — перекидываем на главную (как Вы хотели)
     if (!pin){
-      el("hTitle").textContent = "Missing PIN";
-      el("hSub").textContent = "Open a product from the shop page.";
+      window.location.replace("/index.html");
       return;
     }
 
@@ -1441,6 +1476,6 @@
   }
 
   load();
-</script>
+  </script>
 </body>
 </html>
