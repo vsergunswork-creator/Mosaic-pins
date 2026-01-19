@@ -35,6 +35,10 @@
     button::-moz-focus-inner{ border:0; }
 
     html,body{height:100%}
+
+    /* ✅ IMPORTANT:
+       make page scroll normally (footer NOT fixed / NOT cut)
+    */
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
@@ -42,8 +46,8 @@
                   radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
                   var(--bg);
       color:var(--text);
-      overflow:hidden;
-      overscroll-behavior: none;
+      overflow:auto;          /* ✅ was hidden */
+      overscroll-behavior: auto;
     }
 
     *{
@@ -55,14 +59,27 @@
     *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
     *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
 
-    .app{display:grid; grid-template-columns: 280px 1fr; height:100vh; gap:16px; padding:16px;}
+    /* ✅ page layout should be natural height */
+    .app{
+      display:grid;
+      grid-template-columns: 280px 1fr;
+      min-height:100vh;  /* ✅ was height:100vh */
+      gap:16px;
+      padding:16px;
+    }
+
     .sidebar{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
+      align-self:start;
+      position:sticky;
+      top:16px; /* ✅ nice on desktop */
+      height: fit-content;
     }
+
     .sb-top{padding:18px 18px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
     .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
     .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
@@ -83,10 +100,14 @@
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
-      display:flex; flex-direction:column; min-width:0;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      min-height:100vh; /* ✅ footer can be at bottom, but page still scrolls */
     }
+
     .topbar{
-      padding:16px 18px;
+      padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
       display:flex; align-items:center; justify-content:space-between; gap:12px;
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
@@ -95,24 +116,6 @@
     .h-title{font-weight:900; font-size:18px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sub{color:var(--muted); font-size:12px; margin-top:4px}
     .topRight{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-
-    .backBtn{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:999px;
-      background:rgba(0,0,0,.28);
-      border:1px solid var(--line);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:900;
-      white-space:nowrap;
-      text-decoration:none;
-      min-height:44px;
-      line-height:1.1;
-    }
-    .backBtn:hover{background:rgba(255,255,255,.06)}
 
     .currency,
     .shipCountry{
@@ -158,34 +161,32 @@
       text-align:center;
     }
 
+    /* ✅ content should NOT be its own scroll container */
     .content{
       padding:18px;
-      overflow:auto;
+      overflow:visible;    /* ✅ was auto */
       min-height:0;
-      overscroll-behavior: none;
-      /* space for footer */
-      padding-bottom: calc(18px + max(34px, env(safe-area-inset-bottom, 0px)) + 40px);
     }
 
     .wrap{
       display:grid;
       grid-template-columns: 1.2fr .8fr;
       gap:16px;
-      align-items:stretch;
+      align-items:start;
     }
 
     @media (max-width:980px){
-      .app{grid-template-columns:1fr}
+      .app{grid-template-columns:1fr; min-height:100vh}
       .sidebar{display:none}
-      body{overflow:auto}
-      .main{height:auto; min-height:100vh}
-      .wrap{grid-template-columns:1fr; align-items:start;}
-      .content{
-        padding:14px;
-        overflow:auto;
-        /* space for footer */
-        padding-bottom: calc(14px + max(44px, env(safe-area-inset-bottom, 0px)) + 56px);
-      }
+      .main{min-height:100vh}
+      .wrap{grid-template-columns:1fr;}
+      .content{padding:14px;}
+      .topRight{width:100%; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;}
+      .cartBtn{justify-content:center}
+      .currency,.shipCountry{width:100%}
+    }
+    @media (max-width:520px){
+      .topRight{grid-template-columns: 1fr; }
     }
 
     .panel{
@@ -193,17 +194,6 @@
       background:rgba(0,0,0,.22);
       border-radius:16px;
       overflow:hidden;
-    }
-
-    #rightPanel{
-      display:flex;
-      flex-direction:column;
-      min-height:0;
-    }
-    #rightPanel .details{
-      flex:1 1 auto;
-      min-height:0;
-      overflow:auto;
     }
 
     .gallery{padding:12px; display:grid; gap:10px;}
@@ -219,7 +209,6 @@
       user-select:none;
       touch-action: pan-y;
     }
-
     .hero-inner{
       width:100%;
       height:100%;
@@ -287,7 +276,6 @@
     }
 
     .thumbs{display:flex; gap:10px; overflow:auto; padding-bottom:4px;}
-
     .t{
       width:72px; height:72px; border-radius:12px;
       border:1px solid var(--line);
@@ -303,23 +291,21 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    /* ✅ Rich text area (for Airtable description with formatting) */
+    /* ✅ rich description styling */
     .meta{
       color:var(--muted);
       font-size:13px;
-      line-height:1.7;
-      margin-top:8px;
+      line-height:1.65;
       word-break: break-word;
-      overflow-wrap: anywhere;
+      margin-top:10px;
     }
-    .meta strong{color:var(--text); font-weight:950;}
-    .meta em{color:var(--text); opacity:.92;}
-    .meta a{color:var(--text); text-decoration:underline; opacity:.95;}
-    .meta a:hover{opacity:1}
-    .meta ul, .meta ol{margin:10px 0 10px 18px; padding:0;}
+    .meta p{margin:0 0 10px;}
+    .meta ul{margin:8px 0 12px 18px; padding:0;}
     .meta li{margin:6px 0;}
-    .meta p{margin:10px 0;}
-    .meta br{line-height:1.9}
+    .meta strong{color:var(--text);}
+    .meta em{color:rgba(233,238,247,.9);}
+    .meta a{color:var(--text); text-decoration:underline; text-underline-offset:2px; opacity:.95;}
+    .meta a:hover{opacity:1}
 
     .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
     .chip{
@@ -394,6 +380,7 @@
       background:rgba(255,255,255,.10);
       color:rgba(255,255,255,.55);
       box-shadow:none;
+      transform:none;
     }
 
     .btn2{
@@ -429,6 +416,7 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
+    /* CART */
     .cartBack{
       position:fixed;
       inset:0;
@@ -552,7 +540,7 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    /* ✅ FOOTER — как на остальных страницах */
+    /* FOOTER (normal, not fixed) */
     .footer{
       margin-top:auto;
       border-top:1px solid var(--line);
@@ -602,6 +590,20 @@
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
     }
+    @media (max-width:520px){
+      .footerLinks{
+        width:100%;
+        display:grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap:8px;
+        justify-content:center;
+      }
+      .footerLinks a{
+        text-align:center;
+        padding:10px 10px;
+        font-size:12px;
+      }
+    }
 
     @media (prefers-reduced-motion: reduce){
       .hero-inner{will-change:auto}
@@ -630,8 +632,6 @@
         </div>
 
         <div class="topRight">
-          <!-- ✅ ВАЖНО: кнопки Back to shop в topbar НЕТ (как Вы просили) -->
-
           <button class="cartBtn" id="openCart" type="button" title="Cart">
             🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
           </button>
@@ -675,7 +675,7 @@
               <div class="kicker" id="kicker"></div>
               <div class="title" id="title"></div>
 
-              <!-- ✅ IMPORTANT: description is rendered as rich text (from Airtable) -->
+              <!-- ✅ IMPORTANT: rendered as rich text from Airtable -->
               <div class="meta" id="desc"></div>
 
               <div class="chips" id="chips"></div>
@@ -703,7 +703,7 @@
         </div>
       </div>
 
-      <!-- ✅ Footer: same style as all other pages -->
+      <!-- ✅ Footer like everywhere (NOT fixed, not cut) -->
       <footer class="footer">
         <div class="footerRow">
           <div class="footerBrand">
@@ -797,35 +797,109 @@
     setTimeout(()=> toastEl.classList.remove("show"), 2600);
   }
 
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
+  // ✅ allow rich text from Airtable while staying safe:
+  // supports: **bold**, *italic*, headings (#, ##, ###), lists (-, *, 1.), line breaks
+  // also supports simple [text](url) links
+  function mdToSafeHtml(md){
+    md = String(md || "").replace(/\r\n/g, "\n");
+
+    // escape first
+    const esc = (s) => String(s).replace(/[&<>"']/g, m => ({
       "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
     }[m]));
-  }
 
-  // ✅ VERY IMPORTANT:
-  // Render Airtable description as HTML so all formatting (bold/links/line breaks) is preserved.
-  // We still keep it safe by removing scripts/iframes and inline event handlers.
-  function safeRichHtml(html){
-    const t = document.createElement("template");
-    t.innerHTML = String(html || "");
+    const lines = md.split("\n");
+    let out = [];
+    let inUl = false;
+    let inOl = false;
 
-    // remove dangerous tags
-    t.content.querySelectorAll("script, iframe, object, embed, link, style").forEach(n => n.remove());
+    const closeLists = ()=>{
+      if (inUl){ out.push("</ul>"); inUl=false; }
+      if (inOl){ out.push("</ol>"); inOl=false; }
+    };
 
-    // remove on* handlers + javascript: urls
-    t.content.querySelectorAll("*").forEach(node => {
-      [...node.attributes].forEach(a => {
-        const name = a.name.toLowerCase();
-        const val  = String(a.value || "");
-        if (name.startsWith("on")) node.removeAttribute(a.name);
-        if ((name === "href" || name === "src") && val.trim().toLowerCase().startsWith("javascript:")){
-          node.removeAttribute(a.name);
-        }
+    const inline = (s)=>{
+      // links [text](url)
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, url) => {
+        return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>`;
       });
-    });
 
-    return t.innerHTML;
+      // bold **text**
+      s = s.replace(/\*\*([^*]+)\*\*/g, (_, t)=> `<strong>${esc(t)}</strong>`);
+      // italic *text* (avoid matching **)
+      s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, (_, p, t)=> `${p}<em>${esc(t)}</em>`);
+
+      // remaining text needs escaping (but we already escaped inside replacements)
+      // so escape the whole string then "unescape" the tags we created would be hard,
+      // instead build by escaping first and then applying patterns:
+      // We'll do it safer: escape first, then apply patterns on escaped string:
+
+      return s;
+    };
+
+    // We must escape whole line before running inline formatting
+    const inlineOnEscaped = (raw)=>{
+      let s = esc(raw);
+
+      // links on escaped
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, url) => {
+        return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>`;
+      });
+
+      // bold
+      s = s.replace(/\*\*([^*]+)\*\*/g, (_, t)=> `<strong>${t}</strong>`);
+      // italic
+      s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, (_, p, t)=> `${p}<em>${t}</em>`);
+
+      return s;
+    };
+
+    for (let i=0;i<lines.length;i++){
+      const raw = lines[i];
+
+      // blank line
+      if (!raw.trim()){
+        closeLists();
+        continue;
+      }
+
+      // headings
+      const h3 = raw.match(/^###\s+(.*)$/);
+      const h2 = raw.match(/^##\s+(.*)$/);
+      const h1 = raw.match(/^#\s+(.*)$/);
+      if (h1 || h2 || h3){
+        closeLists();
+        const t = inlineOnEscaped((h1||h2||h3)[1]);
+        const tag = h1 ? "h3" : h2 ? "h4" : "h5"; // keep sizes compact in card
+        out.push(`<${tag}>${t}</${tag}>`);
+        continue;
+      }
+
+      // unordered list
+      const ul = raw.match(/^\s*[-*]\s+(.*)$/);
+      if (ul){
+        if (inOl){ out.push("</ol>"); inOl=false; }
+        if (!inUl){ out.push("<ul>"); inUl=true; }
+        out.push(`<li>${inlineOnEscaped(ul[1])}</li>`);
+        continue;
+      }
+
+      // ordered list
+      const ol = raw.match(/^\s*\d+\.\s+(.*)$/);
+      if (ol){
+        if (inUl){ out.push("</ul>"); inUl=false; }
+        if (!inOl){ out.push("<ol>"); inOl=true; }
+        out.push(`<li>${inlineOnEscaped(ol[1])}</li>`);
+        continue;
+      }
+
+      // paragraph
+      closeLists();
+      out.push(`<p>${inlineOnEscaped(raw)}</p>`);
+    }
+
+    closeLists();
+    return out.join("\n");
   }
 
   function getCurrency(){
@@ -889,17 +963,38 @@
 
   function getPinFromUrl(){
     const u = new URL(window.location.href);
-
     const qPin = (u.searchParams.get("pin") || "").trim();
     if (qPin) return qPin;
-
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
-
     return "";
   }
 
   let currentProduct = null;
+
+  function refreshCurrencyUI(){
+    renderCart();
+    if (currentProduct){
+      el("price").textContent = priceText(currentProduct.price);
+    }
+  }
+
+  if (elCurrency){
+    elCurrency.addEventListener("change", () => {
+      setCurrency(elCurrency.value);
+      enforceCurrencyByShipping();
+      refreshCurrencyUI();
+    });
+  }
+
+  if (elShipCountry){
+    elShipCountry.addEventListener("change", () => {
+      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+      enforceCurrencyByShipping();
+      refreshCurrencyUI();
+      toast("Shipping", `Destination: ${elShipCountry.value}`);
+    });
+  }
 
   function priceText(priceObj){
     const cur = getCurrency();
@@ -1008,6 +1103,10 @@
     elCartCheckout.textContent = "Checkout";
 
     const cur = getCurrency();
+
+    const escapeHtml = (s) => String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
 
     elCartBody.innerHTML = cart.map(it => {
       const img = it.image
@@ -1125,21 +1224,12 @@
     if (nextBtn) nextBtn.disabled = !hasMany || currentIndex >= n-1;
   }
 
-  function syncThumbs(){
-    const thumbs = el("thumbs");
-    if (!thumbs) return;
-    thumbs.querySelectorAll(".t").forEach(t => t.classList.remove("active"));
-    const active = thumbs.querySelector(`.t[data-idx="${currentIndex}"]`);
-    if (active) active.classList.add("active");
-  }
-
   function scrollToIndex(idx, smooth=true){
     const n = imagesState.length;
     if (!n || !carousel) return;
     currentIndex = Math.max(0, Math.min(idx, n-1));
     const x = carousel.clientWidth * currentIndex;
     carousel.scrollTo({ left: x, behavior: smooth ? "smooth" : "auto" });
-    syncThumbs();
     updateNav();
   }
 
@@ -1151,7 +1241,6 @@
     const clamped = Math.max(0, Math.min(idx, Math.max(0, n-1)));
     if (clamped !== currentIndex){
       currentIndex = clamped;
-      syncThumbs();
     }
     updateNav();
   }
@@ -1162,6 +1251,10 @@
 
     if (!carousel) return;
     carousel.innerHTML = "";
+
+    const escapeHtml = (s) => String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
 
     if (!imagesState.length){
       carousel.innerHTML = `<div class="heroEmpty">No image</div>`;
@@ -1177,21 +1270,6 @@
     });
 
     requestAnimationFrame(() => scrollToIndex(0, false));
-  }
-
-  function renderThumbs(images, title){
-    const thumbs = el("thumbs");
-    if (!thumbs) return;
-    thumbs.innerHTML = "";
-
-    images.forEach((u, idx) => {
-      const d = document.createElement("div");
-      d.className = "t" + (idx===0 ? " active" : "");
-      d.dataset.idx = String(idx);
-      d.innerHTML = `<img src="${escapeHtml(u)}" alt="${escapeHtml(title)}" draggable="false" />`;
-      d.addEventListener("click", () => scrollToIndex(idx));
-      thumbs.appendChild(d);
-    });
   }
 
   function enableDragScroll(){
@@ -1286,7 +1364,6 @@
 
   async function buyNowOneItem(p, qty){
     enforceCurrencyByShipping();
-
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
 
     const payload = {
@@ -1307,6 +1384,26 @@
     }
 
     window.location.href = data.url;
+  }
+
+  // ✅ updates SEO tags from product
+  function setSeo(p){
+    try{
+      const desc = (p?.seoDescription || p?.description || "Handcrafted mosaic pins for knife handles.").trim();
+      let meta = document.querySelector('meta[name="description"]');
+      if (!meta){
+        meta = document.createElement("meta");
+        meta.setAttribute("name","description");
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute("content", desc.slice(0, 160));
+
+      const can = document.querySelector('link[rel="canonical"]');
+      if (can){
+        const url = `https://mosaicpins.space/p/${encodeURIComponent(p.pin)}`;
+        can.setAttribute("href", url);
+      }
+    }catch(_){}
   }
 
   async function load(){
@@ -1343,6 +1440,8 @@
     const p = data.product;
     currentProduct = p;
 
+    setSeo(p);
+
     document.title = `${p.title} • Mosaic Pins`;
     el("hTitle").textContent = p.title;
     el("hSub").textContent = `${p.pin} • Ø ${p.diameter ?? "—"} mm`;
@@ -1350,30 +1449,23 @@
     el("kicker").textContent = p.type ? String(p.type) : "";
     el("title").textContent = p.title;
 
-    // ✅ IMPORTANT: use innerHTML for rich text from Airtable
-    // If API provides plain text, it will still render as text.
-    const desc = el("desc");
+    // ✅ RICH TEXT from Airtable: keep formatting
+    const descEl = el("desc");
     const rawDesc = (p.description || "").trim();
-    if (desc){
-      // If it looks like HTML OR contains Airtable rich markup, render it.
-      // Otherwise, keep it as plain text with preserved line breaks.
-      const looksHtml = /<\/?[a-z][\s\S]*>/i.test(rawDesc);
-      if (looksHtml){
-        desc.innerHTML = safeRichHtml(rawDesc);
-      } else {
-        desc.textContent = rawDesc;
-      }
+    if (descEl){
+      descEl.innerHTML = mdToSafeHtml(rawDesc);
     }
 
     const chips = [];
     if (p.color) chips.push(`Color: ${p.color}`);
     if (p.diameter != null) chips.push(`Ø ${p.diameter} mm`);
     (p.materials || []).forEach(m => chips.push(m));
-    el("chips").innerHTML = chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("");
+    el("chips").innerHTML = chips.map(c => `<span class="chip">${String(c).replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]))}</span>`).join("");
 
     const images = Array.isArray(p.images) ? p.images : [];
     buildCarousel(images, p.title);
-    renderThumbs(images, p.title);
     wireCarouselOnce();
     updateNav();
 
@@ -1402,7 +1494,6 @@
     qtyInput.addEventListener("input", () => setQty(qtyInput.value));
 
     const renderPrice = () => { el("price").textContent = priceText(p.price); };
-    if (elCurrency) elCurrency.addEventListener("change", renderPrice);
     renderPrice();
 
     addBtn.addEventListener("click", () => {
