@@ -36,7 +36,6 @@
 
     html,body{height:100%}
 
-    /* ✅ Фон как на остальных страницах (убирает “ступеньки”) */
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
@@ -63,7 +62,6 @@
       will-change: transform;
     }
 
-    /* ✅ Dark scrollbar like main */
     *{
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);
@@ -170,8 +168,6 @@
       text-align:center;
     }
 
-    /* ✅ ВАЖНО: теперь content занимает место между topbar и footer,
-       поэтому footer всегда внизу и не режется */
     .content{
       padding:18px;
       overflow:auto;
@@ -306,7 +302,6 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    /* ✅ Rich text styles (Airtable formatting) */
     .meta{
       color:var(--text);
       font-size:13px;
@@ -715,7 +710,7 @@
         </div>
       </div>
 
-      <!-- ✅ Footer (same as about.html, NOT fixed) -->
+      <!-- ✅ Footer (NOT fixed) -->
       <footer class="footer">
         <div class="footerRow">
           <div class="footerBrand">
@@ -770,16 +765,20 @@
   // ✅ footer year
   document.getElementById("year").textContent = String(new Date().getFullYear());
 
-  const API_PRODUCT = "/api/product";
+  const API_PRODUCT  = "/api/product";
   const API_CHECKOUT = "/api/checkout";
 
-  const CART_KEY = "mp_cart";
-  const MP_CUR_KEY = "mp_currency";
+  const CART_KEY    = "mp_cart";
+  const MP_CUR_KEY  = "mp_currency";
   const MP_SHIP_KEY = "mp_ship_country";
+
+  // ✅ DEFAULTS (only if nothing saved yet)
+  const DEFAULT_SHIP = "US";
+  const DEFAULT_CUR  = "USD";
 
   const el = (id) => document.getElementById(id);
 
-  const elCurrency = el("currency");
+  const elCurrency    = el("currency");
   const elShipCountry = el("shipCountry");
 
   function readCart(){
@@ -797,9 +796,9 @@
     if (badge) badge.textContent = String(cartCount());
   }
 
-  const toastEl = el("toast");
+  const toastEl    = el("toast");
   const toastTitle = el("toastTitle");
-  const toastMsg = el("toastMsg");
+  const toastMsg   = el("toastMsg");
 
   function toast(title, msg){
     if (!toastEl || !toastTitle || !toastMsg) return;
@@ -818,19 +817,19 @@
   function getCurrency(){
     const saved = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
     if (saved === "EUR" || saved === "USD") return saved;
-    return String(elCurrency?.value || "EUR").toUpperCase();
+    return String(elCurrency?.value || DEFAULT_CUR).toUpperCase();
   }
 
   function setCurrency(cur){
-    cur = String(cur || "EUR").toUpperCase();
-    if (cur !== "EUR" && cur !== "USD") cur = "EUR";
+    cur = String(cur || DEFAULT_CUR).toUpperCase();
+    if (cur !== "EUR" && cur !== "USD") cur = DEFAULT_CUR;
     try{ localStorage.setItem(MP_CUR_KEY, cur); }catch(_){}
     if (elCurrency) elCurrency.value = cur;
   }
 
   // ✅ hard rule: US/CA => USD, DE/EU => EUR
   function enforceCurrencyByShipping(){
-    const ship = String(elShipCountry?.value || "DE").toUpperCase();
+    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
     const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
     if (getCurrency() !== must){
       setCurrency(must);
@@ -838,33 +837,28 @@
     }
   }
 
-  // ✅ restore persisted selects (currency + shipping)
+  // ✅ restore persisted selects (currency + shipping) + defaults US/USD if unset
   (function restoreSettings(){
     try{
-      // currency
-      const cur = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
-      if (cur && (cur === "EUR" || cur === "USD") && elCurrency) elCurrency.value = cur;
+      const shipSaved = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
+      const curSaved  = (localStorage.getItem(MP_CUR_KEY)  || "").toUpperCase();
 
-      // shipping
-      const ship = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
-      if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
-
-      // if nothing saved yet — try guess from locale (DE default)
-      if (!localStorage.getItem(MP_SHIP_KEY) && elShipCountry){
-        let guess = "DE";
-        try{
-          const loc = (navigator.language || "").split("-")[1] || "";
-          const cc = String(loc).toUpperCase();
-          if (cc === "US") guess = "US";
-          else if (cc === "CA") guess = "CA";
-          else if (cc === "DE") guess = "DE";
-          else if (cc) guess = "EU";
-        }catch(_){}
-        elShipCountry.value = guess;
-        try{ localStorage.setItem(MP_SHIP_KEY, guess); }catch(_){}
+      // SHIPPING
+      if (shipSaved && ["DE","EU","US","CA"].includes(shipSaved) && elShipCountry){
+        elShipCountry.value = shipSaved;
+      } else if (elShipCountry){
+        elShipCountry.value = DEFAULT_SHIP;
+        try{ localStorage.setItem(MP_SHIP_KEY, DEFAULT_SHIP); }catch(_){}
       }
 
-      // ✅ enforce once on load
+      // CURRENCY
+      if (curSaved && (curSaved === "EUR" || curSaved === "USD") && elCurrency){
+        elCurrency.value = curSaved;
+      } else {
+        setCurrency(DEFAULT_CUR);
+      }
+
+      // enforce rule after restore/default
       enforceCurrencyByShipping();
       setCurrency(getCurrency());
     }catch(_){}
@@ -873,28 +867,26 @@
   // ✅ Map UI selection -> ISO2 for API
   // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
-    const v = String(elShipCountry?.value || "DE").toUpperCase();
+    const v = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
     if (v === "US") return "US";
     if (v === "CA") return "CA";
-    if (v === "EU") return "FR"; // ✅ any EU ISO2 works: FR/ES/IT/NL...
+    if (v === "EU") return "FR"; // any EU ISO2 works
     return "DE";
   }
 
-  // ✅ NEW: поддержка ссылок /p/PIN + старых product.html?pin=PIN
+  // ✅ /p/PIN + ?pin=PIN
   function getPinFromUrl(){
     const u = new URL(window.location.href);
 
     const qPin = (u.searchParams.get("pin") || "").trim();
     if (qPin) return qPin;
 
-    // /p/TEST
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
 
     return "";
   }
 
-  // will be set later after product loads
   let currentProduct = null;
 
   function refreshCurrencyUI(){
@@ -908,14 +900,14 @@
   if (elCurrency){
     elCurrency.addEventListener("change", () => {
       setCurrency(elCurrency.value);
-      enforceCurrencyByShipping(); // ✅ snaps back if not allowed
+      enforceCurrencyByShipping();
       refreshCurrencyUI();
     });
   }
 
   if (elShipCountry){
     elShipCountry.addEventListener("change", () => {
-      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
       enforceCurrencyByShipping();
       refreshCurrencyUI();
       toast("Shipping", `Destination: ${elShipCountry.value}`);
@@ -939,26 +931,16 @@
 
   /* =========================
      ✅ RICH TEXT (Airtable -> HTML)
-     - поддерживает:
-       **bold**, *italic*, __underline__
-       - списки "- " и "• "
-       пустые строки => новые абзацы
-       строки начинающиеся с "# " => заголовок
   ========================== */
   function mdInlineToHtml(line){
-    // escape first
     let s = escapeHtml(line);
-
-    // bold **text**
     s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    // italic *text* (not **)
     s = s.replace(/(^|[^*])\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "$1<em>$2</em>");
-    // underline __text__
     s = s.replace(/__(.+?)__/g, "<u>$1</u>");
-
-    // links [text](url)
-    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline; opacity:.95;">$1</a>`);
-
+    s = s.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      `<a href="$2" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline; opacity:.95;">$1</a>`
+    );
     return s;
   }
 
@@ -981,21 +963,18 @@
       const l0 = lines[i];
       const line = l0.trimEnd();
 
-      // empty line => paragraph break
       if (!line.trim()){
         closeList();
         html += "<div style='height:10px'></div>";
         continue;
       }
 
-      // headings
       if (line.startsWith("# ")){
         closeList();
         html += `<h3 style="margin:14px 0 8px; font-size:14px; letter-spacing:.2px;">${mdInlineToHtml(line.slice(2).trim())}</h3>`;
         continue;
       }
 
-      // bullets "- " or "• "
       const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
       if (isBullet){
         if (!inList){
@@ -1007,7 +986,6 @@
         continue;
       }
 
-      // normal paragraph
       closeList();
       html += `<p style="margin:0 0 10px; color:var(--muted); font-size:13px; line-height:1.65;">${mdInlineToHtml(line)}</p>`;
     }
@@ -1017,16 +995,16 @@
   }
 
   /* =========================
-     CART DRAWER
+     ✅ CART DRAWER
   ========================== */
-  const elOpenCart = el("openCart");
-  const elCartBack = el("cartBack");
-  const elCartDrawer = el("cartDrawer");
-  const elCloseCart = el("closeCart");
-  const elCartBody = el("cartBody");
-  const elCartTotal = el("cartTotal");
+  const elOpenCart     = el("openCart");
+  const elCartBack     = el("cartBack");
+  const elCartDrawer   = el("cartDrawer");
+  const elCloseCart    = el("closeCart");
+  const elCartBody     = el("cartBody");
+  const elCartTotal    = el("cartTotal");
   const elCartCheckout = el("cartCheckout");
-  const elCartClear = el("cartClear");
+  const elCartClear    = el("cartClear");
 
   function openCart(){
     elCartBack?.classList.add("show");
@@ -1044,7 +1022,7 @@
   elCloseCart?.addEventListener("click", closeCart);
   elCartBack?.addEventListener("click", closeCart);
 
-  // ✅ Escape closes cart only if cart is open
+  // Escape closes cart only if open
   window.addEventListener("keydown", (e)=>{
     if (e.key !== "Escape") return;
     const cartOpen = elCartDrawer?.classList.contains("show");
@@ -1171,8 +1149,7 @@
       return;
     }
 
-    // ✅ ensure ship saved + enforce currency before sending
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
     enforceCurrencyByShipping();
 
     const items = cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 }));
@@ -1205,15 +1182,12 @@
     }
   });
 
-  /* =========================
-     PRODUCT PAGE
-  ========================== */
-  const hero = el("hero");
-  const heroInner = el("heroInner");
+  const hero     = el("hero");
+  const heroInner= el("heroInner");
   const carousel = el("carousel");
-  const prevBtn = el("prevBtn");
-  const nextBtn = el("nextBtn");
-  const counter = el("counter");
+  const prevBtn  = el("prevBtn");
+  const nextBtn  = el("nextBtn");
+  const counter  = el("counter");
 
   let currentIndex = 0;
   let imagesState = [];
@@ -1222,6 +1196,7 @@
   function updateNav(){
     const n = imagesState.length;
     const hasMany = n > 1;
+
     if (counter){
       counter.style.display = n >= 2 ? "block" : "none";
       counter.textContent = `${Math.min(currentIndex+1, n)} / ${n}`;
@@ -1241,8 +1216,10 @@
   function scrollToIndex(idx, smooth=true){
     const n = imagesState.length;
     if (!n || !carousel) return;
+
     currentIndex = Math.max(0, Math.min(idx, n-1));
     const x = carousel.clientWidth * currentIndex;
+
     carousel.scrollTo({ left: x, behavior: smooth ? "smooth" : "auto" });
     syncThumbs();
     updateNav();
@@ -1254,6 +1231,7 @@
     const idx = Math.round(carousel.scrollLeft / w);
     const n = imagesState.length;
     const clamped = Math.max(0, Math.min(idx, Math.max(0, n-1)));
+
     if (clamped !== currentIndex){
       currentIndex = clamped;
       syncThumbs();
@@ -1353,11 +1331,12 @@
   }
 
   function setupParallax(){
-    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduceMotion =
+      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion || !hero || !heroInner) return;
 
-    let target = { x:0, y:0, rx:0, ry:0, s:1.02 };
-    let curr   = { x:0, y:0, rx:0, ry:0, s:1.02 };
+    const target = { x:0, y:0, rx:0, ry:0, s:1.02 };
+    const curr   = { x:0, y:0, rx:0, ry:0, s:1.02 };
 
     function apply(){
       const k = 0.12;
@@ -1383,8 +1362,8 @@
       const maxMove = 6;
       const maxTilt = 2.0;
 
-      target.x = nx * maxMove;
-      target.y = ny * maxMove;
+      target.x  = nx * maxMove;
+      target.y  = ny * maxMove;
       target.rx = (-ny) * maxTilt;
       target.ry = (nx) * maxTilt;
     });
@@ -1406,15 +1385,15 @@
 
     if (idx >= 0){
       const next = Math.min(stock, (Number(cart[idx].qty)||0) + qty);
-      cart[idx].qty = next;
+      cart[idx].qty   = next;
       cart[idx].stock = stock;
       cart[idx].title = p.title;
       cart[idx].image = (p.images && p.images[0]) ? p.images[0] : (cart[idx].image || "");
       cart[idx].price = p.price || cart[idx].price || {};
     } else {
       cart.push({
-        pin: String(p.pin),
-        qty: Math.min(stock, qty),
+        pin:   String(p.pin),
+        qty:   Math.min(stock, qty),
         title: String(p.title || p.pin),
         image: (p.images && p.images[0]) ? p.images[0] : "",
         price: p.price || {},
@@ -1429,11 +1408,10 @@
   }
 
   async function buyNowOneItem(p, qty){
-    // ✅ enforce currency just before checkout
     enforceCurrencyByShipping();
-
-    // ✅ ensure country saved
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
+    try{
+      localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase());
+    }catch(_){}
 
     const payload = {
       currency: getCurrency(),
@@ -1448,7 +1426,7 @@
     });
 
     const data = await r.json().catch(()=>({}));
-    if (!r.ok || !data?.ok || !data?.url) {
+    if (!r.ok || !data?.ok || !data?.url){
       throw new Error(data?.error || "Checkout failed");
     }
 
@@ -1459,13 +1437,11 @@
     updateCartBadge();
     renderCart();
 
-    // ✅ keep currency consistent if user changed ship on another page
+    // keep currency consistent (also applies defaults from restoreSettings)
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
 
     const pin = getPinFromUrl();
-
-    // ✅ если pin пустой — перекидываем на главную
     if (!pin){
       window.location.replace("/index.html");
       return;
@@ -1500,14 +1476,12 @@
     el("hSub").textContent = `${p.pin} • Ø ${p.diameter ?? "—"} mm`;
 
     el("kicker").textContent = p.type ? String(p.type) : "";
-    el("title").textContent = p.title;
+    el("title").textContent  = p.title;
 
-    // ✅ IMPORTANT: render Airtable description with formatting
+    // ✅ Airtable description with formatting
     const d = (p.description || "").trim();
     const descEl = el("desc");
     if (descEl){
-      // if description already contains HTML tags => trust as HTML from backend (optional)
-      // else parse as simple markdown-like text
       if (/<[a-z][\s\S]*>/i.test(d)) descEl.innerHTML = d;
       else descEl.innerHTML = airtableTextToHtml(d);
     }
@@ -1544,21 +1518,22 @@
     const qtyInput = el("qty");
     qtyInput.value = "1";
     const setQty = (v) => { qtyInput.value = String(clampQty(v, stock)); };
-    el("minus").addEventListener("click", () => setQty(Number(qtyInput.value) - 1));
-    el("plus").addEventListener("click", () => setQty(Number(qtyInput.value) + 1));
-    qtyInput.addEventListener("input", () => setQty(qtyInput.value));
+
+    el("minus")?.addEventListener("click", () => setQty(Number(qtyInput.value) - 1));
+    el("plus")?.addEventListener("click",  () => setQty(Number(qtyInput.value) + 1));
+    qtyInput?.addEventListener("input", () => setQty(qtyInput.value));
 
     const renderPrice = () => { el("price").textContent = priceText(p.price); };
     if (elCurrency) elCurrency.addEventListener("change", renderPrice);
     renderPrice();
 
-    addBtn.addEventListener("click", () => {
+    addBtn?.addEventListener("click", () => {
       const quantity = clampQty(qtyInput.value, stock);
       if (stock <= 0) return;
       addToCart(p, quantity);
     });
 
-    buyBtn.addEventListener("click", async () => {
+    buyBtn?.addEventListener("click", async () => {
       const quantity = clampQty(qtyInput.value, stock);
       if (stock <= 0) return;
 
