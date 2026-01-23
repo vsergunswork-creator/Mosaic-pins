@@ -21,9 +21,6 @@
       --overlay2: rgba(0,0,0,.82);
       --panel: rgba(0,0,0,.28);
       --panelHover: rgba(255,255,255,.05);
-
-      /* ✅ safe-area bottom (iOS) + некоторые Android */
-      --safeB: env(safe-area-inset-bottom, 0px);
     }
 
     *{box-sizing:border-box}
@@ -31,17 +28,16 @@
 
     html,body{height:100%}
 
-    /* ✅ body НЕ скроллится */
+    /* ✅ body не скроллится — скролл только в .content */
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
       background: var(--bg);
       color:var(--text);
-
       overflow:hidden;
       position:relative;
       isolation:isolate;
-      overscroll-behavior: none;
+      overscroll-behavior:none;
     }
 
     body::before{
@@ -71,18 +67,10 @@
     .app{
       display:grid;
       grid-template-columns: 280px 1fr;
-
-      /* ✅ fallback */
       height:100vh;
-
       gap:16px;
       padding:16px;
       min-height:0;
-    }
-
-    /* ✅ правильная высота в моб. браузерах */
-    @supports (height: 100dvh){
-      .app{ height:100dvh; }
     }
 
     .sidebar{
@@ -176,9 +164,10 @@
       text-align:center;
     }
 
-    /* ✅ главный вертикальный скролл */
+    /* ✅ главный вертикальный скролл теперь тут (+ защита от нижних кнопок) */
     .content{
       padding:18px;
+      padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px) + 14px);
       overflow:auto;
       min-height:0;
       flex:1 1 auto;
@@ -196,10 +185,10 @@
     }
 
     @media (max-width:980px){
-      .app{grid-template-columns:1fr; padding:12px;}
+      .app{grid-template-columns:1fr; height:100vh; padding:12px;}
       .sidebar{display:none}
       .wrap{grid-template-columns:1fr; align-items:start;}
-      .content{padding:14px;}
+      .content{padding:14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px) + 14px);}
     }
 
     .panel{
@@ -221,16 +210,10 @@
       position:relative;
       perspective: 900px;
       user-select:none;
-
       touch-action: pan-y;
     }
 
-    .hero-inner{
-      width:100%;
-      height:100%;
-      transform-style: preserve-3d;
-      will-change: transform;
-    }
+    .hero-inner{width:100%; height:100%; transform-style: preserve-3d; will-change: transform;}
 
     .carousel{
       width:100%;
@@ -243,10 +226,8 @@
       scrollbar-width:none;
       user-select:none;
       cursor: grab;
-
       touch-action: pan-x pan-y;
     }
-
     .carousel::-webkit-scrollbar{display:none;}
     .carousel.dragging{cursor: grabbing;}
     .slide{flex: 0 0 100%; width:100%; height:100%; scroll-snap-align:center;}
@@ -364,7 +345,7 @@
       font-size:12px;
     }
 
-    .priceRow{
+.priceRow{
       display:flex; align-items:baseline; justify-content:space-between; gap:10px;
       margin:16px 0 10px;
     }
@@ -448,7 +429,7 @@
     .toast{
       position: fixed;
       right: 16px;
-      bottom: calc(16px + var(--safeB)); /* ✅ не прячется за нижней панелью */
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
       background: rgba(0,0,0,.65);
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -463,7 +444,7 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-/* ✅ CART DRAWER */
+    /* ✅ CART DRAWER */
     .cartBack{
       position:fixed;
       inset:0;
@@ -487,6 +468,7 @@
       flex-direction:column;
       overflow:hidden;
       backdrop-filter: blur(10px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
     }
     .cartDrawer.show{transform: translateX(0)}
     .cartHead{
@@ -582,18 +564,18 @@
       padding:12px;
       border-top:1px solid var(--line);
       background:rgba(0,0,0,.40);
-      padding-bottom: calc(12px + var(--safeB));
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     }
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
-    /* ✅ Footer */
+    /* ✅ Footer НЕ фиксированный, но с безопасным нижним отступом */
     .footer{
       margin-top:auto;
       border-top:1px solid var(--line);
       background: rgba(0,0,0,.25);
       padding:14px 18px;
-      padding-bottom: calc(14px + var(--safeB)); /* ✅ главное исправление */
+      padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
       flex: 0 0 auto;
     }
     .footerRow{
@@ -634,10 +616,7 @@
       color:var(--text);
     }
     @media (max-width:980px){
-      .footer{
-        padding:12px 14px;
-        padding-bottom: calc(12px + var(--safeB)); /* ✅ и на мобилке */
-      }
+      .footer{padding:12px 14px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));}
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
     }
@@ -737,29 +716,31 @@
             </div>
           </aside>
         </div>
+
+        <!-- ✅ Footer ВНУТРИ .content, чтобы он был в самом низу прокрутки -->
+        <footer class="footer">
+          <div class="footerRow">
+            <div class="footerBrand">
+              <span style="display:inline-flex;align-items:center;gap:8px;">
+                <span class="dot"></span>
+                <span>© <span id="year"></span> Mosaic Pins</span>
+              </span>
+            </div>
+
+            <div class="footerLinks">
+              <a href="/index.html">Shop</a>
+              <a href="/about">About</a>
+              <a href="/shipping">Shipping</a>
+              <a href="/returns">Returns</a>
+              <a href="/reviews">Reviews</a>
+              <a href="/privacy.html">Privacy Policy</a>
+              <a href="/impressum.html">Impressum</a>
+              <a href="mailto:mosaicpinsspace@gmail.com">Support</a>
+            </div>
+          </div>
+        </footer>
+
       </div>
-
-      <footer class="footer">
-        <div class="footerRow">
-          <div class="footerBrand">
-            <span style="display:inline-flex;align-items:center;gap:8px;">
-              <span class="dot"></span>
-              <span>© <span id="year"></span> Mosaic Pins</span>
-            </span>
-          </div>
-
-          <div class="footerLinks">
-            <a href="/index.html">Shop</a>
-            <a href="/about">About</a>
-            <a href="/shipping">Shipping</a>
-            <a href="/returns">Returns</a>
-            <a href="/reviews">Reviews</a>
-            <a href="/privacy.html">Privacy Policy</a>
-            <a href="/impressum.html">Impressum</a>
-            <a href="mailto:mosaicpinsspace@gmail.com">Support</a>
-          </div>
-        </div>
-      </footer>
     </main>
   </div>
 
@@ -842,7 +823,7 @@
     }[m]));
   }
 
-function getCurrency(){
+  function getCurrency(){
     const saved = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
     if (saved === "EUR" || saved === "USD") return saved;
     return String(elCurrency?.value || DEFAULT_CUR).toUpperCase();
@@ -893,6 +874,7 @@ function getCurrency(){
   })();
 
   // ✅ Map UI selection -> ISO2 for API
+  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
     const v = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
     if (v === "US") return "US";
@@ -923,6 +905,7 @@ function getCurrency(){
     }
   }
 
+  // ✅ persist on change (but do not allow wrong currency)
   if (elCurrency){
     elCurrency.addEventListener("change", () => {
       setCurrency(elCurrency.value);
@@ -1038,11 +1021,10 @@ function getCurrency(){
     document.body.style.overflow = "hidden";
     renderCart();
   }
-
   function closeCart(){
     elCartBack?.classList.remove("show");
     elCartDrawer?.classList.remove("show");
-    document.body.style.overflow = "hidden"; /* ✅ ВАЖНО: не сбрасываем */
+    document.body.style.overflow = "";
   }
 
   elOpenCart?.addEventListener("click", openCart);
@@ -1166,6 +1148,7 @@ function getCurrency(){
 
   elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
+  // ✅ checkout from cart
   elCartCheckout?.addEventListener("click", async () => {
     const cart = readCart();
 
@@ -1302,23 +1285,26 @@ function getCurrency(){
     });
   }
 
-  /* ✅ MOBILE SCROLL FIX: pointer capture только после lock на горизонталь */
+  /* ==========================================================
+     ✅ MOBILE SWIPE FIX (stable)
+     - handlers ONLY on carousel (not window)
+     - lock direction after small threshold
+     - vertical dominant => do nothing (let page scroll)
+     - horizontal dominant => preventDefault + drag
+  ========================================================== */
   function enableDragScroll(){
     if (!carousel) return;
 
     let active = false;
     let locked = false;
     let startX = 0, startY = 0;
-    let pointerId = null;
     let lastX = 0;
+    let pointerId = null;
 
     const THRESH = 6;
 
-    const isMultiTouch = (e) => (e.touches && e.touches.length > 1);
-
     const onDown = (e) => {
-      if (!carousel) return;
-      if (isMultiTouch(e)) return;
+      // mouse only left
       if (e.pointerType === "mouse" && e.button !== 0) return;
 
       active = true;
@@ -1328,12 +1314,13 @@ function getCurrency(){
       startX = e.clientX;
       startY = e.clientY;
       lastX  = e.clientX;
+
+      try{ carousel.setPointerCapture(pointerId); }catch(_){}
     };
 
     const onMove = (e) => {
       if (!active || pointerId == null) return;
       if (e.pointerId !== pointerId) return;
-      if (isMultiTouch(e)) return;
 
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
@@ -1341,18 +1328,17 @@ function getCurrency(){
       if (!locked){
         if (Math.abs(dx) < THRESH && Math.abs(dy) < THRESH) return;
 
-        // вертикаль сильнее -> отдаём браузеру, не мешаем
+        // vertical dominates -> allow scroll
         if (Math.abs(dy) > Math.abs(dx)){
           active = false;
           pointerId = null;
-          carousel.classList.remove("dragging");
+          try{ carousel.releasePointerCapture(e.pointerId); }catch(_){}
           return;
         }
 
-        // горизонталь -> lock и только теперь pointer capture
+        // horizontal dominates -> lock
         locked = true;
         carousel.classList.add("dragging");
-        try{ carousel.setPointerCapture(e.pointerId); }catch(_){}
       }
 
       if (locked){
@@ -1363,7 +1349,7 @@ function getCurrency(){
       }
     };
 
-    const onUp = (e) => {
+    const onUp = () => {
       const wasLocked = locked;
 
       active = false;
@@ -1371,8 +1357,6 @@ function getCurrency(){
       pointerId = null;
 
       carousel.classList.remove("dragging");
-
-      try{ carousel.releasePointerCapture(e.pointerId); }catch(_){}
 
       if (wasLocked){
         detectIndexFromScroll();
@@ -1540,6 +1524,7 @@ function getCurrency(){
     const p = data.product;
     currentProduct = p;
 
+    // ✅ SEO update
     document.title = `${p.title} • Mosaic Pins`;
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute("content", String(p.description || "").slice(0, 155));
