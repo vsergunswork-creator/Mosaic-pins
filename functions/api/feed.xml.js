@@ -136,7 +136,6 @@ function buildGoogleMerchantXml(items, baseUrl) {
     <g:brand>${xmlEscape(it.brand)}</g:brand>
     <g:condition>${xmlEscape(it.condition)}</g:condition>
 
-    <!-- ✅ extra required attributes -->
     <g:gender>${xmlEscape(it.gender)}</g:gender>
     <g:age_group>${xmlEscape(it.age_group)}</g:age_group>
     <g:color>${xmlEscape(it.color)}</g:color>
