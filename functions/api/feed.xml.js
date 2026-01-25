@@ -38,10 +38,10 @@ export async function onRequestGet({ env, request }) {
 
     const baseUrl = getBaseUrl(request); // https://mosaicpins.space
 
-    // ✅ Your rule: Germany difference is shipping, not product price.
-    // So we provide ONE product price for EU market: Price_EUR (main).
-    // If you want US market feed later -> can generate second feed.
-    const items = records
+    // ✅ FORCE USD feed (for US-only Merchant Center)
+    const FEED_CURRENCY = "USD";
+    const PRICE_FIELD = "Price_USD";
+const items = records
       .map((rec) => {
         const f = rec.fields || {};
 
@@ -50,15 +50,15 @@ export async function onRequestGet({ env, request }) {
 
         const title = String(f["Title"] || "Untitled").trim();
 
-        // Google требует price
-        const eur = asNumberOrNull(f["Price_EUR"]);
-        if (eur == null) return null;
+        // ✅ Google requires price -> use USD only
+        const usd = asNumberOrNull(f[PRICE_FIELD]);
+        if (usd == null) return null;
 
         const stock = toInt(f["Stock"], 0);
         const availability = stock > 0 ? "in stock" : "out of stock";
 
         const images = extractImageUrls(f["Images"]);
-        // Лучше отдавать товары только с картинкой, иначе Merchant Center ругается
+        // Better to only include products with image
         if (!images.length) return null;
 
         const description = String(f["Description"] || "").trim();
@@ -80,11 +80,11 @@ export async function onRequestGet({ env, request }) {
         const fullDesc = [description, extra.join(" • ")]
           .filter(Boolean)
           .join("\n\n")
-          .slice(0, 5000); // safe for Google
+          .slice(0, 5000);
 
         const link = `${baseUrl}/p/${encodeURIComponent(pin)}`;
 
-        // ✅ Use your first image as main
+        // ✅ Use first image as main
         const image_link = images[0];
 
         return {
@@ -94,7 +94,7 @@ export async function onRequestGet({ env, request }) {
           link,
           image_link,
           availability,
-          price: `${eur.toFixed(2)} EUR`,
+          price: `${usd.toFixed(2)} ${FEED_CURRENCY}`, // ✅ USD only
           brand: "Mosaic Pins",
           condition: "new",
         };
@@ -113,8 +113,6 @@ export async function onRequestGet({ env, request }) {
     return text(`Server error: ${String(e)}`, 500);
   }
 }
-
-/* ---------------- XML ---------------- */
 
 function buildGoogleMerchantXml(items, baseUrl) {
   const channelTitle = "Mosaic Pins";
