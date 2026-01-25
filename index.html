@@ -618,6 +618,22 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
+    /* ✅ NEW: PayPal аккуратный контейнер (не ломает дизайн) */
+    .ppWrap{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+      padding:10px;
+      display:none;               /* показываем только когда корзина не пустая */
+    }
+    .ppNote{
+      color:var(--muted);
+      font-size:12px;
+      margin-top:8px;
+      line-height:1.35;
+      display:none;
+    }
+
     /* Footer */
     .footer{
       margin-top:auto;
@@ -807,23 +823,37 @@
       <div class="cartTitle">Cart</div>
       <button class="cartClose" id="closeCart" type="button">✕</button>
     </div>
+
     <div class="cartBody" id="cartBody"></div>
+
     <div class="cartFoot">
       <div class="cartSumRow">
         <div>Total</div>
         <div id="cartTotal">—</div>
       </div>
+
       <div class="cartActions">
+
+        <!-- ✅ NEW: PayPal кнопка аккуратно в корзине (не ломая дизайн) -->
+        <div class="ppWrap" id="ppWrap">
+          <div id="paypal-button-container"></div>
+          <div class="ppNote" id="ppNote">PayPal is loading…</div>
+        </div>
+
+        <!-- Stripe (как было) -->
         <button class="btn" id="cartCheckout" type="button">Checkout</button>
         <button class="btn2" id="cartClear" type="button">Clear cart</button>
       </div>
     </div>
   </div>
 
-<div class="toast" id="toast">
+  <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
+
+  <!-- ✅ PayPal SDK (client-id подставится с /api/paypal-config) -->
+  <script id="pp-sdk" data-loaded="0"></script>
 
   <script>
     // footer year
@@ -831,6 +861,11 @@
 
     const API_PRODUCTS = "/api/products";
     const API_CHECKOUT = "/api/checkout";
+
+    // ✅ NEW: PayPal endpoints
+    const API_PP_CONFIG = "/api/paypal-config"; // returns { clientId }
+    const API_PP_CREATE = "/api/create-order";  // returns { id }
+    const API_PP_CAPTURE = "/api/capture";      // returns capture result
 
     const CART_KEY = "mp_cart";
 
@@ -902,6 +937,10 @@
     const elCartTotal = document.getElementById("cartTotal");
     const elCartCheckout = document.getElementById("cartCheckout");
     const elCartClear = document.getElementById("cartClear");
+
+    // ✅ PayPal UI refs
+    const elPpWrap = document.getElementById("ppWrap");
+    const elPpNote = document.getElementById("ppNote");
 
     const elToast = document.getElementById("toast");
     const elToastTitle = document.getElementById("toastTitle");
@@ -1047,12 +1086,13 @@
     })();
 
     // ✅ Map UI selection -> ISO2 for API
-    // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
+    // ВАЖНО: Вы уже сделали “EU => FR”, чтобы Германия шла отдельной (дешёвой) зоной.
+    // Здесь ЭТО УЖЕ ВНЕСЕНО: EU отправляем как FR, DE отправляем как DE.
     function getShippingCountryISO2(){
       const v = String(elShipCountry?.value || "US").toUpperCase();
       if (v === "US") return "US";
       if (v === "CA") return "CA";
-      if (v === "EU") return "FR"; // ✅ EU bucket
+      if (v === "EU") return "FR"; // ✅ EU bucket (а DE остаётся DE)
       return "DE";
     }
 
@@ -1107,6 +1147,7 @@
       elCartDrawer.classList.add("show");
       document.body.style.overflow = "hidden";
       renderCart();
+      maybeInitPayPal(); // ✅ NEW
     }
     function closeCart(){
       elCartBack.classList.remove("show");
@@ -1125,6 +1166,261 @@
     });
 
     function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
+
+    // =========================
+    // ✅ PayPal integration
+    // =========================
+
+    // small CSS injection (чтобы не ломать дизайн, аккуратно)
+    (function injectPayPalCSS(){
+      try{
+        const css = `
+          .ppWrap{
+            border:1px solid var(--line);
+            background: rgba(255,255,255,.04);
+            border-radius: 14px;
+            padding: 10px;
+          }
+          .ppNote{
+            margin-top:8px;
+            color: var(--muted);
+            font-size: 12px;
+            text-align:center;
+          }
+          /* PayPal buttons container tweaks */
+          #paypal-button-container{
+            width:100%;
+          }
+        `;
+        const st = document.createElement("style");
+        st.textContent = css;
+        document.head.appendChild(st);
+      }catch(_){}
+    })();
+
+    let ppReady = false;
+    let ppLoading = false;
+    let ppRenderedForKey = ""; // cart+currency+ship snapshot
+
+    function cartSnapshotKey(){
+      const cart = readCart();
+      const cur = getCurrency();
+      const ship = String(elShipCountry?.value || "US").toUpperCase();
+      const itemsKey = cart
+        .map(it => `${String(it.pin)}:${Number(it.qty)||1}`)
+        .sort()
+        .join("|");
+      return `${cur}|${ship}|${itemsKey}`;
+    }
+
+    function showPayPalNote(msg){
+      if (!elPpNote) return;
+      elPpNote.textContent = String(msg || "");
+      elPpNote.style.display = msg ? "block" : "none";
+    }
+
+    async function fetchPayPalClientId(){
+      const r = await fetch(API_PP_CONFIG, { method:"GET", cache:"no-store" });
+      const j = await r.json().catch(()=>null);
+      if (!r.ok || !j?.clientId) throw new Error(j?.error || "PayPal config error");
+      return String(j.clientId);
+    }
+
+    function loadPayPalSDK(clientId){
+      return new Promise((resolve, reject) => {
+        try{
+          if (window.paypal && typeof window.paypal.Buttons === "function"){
+            resolve(true);
+            return;
+          }
+
+          const s = document.getElementById("pp-sdk");
+          if (!s) throw new Error("pp-sdk tag missing");
+
+          // already loading?
+          if (s.getAttribute("data-loaded") === "1"){
+            // might already be present (or failed). check again
+            if (window.paypal && typeof window.paypal.Buttons === "function") return resolve(true);
+          }
+
+          const cur = getCurrency();
+          const url =
+            "https://www.paypal.com/sdk/js" +
+            `?client-id=${encodeURIComponent(clientId)}` +
+            `&currency=${encodeURIComponent(cur)}` +
+            `&intent=capture` +
+            `&components=buttons`;
+
+          // if script already has same src, just wait a bit
+          if (s.src && s.src === url){
+            const t0 = Date.now();
+            const tick = () => {
+              if (window.paypal && typeof window.paypal.Buttons === "function") return resolve(true);
+              if (Date.now() - t0 > 12000) return reject(new Error("PayPal SDK timeout"));
+              setTimeout(tick, 120);
+            };
+            tick();
+            return;
+          }
+
+          s.onload = () => resolve(true);
+          s.onerror = () => reject(new Error("PayPal SDK failed to load"));
+          s.src = url;
+          s.setAttribute("data-loaded","1");
+        }catch(e){
+          reject(e);
+        }
+      });
+    }
+
+    async function maybeInitPayPal(){
+      try{
+        const cart = readCart();
+        if (!cart.length){
+          if (elPpWrap) elPpWrap.style.display = "none";
+          return;
+        }
+        if (elPpWrap) elPpWrap.style.display = "block";
+
+        if (ppReady) {
+          // if currency/ship/cart changed -> re-render later
+          renderPayPalButtonsIfNeeded();
+          return;
+        }
+        if (ppLoading) return;
+
+        ppLoading = true;
+        showPayPalNote("PayPal is loading…");
+
+        const clientId = await fetchPayPalClientId();
+
+        // ensure currency is correct before loading SDK (PayPal SDK is currency-bound)
+        enforceCurrencyByShipping();
+        setCurrency(getCurrency());
+
+        await loadPayPalSDK(clientId);
+
+        ppReady = true;
+        ppLoading = false;
+
+        showPayPalNote("");
+        renderPayPalButtonsIfNeeded();
+      }catch(e){
+        ppLoading = false;
+        ppReady = false;
+        showPayPalNote(`PayPal unavailable: ${String(e?.message || e)}`);
+      }
+    }
+
+    function clearPayPalButtons(){
+      try{
+        const wrap = document.getElementById("paypal-button-container");
+        if (wrap) wrap.innerHTML = "";
+      }catch(_){}
+    }
+
+    function renderPayPalButtonsIfNeeded(){
+      if (!ppReady) return;
+      if (!window.paypal || typeof window.paypal.Buttons !== "function") return;
+
+      const cart = readCart();
+      if (!cart.length){
+        clearPayPalButtons();
+        ppRenderedForKey = "";
+        return;
+      }
+
+      // snapshot: re-render if anything important changed
+      const key = cartSnapshotKey();
+      if (key === ppRenderedForKey){
+        // already rendered for current state
+        return;
+      }
+
+      // PayPal Buttons don't like being re-rendered into same container without clearing
+      clearPayPalButtons();
+      ppRenderedForKey = key;
+
+      showPayPalNote("");
+
+      window.paypal.Buttons({
+        style: {
+          layout: "vertical",
+          shape: "pill",
+          label: "paypal"
+        },
+
+        // 1) create order on server
+        createOrder: async () => {
+          const cartNow = readCart();
+          if (!cartNow.length) throw new Error("Cart is empty");
+
+          enforceCurrencyByShipping();
+          setCurrency(getCurrency());
+
+          const payload = {
+            currency: getCurrency(),
+            shippingCountry: getShippingCountryISO2(), // ✅ EU => FR, DE => DE
+            items: cartNow.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+          };
+
+          const r = await fetch(API_PP_CREATE, {
+            method: "POST",
+            headers: { "Content-Type":"application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await r.json().catch(()=>({}));
+          if (!r.ok || !data?.id){
+            throw new Error(data?.error || "PayPal create order failed");
+          }
+          return data.id;
+        },
+
+        // 2) capture
+        onApprove: async (data) => {
+          try{
+            const orderID = data?.orderID;
+            if (!orderID) throw new Error("Missing orderID");
+
+            const r = await fetch(API_PP_CAPTURE, {
+              method: "POST",
+              headers: { "Content-Type":"application/json" },
+              body: JSON.stringify({ orderID }),
+            });
+
+            const j = await r.json().catch(()=>({}));
+            if (!r.ok || !j?.ok){
+              throw new Error(j?.error || "Capture failed");
+            }
+
+            // ✅ success UX: clear cart, show toast, refresh products
+            writeCart([]);
+            updateCartBadge();
+            renderCart();
+            toast("PayPal", "Payment success ✅");
+
+            // optional redirect (если хотите отдельную страницу)
+            // window.location.href = "/success.html";
+            loadProducts();
+          }catch(e){
+            toast("PayPal", String(e?.message || e));
+          }
+        },
+
+        onCancel: () => {
+          toast("PayPal", "Canceled");
+        },
+
+        onError: (err) => {
+          toast("PayPal", String(err?.message || err || "PayPal error"));
+        }
+      }).render("#paypal-button-container");
+    }
+
+    // =========================
+    // ✅ Cart logic
+    // =========================
 
     function addToCartFromProduct(p, qty){
       qty = Number(qty);
@@ -1158,6 +1454,10 @@
       updateCartBadge();
       renderCart();
       toast("Cart", "Added ✅");
+
+      // PayPal needs re-render if cart changed
+      ppRenderedForKey = "";
+      renderPayPalButtonsIfNeeded();
     }
 
     function setCartQty(pin, qty){
@@ -1175,6 +1475,9 @@
       writeCart(cart);
       updateCartBadge();
       renderCart();
+
+      ppRenderedForKey = "";
+      renderPayPalButtonsIfNeeded();
     }
 
     function removeFromCart(pin){
@@ -1182,12 +1485,18 @@
       writeCart(cart);
       updateCartBadge();
       renderCart();
+
+      ppRenderedForKey = "";
+      renderPayPalButtonsIfNeeded();
     }
 
     function clearCart(){
       writeCart([]);
       updateCartBadge();
       renderCart();
+
+      ppRenderedForKey = "";
+      renderPayPalButtonsIfNeeded();
     }
 
     function cartTotal(){
@@ -1203,11 +1512,20 @@
 
     function renderCart(){
       const cart = readCart();
+
+      // PayPal show/hide
+      if (elPpWrap){
+        elPpWrap.style.display = cart.length ? "block" : "none";
+      }
+
       if (!cart.length){
         elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
         elCartTotal.textContent = "—";
         elCartCheckout.disabled = true;
         elCartCheckout.textContent = "Checkout";
+
+        clearPayPalButtons();
+        ppRenderedForKey = "";
         return;
       }
 
@@ -1264,11 +1582,15 @@
 
       const sum = cartTotal();
       elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
+
+      // ensure PayPal ready/rendered when cart is visible
+      maybeInitPayPal();
+      renderPayPalButtonsIfNeeded();
     }
 
     elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-    // ✅ checkout
+    // ✅ checkout (Stripe)
     async function startCheckout(){
       const cart = readCart();
       if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
@@ -1280,7 +1602,7 @@
 
       const payload = {
         currency: getCurrency(),
-        shippingCountry: getShippingCountryISO2(),
+        shippingCountry: getShippingCountryISO2(), // ✅ EU => FR
         items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
       };
 
@@ -1568,6 +1890,11 @@
 
           updateCartBadge();
           renderCart();
+
+          // PayPal refresh
+          ppRenderedForKey = "";
+          renderPayPalButtonsIfNeeded();
+
           return;
         }
       }catch(_){
@@ -1579,6 +1906,9 @@
       applyFilters();
       updateCartBadge();
       renderCart();
+
+      ppRenderedForKey = "";
+      renderPayPalButtonsIfNeeded();
     }
 
     elQ.addEventListener("input", applyFilters);
