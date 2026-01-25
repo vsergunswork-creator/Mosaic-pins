@@ -9,7 +9,6 @@
 // Description
 // Images (attachment)
 // Stock
-// Price_EUR
 // Price_USD
 //
 // Links use your short product URL: /p/PIN
@@ -59,7 +58,7 @@ export async function onRequestGet({ env, request }) {
         const availability = stock > 0 ? "in stock" : "out of stock";
 
         const images = extractImageUrls(f["Images"]);
-        // Better to only include products with image
+        // ✅ better to only include products with image (Google требует)
         if (!images.length) return null;
 
         const description = String(f["Description"] || "").trim();
@@ -67,14 +66,12 @@ export async function onRequestGet({ env, request }) {
         // optional fields for better SEO inside Merchant
         const type = f["Type"] ?? null;
         const diameter = f["Diameter"] ?? null;
-        const color = f["Color"] ?? null;
         const materials = Array.isArray(f["Materials"]) ? f["Materials"] : [];
 
         const extra = [
           `PIN: ${pin}`,
           type ? `Type: ${type}` : null,
           diameter != null ? `Diameter: ${diameter} mm` : null,
-          color ? `Color: ${color}` : null,
           materials.length ? `Materials: ${materials.join(", ")}` : null,
         ].filter(Boolean);
 
@@ -99,10 +96,10 @@ export async function onRequestGet({ env, request }) {
           brand: "Mosaic Pins",
           condition: "new",
 
-          // ✅ FIXED ATTRIBUTES for Google (always same)
-          color: "multicolor",
+          // ✅ FIX Merchant Center warnings (always same)
           gender: "unisex",
           age_group: "adult",
+          color: "Multicolor",
         };
       })
       .filter(Boolean);
@@ -139,10 +136,10 @@ function buildGoogleMerchantXml(items, baseUrl) {
     <g:brand>${xmlEscape(it.brand)}</g:brand>
     <g:condition>${xmlEscape(it.condition)}</g:condition>
 
-    <!-- ✅ FIXED ATTRIBUTES -->
-    <g:color>${xmlEscape(it.color)}</g:color>
+    <!-- ✅ extra required attributes -->
     <g:gender>${xmlEscape(it.gender)}</g:gender>
     <g:age_group>${xmlEscape(it.age_group)}</g:age_group>
+    <g:color>${xmlEscape(it.color)}</g:color>
   </item>`;
     })
     .join("");
@@ -186,7 +183,10 @@ async function airtableFetchAll({
   for (let page = 0; page < maxPagesGuard; page++) {
     const url = new URL(baseUrl);
     url.searchParams.set("pageSize", String(pageSize));
-    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
+    if (filterByFormula) url.searchParams.set(
+      "filterByFormula",
+      filterByFormula
+    );
     if (offset) url.searchParams.set("offset", offset);
 
     const r = await fetch(url.toString(), {
