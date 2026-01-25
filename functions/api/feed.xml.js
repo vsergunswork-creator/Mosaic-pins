@@ -58,12 +58,13 @@ export async function onRequestGet({ env, request }) {
         const availability = stock > 0 ? "in stock" : "out of stock";
 
         const images = extractImageUrls(f["Images"]);
-        // ✅ better to only include products with image (Google требует)
+        // ✅ Better to only include products with image
         if (!images.length) return null;
 
-        const description = String(f["Description"] || "").trim();
+        // ✅ Clean Airtable description for Google (no Markdown/HTML)
+        const description = cleanDescriptionForGoogle(f["Description"]);
 
-        // optional fields for better SEO inside Merchant
+        // Optional fields for better SEO inside Merchant
         const type = f["Type"] ?? null;
         const diameter = f["Diameter"] ?? null;
         const materials = Array.isArray(f["Materials"]) ? f["Materials"] : [];
@@ -96,7 +97,7 @@ export async function onRequestGet({ env, request }) {
           brand: "Mosaic Pins",
           condition: "new",
 
-          // ✅ FIX Merchant Center warnings (always same)
+          // ✅ Fix Merchant Center warnings (always same)
           gender: "unisex",
           age_group: "adult",
           color: "Multicolor",
@@ -164,6 +165,48 @@ function xmlEscape(s) {
     .replace(/'/g, "&apos;");
 }
 
+/* ---------------- Description cleanup ---------------- */
+/**
+ * Google Merchant description is plain text.
+ * We remove Markdown and make headings readable.
+ */
+function cleanDescriptionForGoogle(text) {
+  let s = String(text || "").replace(/\r\n/g, "\n").trim();
+  if (!s) return "";
+
+  // Convert common "**FEATURES**" -> "FEATURES:"
+  s = s.replace(
+    /\*\*(FEATURES|OVERVIEW|DETAILS|SPECIFICATIONS|MATERIALS)\*\*/gi,
+    (_, t) => `${String(t).toUpperCase()}:`
+  );
+
+  // Remove remaining markdown bold **text**
+  s = s.replace(/\*\*(.+?)\*\*/g, "$1");
+
+  // Remove markdown italics *text* (optional)
+  s = s.replace(/(^|[^*])\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "$1$2");
+
+  // Turn bullets like "- item" / "• item" into "• item"
+  s = s
+    .split("\n")
+    .map((line) => {
+      const t = line.trim();
+      if (!t) return "";
+      if (t.startsWith("- ")) return `• ${t.slice(2).trim()}`;
+      if (t.startsWith("• ")) return `• ${t.slice(2).trim()}`;
+      return t;
+    })
+    .join("\n");
+
+  // Keep newlines but remove too many empty lines
+  s = s.replace(/\n{3,}/g, "\n\n").trim();
+
+  // Google limit safety
+  if (s.length > 5000) s = s.slice(0, 5000);
+
+  return s;
+}
+
 async function airtableFetchAll({
   token,
   baseId,
@@ -182,10 +225,7 @@ async function airtableFetchAll({
   for (let page = 0; page < maxPagesGuard; page++) {
     const url = new URL(baseUrl);
     url.searchParams.set("pageSize", String(pageSize));
-    if (filterByFormula) url.searchParams.set(
-      "filterByFormula",
-      filterByFormula
-    );
+    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
     if (offset) url.searchParams.set("offset", offset);
 
     const r = await fetch(url.toString(), {
