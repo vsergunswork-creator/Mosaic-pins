@@ -18,7 +18,16 @@ export async function onRequestPost(ctx) {
     const secret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
 
     if (!clientId || !secret) {
-      return json({ ok: false, error: "PayPal env variables are missing" }, 500, headers);
+      return json(
+        {
+          ok: false,
+          error: "PayPal env variables are missing",
+          hint:
+            "Check PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_MODE in Cloudflare Pages (Production + Preview).",
+        },
+        500,
+        headers
+      );
     }
 
     const apiBase =
@@ -33,12 +42,15 @@ export async function onRequestPost(ctx) {
       return json({ ok: false, error: "Missing orderID" }, 400, headers);
     }
 
-    // 1) access_token
+    // 1) Get access_token
+    const basic = base64(`${clientId}:${secret}`);
+
     const tokenRes = await fetch(`${apiBase}/v1/oauth2/token`, {
       method: "POST",
       headers: {
-        Authorization: `Basic ${btoa(`${clientId}:${secret}`)}`,
+        Authorization: `Basic ${basic}`,
         "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
       },
       body: "grant_type=client_credentials",
     });
@@ -47,7 +59,12 @@ export async function onRequestPost(ctx) {
 
     if (!tokenRes.ok || !tokenData.access_token) {
       return json(
-        { ok: false, error: "PayPal token error", details: tokenData },
+        {
+          ok: false,
+          error: "PayPal token error",
+          status: tokenRes.status,
+          details: tokenData,
+        },
         500,
         headers
       );
@@ -55,12 +72,13 @@ export async function onRequestPost(ctx) {
 
     const accessToken = tokenData.access_token;
 
-    // 2) CAPTURE order
+    // 2) Capture order
     const capRes = await fetch(`${apiBase}/v2/checkout/orders/${orderID}/capture`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
     });
 
@@ -68,7 +86,12 @@ export async function onRequestPost(ctx) {
 
     if (!capRes.ok) {
       return json(
-        { ok: false, error: "Capture failed", details: capData },
+        {
+          ok: false,
+          error: "Capture failed",
+          status: capRes.status,
+          details: capData,
+        },
         500,
         headers
       );
@@ -84,24 +107,33 @@ export async function onRequestPost(ctx) {
 
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
-  if (!origin) {
-    return {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
-  }
+  const allowOrigin = origin || "*";
+
   return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    Vary: "Origin",
+    Vary: origin ? "Origin" : undefined,
   };
 }
 
 function json(obj, status = 200, headers = {}) {
+  // чистим undefined из headers (Cloudflare иногда ругается)
+  const clean = {};
+  for (const [k, v] of Object.entries(headers)) {
+    if (v !== undefined) clean[k] = v;
+  }
+
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...clean },
   });
+}
+
+// Cloudflare-safe base64 (без проблем с btoa)
+function base64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
 }
