@@ -41,7 +41,8 @@ export async function onRequestGet({ env, request }) {
     // ✅ FORCE USD feed (for US-only Merchant Center)
     const FEED_CURRENCY = "USD";
     const PRICE_FIELD = "Price_USD";
-const items = records
+
+    const items = records
       .map((rec) => {
         const f = rec.fields || {};
 
@@ -97,6 +98,11 @@ const items = records
           price: `${usd.toFixed(2)} ${FEED_CURRENCY}`, // ✅ USD only
           brand: "Mosaic Pins",
           condition: "new",
+
+          // ✅ FIXED ATTRIBUTES for Google (always same)
+          color: "multicolor",
+          gender: "unisex",
+          age_group: "adult",
         };
       })
       .filter(Boolean);
@@ -132,6 +138,11 @@ function buildGoogleMerchantXml(items, baseUrl) {
     <g:price>${xmlEscape(it.price)}</g:price>
     <g:brand>${xmlEscape(it.brand)}</g:brand>
     <g:condition>${xmlEscape(it.condition)}</g:condition>
+
+    <!-- ✅ FIXED ATTRIBUTES -->
+    <g:color>${xmlEscape(it.color)}</g:color>
+    <g:gender>${xmlEscape(it.gender)}</g:gender>
+    <g:age_group>${xmlEscape(it.age_group)}</g:age_group>
   </item>`;
     })
     .join("");
@@ -156,8 +167,6 @@ function xmlEscape(s) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 }
-
-/* ---------------- Airtable ---------------- */
 
 async function airtableFetchAll({
   token,
