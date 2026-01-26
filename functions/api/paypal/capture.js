@@ -1,7 +1,7 @@
 // functions/api/paypal/capture.js
 // POST /api/paypal/capture
 // body: { orderID:"..." }
-// returns: { ok:true, capture: {...paypal response...} }
+// returns: { ok:true, capture:{...} }
 
 export function onRequestOptions(ctx) {
   const { request } = ctx;
@@ -13,21 +13,12 @@ export async function onRequestPost(ctx) {
   const headers = corsHeaders(request);
 
   try {
-    const mode = String(env.PAYPAL_MODE || "sandbox").toLowerCase();
+    const mode = normMode(env.PAYPAL_MODE);
     const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
     const secret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
 
     if (!clientId || !secret) {
-      return json(
-        {
-          ok: false,
-          error: "PayPal env variables are missing",
-          hint:
-            "Check PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_MODE in Cloudflare Pages (Production + Preview).",
-        },
-        500,
-        headers
-      );
+      return json({ ok: false, error: "PayPal env variables are missing" }, 500, headers);
     }
 
     const apiBase =
@@ -42,59 +33,20 @@ export async function onRequestPost(ctx) {
       return json({ ok: false, error: "Missing orderID" }, 400, headers);
     }
 
-    // 1) Get access_token
-    const basic = base64(`${clientId}:${secret}`);
+    const accessToken = await getPayPalAccessToken(apiBase, clientId, secret);
 
-    const tokenRes = await fetch(`${apiBase}/v1/oauth2/token`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${basic}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: "grant_type=client_credentials",
-    });
-
-    const tokenData = await tokenRes.json().catch(() => ({}));
-
-    if (!tokenRes.ok || !tokenData.access_token) {
-      return json(
-        {
-          ok: false,
-          error: "PayPal token error",
-          status: tokenRes.status,
-          details: tokenData,
-        },
-        500,
-        headers
-      );
-    }
-
-    const accessToken = tokenData.access_token;
-
-    // 2) Capture order
-    const capRes = await fetch(`${apiBase}/v2/checkout/orders/${orderID}/capture`, {
+    const capRes = await fetch(`${apiBase}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        Accept: "application/json",
       },
     });
 
     const capData = await capRes.json().catch(() => ({}));
 
     if (!capRes.ok) {
-      return json(
-        {
-          ok: false,
-          error: "Capture failed",
-          status: capRes.status,
-          details: capData,
-        },
-        500,
-        headers
-      );
+      return json({ ok: false, error: "Capture failed", details: capData }, 500, headers);
     }
 
     return json({ ok: true, capture: capData }, 200, headers);
@@ -107,33 +59,47 @@ export async function onRequestPost(ctx) {
 
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
-  const allowOrigin = origin || "*";
-
+  if (!origin) {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+  }
   return {
-    "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    Vary: origin ? "Origin" : undefined,
+    Vary: "Origin",
   };
 }
 
 function json(obj, status = 200, headers = {}) {
-  // чистим undefined из headers (Cloudflare иногда ругается)
-  const clean = {};
-  for (const [k, v] of Object.entries(headers)) {
-    if (v !== undefined) clean[k] = v;
-  }
-
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...clean },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
   });
 }
 
-// Cloudflare-safe base64 (без проблем с btoa)
-function base64(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin);
+function normMode(v) {
+  const m = String(v || "sandbox").toLowerCase();
+  return m === "live" ? "live" : "sandbox";
+}
+
+async function getPayPalAccessToken(apiBase, clientId, secret) {
+  const tokenRes = await fetch(`${apiBase}/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${btoa(`${clientId}:${secret}`)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+
+  const tokenData = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenData.access_token) {
+    const msg = tokenData?.error_description || "PayPal token error";
+    throw new Error(msg);
+  }
+  return tokenData.access_token;
 }
