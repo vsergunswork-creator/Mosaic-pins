@@ -1,6 +1,6 @@
 // functions/api/paypal/config.js
 // GET /api/paypal/config
-// returns: { ok:true, clientId:"...", mode:"sandbox|live", currency:"USD" }
+// returns: { ok:true, clientId:"...", mode:"sandbox|live" }
 
 export function onRequestOptions(ctx) {
   const { request } = ctx;
@@ -11,45 +11,20 @@ export async function onRequestGet(ctx) {
   const { request, env } = ctx;
   const headers = corsHeaders(request);
 
-  try {
-    const mode = String(env.PAYPAL_MODE || "sandbox").toLowerCase();
-    const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
-    const secret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
+  const mode = String(env.PAYPAL_MODE || "sandbox").toLowerCase();
+  const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
 
-    if (!clientId) {
-      return json({ ok: false, error: "PAYPAL_CLIENT_ID is not set" }, 500, headers);
-    }
-    if (!secret) {
-      return json({ ok: false, error: "PAYPAL_CLIENT_SECRET is not set" }, 500, headers);
-    }
-
-    if (!["sandbox", "live"].includes(mode)) {
-      return json({ ok: false, error: "PAYPAL_MODE must be sandbox or live" }, 500, headers);
-    }
-
-    // можно фиксировать валюту или сделать умнее (зависит от Вашего UI)
-    const currency = "USD";
-
-    return json(
-      {
-        ok: true,
-        clientId,
-        mode,
-        currency,
-      },
-      200,
-      headers
-    );
-  } catch (e) {
-    return json({ ok: false, error: String(e?.message || e) }, 500, headers);
+  if (!clientId) {
+    return json({ ok: false, error: "PAYPAL_CLIENT_ID is missing" }, 500, headers);
   }
+
+  return json({ ok: true, clientId, mode: mode === "live" ? "live" : "sandbox" }, 200, headers);
 }
 
 // -------- helpers --------
 
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
-
   if (!origin) {
     return {
       "Access-Control-Allow-Origin": "*",
@@ -57,12 +32,11 @@ function corsHeaders(request) {
       "Access-Control-Allow-Headers": "Content-Type",
     };
   }
-
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
