@@ -1,6 +1,6 @@
 // functions/api/paypal/create-order.js
 // POST /api/paypal/create-order
-// body: { items:[{title,qty,price}], currency:"USD" }
+// body: { items:[{qty, price}], currency:"USD" }
 // returns: { ok:true, id:"ORDER_ID" }
 
 export function onRequestOptions(ctx) {
@@ -27,25 +27,37 @@ export async function onRequestPost(ctx) {
         : "https://api-m.sandbox.paypal.com";
 
     const body = await request.json().catch(() => ({}));
-
     const currency = String(body.currency || "USD").toUpperCase();
 
-    // items может быть пустой — тогда создаём order на 1 USD (для теста)
     const items = Array.isArray(body.items) ? body.items : [];
-
-    let total = 0;
-    for (const it of items) {
-      const qty = Number(it.qty || 1);
-      const price = Number(it.price || 0);
-      if (Number.isFinite(qty) && Number.isFinite(price)) {
-        total += qty * price;
-      }
+    if (!items.length) {
+      return json({ ok: false, error: "Cart is empty (items[] is missing)" }, 400, headers);
     }
 
-    // если вдруг ничего нет — делаем тестовую сумму
-    if (!Number.isFinite(total) || total <= 0) total = 1;
+    let total = 0;
 
-    // 1) берем access_token
+    for (const it of items) {
+      const qty = Number(it?.qty || 1);
+      const price = Number(it?.price);
+
+      if (!Number.isFinite(qty) || qty <= 0) {
+        return json({ ok: false, error: "Invalid qty in items[]" }, 400, headers);
+      }
+      if (!Number.isFinite(price) || price <= 0) {
+        return json(
+          { ok: false, error: "Missing/invalid price in items[]. Send numeric price per item." },
+          400,
+          headers
+        );
+      }
+
+      total += qty * price;
+    }
+
+    // PayPal требует 2 знака после запятой
+    total = Math.round(total * 100) / 100;
+
+    // 1) access_token
     const tokenRes = await fetch(`${apiBase}/v1/oauth2/token`, {
       method: "POST",
       headers: {
@@ -56,18 +68,13 @@ export async function onRequestPost(ctx) {
     });
 
     const tokenData = await tokenRes.json().catch(() => ({}));
-
     if (!tokenRes.ok || !tokenData.access_token) {
-      return json(
-        { ok: false, error: "PayPal token error", details: tokenData },
-        500,
-        headers
-      );
+      return json({ ok: false, error: "PayPal token error", details: tokenData }, 500, headers);
     }
 
     const accessToken = tokenData.access_token;
 
-    // 2) создаём order
+    // 2) create order
     const orderPayload = {
       intent: "CAPTURE",
       purchase_units: [
@@ -90,13 +97,8 @@ export async function onRequestPost(ctx) {
     });
 
     const orderData = await orderRes.json().catch(() => ({}));
-
     if (!orderRes.ok || !orderData.id) {
-      return json(
-        { ok: false, error: "Create order failed", details: orderData },
-        500,
-        headers
-      );
+      return json({ ok: false, error: "Create order failed", details: orderData }, 500, headers);
     }
 
     return json({ ok: true, id: orderData.id }, 200, headers);
@@ -106,7 +108,6 @@ export async function onRequestPost(ctx) {
 }
 
 // -------- helpers --------
-
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
   if (!origin) {
