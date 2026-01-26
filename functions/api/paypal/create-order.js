@@ -17,22 +17,18 @@ export async function onRequestPost(ctx) {
   const headers = corsHeaders(request);
 
   try {
-    // --- env ---
     const mode = normMode(env.PAYPAL_MODE);
     const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
     const secret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
+
     if (!clientId || !secret) {
       return json({ ok: false, error: "PayPal env variables are missing" }, 500, headers);
     }
 
     const apiBase =
-      mode === "live"
-        ? "https://api-m.paypal.com"
-        : "https://api-m.sandbox.paypal.com";
+      mode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 
-    // --- input ---
     const body = await request.json().catch(() => ({}));
-
     const currency = normCurrency(body.currency);
     const shippingCountry = String(body.shippingCountry || "").toUpperCase().trim();
     const items = Array.isArray(body.items) ? body.items : [];
@@ -41,14 +37,12 @@ export async function onRequestPost(ctx) {
       return json({ ok: false, error: "Cart is empty" }, 400, headers);
     }
 
-    // --- load products from your own API (server trusted price) ---
+    // trusted products
     const products = await fetchProductsFromOrigin(request);
-    const byPin = new Map(
-      products.map(p => [String(p.pin ?? "").trim(), p])
-    );
+    const byPin = new Map(products.map(p => [String(p.pin ?? "").trim(), p]));
 
-    // --- build PayPal items + total ---
-    let total = 0;
+    // cents арифметика (чтобы PayPal breakdown совпадал идеально)
+    let totalCents = 0;
     const ppItems = [];
 
     for (const it of items) {
@@ -60,9 +54,7 @@ export async function onRequestPost(ctx) {
       qty = Math.min(99, Math.floor(qty));
 
       const p = byPin.get(pin);
-      if (!p) {
-        return json({ ok: false, error: `Unknown product pin: ${pin}` }, 400, headers);
-      }
+      if (!p) return json({ ok: false, error: `Unknown product pin: ${pin}` }, 400, headers);
 
       const stock = Number(p.stock ?? 0);
       if (!Number.isFinite(stock) || stock <= 0) {
@@ -78,34 +70,29 @@ export async function onRequestPost(ctx) {
 
       const unit = Number(p?.price?.[currency]);
       if (!Number.isFinite(unit) || unit <= 0) {
-        return json(
-          { ok: false, error: `Price missing for ${pin} in ${currency}` },
-          500,
-          headers
-        );
+        return json({ ok: false, error: `Price missing for ${pin} in ${currency}` }, 500, headers);
       }
 
-      total += unit * qty;
+      const unitCents = Math.round(unit * 100);
+      totalCents += unitCents * qty;
 
-      // PayPal item breakdown (не обязательно, но “по-взрослому”)
       ppItems.push({
         name: String(p.title || pin).slice(0, 127),
         quantity: String(qty),
-        unit_amount: { currency_code: currency, value: unit.toFixed(2) },
+        unit_amount: { currency_code: currency, value: (unitCents / 100).toFixed(2) },
         sku: pin,
         category: "PHYSICAL_GOODS",
       });
     }
 
-    total = round2(total);
-    if (!(total > 0)) {
+    if (!(totalCents > 0)) {
       return json({ ok: false, error: "Total is invalid" }, 500, headers);
     }
 
-    // --- PayPal access_token ---
+    const totalStr = (totalCents / 100).toFixed(2);
+
     const accessToken = await getPayPalAccessToken(apiBase, clientId, secret);
 
-    // --- Create PayPal order ---
     const orderPayload = {
       intent: "CAPTURE",
       purchase_units: [
@@ -115,9 +102,9 @@ export async function onRequestPost(ctx) {
           custom_id: shippingCountry || "NA",
           amount: {
             currency_code: currency,
-            value: total.toFixed(2),
+            value: totalStr,
             breakdown: {
-              item_total: { currency_code: currency, value: total.toFixed(2) },
+              item_total: { currency_code: currency, value: totalStr },
             },
           },
           items: ppItems,
@@ -125,7 +112,8 @@ export async function onRequestPost(ctx) {
       ],
       application_context: {
         brand_name: "Mosaic Pins",
-        shipping_preference: "NO_SHIPPING", // физический товар, но адрес собираете не PayPal'ом
+        // ✅ лучше для физ. товаров: PayPal возьмёт адрес из аккаунта покупателя
+        shipping_preference: "GET_FROM_FILE",
         user_action: "PAY_NOW",
       },
     };
@@ -142,18 +130,10 @@ export async function onRequestPost(ctx) {
     const orderData = await orderRes.json().catch(() => ({}));
 
     if (!orderRes.ok || !orderData.id) {
-      return json(
-        { ok: false, error: "Create order failed", details: orderData },
-        500,
-        headers
-      );
+      return json({ ok: false, error: "Create order failed", details: orderData }, 500, headers);
     }
 
-    return json(
-      { ok: true, id: orderData.id, total: total.toFixed(2), currency },
-      200,
-      headers
-    );
+    return json({ ok: true, id: orderData.id, total: totalStr, currency }, 200, headers);
   } catch (e) {
     return json({ ok: false, error: String(e?.message || e) }, 500, headers);
   }
@@ -195,10 +175,6 @@ function normCurrency(v) {
   return c === "EUR" ? "EUR" : "USD";
 }
 
-function round2(n) {
-  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-}
-
 async function getPayPalAccessToken(apiBase, clientId, secret) {
   const tokenRes = await fetch(`${apiBase}/v1/oauth2/token`, {
     method: "POST",
@@ -211,14 +187,12 @@ async function getPayPalAccessToken(apiBase, clientId, secret) {
 
   const tokenData = await tokenRes.json().catch(() => ({}));
   if (!tokenRes.ok || !tokenData.access_token) {
-    const msg = tokenData?.error_description || "PayPal token error";
-    throw new Error(msg);
+    throw new Error(tokenData?.error_description || "PayPal token error");
   }
   return tokenData.access_token;
 }
 
 async function fetchProductsFromOrigin(request) {
-  // Берём цены “доверенно” с сервера через ваш /api/products
   const url = new URL(request.url);
   url.pathname = "/api/products";
   url.search = "";
@@ -226,13 +200,11 @@ async function fetchProductsFromOrigin(request) {
   const r = await fetch(url.toString(), {
     method: "GET",
     headers: { Accept: "application/json" },
-    // важно: без кеша, чтобы цены/сток были актуальными
     cf: { cacheTtl: 0, cacheEverything: false },
   });
 
   const data = await r.json().catch(() => null);
   if (!r.ok || !data) throw new Error("Products API is not reachable");
 
-  const arr = Array.isArray(data) ? data : (Array.isArray(data.products) ? data.products : []);
-  return arr;
+  return Array.isArray(data) ? data : (Array.isArray(data.products) ? data.products : []);
 }
