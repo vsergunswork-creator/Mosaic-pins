@@ -590,6 +590,30 @@
         <div id="cartTotal">—</div>
       </div>
 
+      <div class="cartActions">
+        <div class="payRow">
+          <div class="ppWrap" id="ppWrap">
+            <div id="paypal-button-container"></div>
+            <div class="ppNote" id="ppNote">PayPal is loading…</div>
+          </div>
+
+          <button class="btn" id="cartCheckout" type="button">Checkout</button>
+        </div>
+
+        <button class="btn2" id="cartClear" type="button">Clear cart</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <div style="font-weight:800" id="toastTitle">Notice</div>
+    <small id="toastMsg">—</small>
+  </div>
+
+  <!-- ✅ обязательно: PayPal SDK placeholder -->
+  <script id="pp-sdk" data-loaded="0"></script>
+
+
       <!-- ✅ actions -->
       <div class="cartActions">
         <!-- ✅ PayPal + Stripe Checkout одинакового размера -->
