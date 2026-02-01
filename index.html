@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mosaic Pins</title>
+
   <style>
     :root{
       --bg:#0b0d11;
@@ -12,11 +13,6 @@
       --line:rgba(255,255,255,.08);
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
-
-      --overlay: rgba(0,0,0,.72);
-      --overlay2: rgba(0,0,0,.82);
-      --panel: rgba(0,0,0,.28);
-      --panelHover: rgba(255,255,255,.05);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -63,7 +59,6 @@
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
-
       display:flex;
       flex-direction:column;
       min-height:0;
@@ -388,6 +383,7 @@
     }
     .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px}
     .price{font-weight:900}
+
     .btn{
       border:none; cursor:pointer;
       padding:10px 12px;
@@ -423,6 +419,7 @@
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
 
+    /* ====== TOAST ====== */
     .toast{
       position: fixed;
       right: 16px;
@@ -440,10 +437,234 @@
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
+
+    /* =========================================================
+       ✅ ВАЖНО: ВОЗВРАЩАЕМ CSS ДЛЯ SHEET + CART (у Вас он пропал,
+       из-за этого корзина НЕ открывалась)
+       ========================================================= */
+
+    /* Mobile Filters Sheet */
+    .sheetBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.72);
+      display:none;
+      z-index:1000;
+      backdrop-filter: blur(6px);
+    }
+    .sheetBack.show{display:block}
+
+    .sheet{
+      position:fixed;
+      left:0; right:0; bottom:0;
+      border-top-left-radius:18px;
+      border-top-right-radius:18px;
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
+      box-shadow: 0 -18px 40px rgba(0,0,0,.55);
+      transform: translateY(100%);
+      transition: transform .18s ease;
+      z-index:1001;
+      max-height: 82vh;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+    .sheet.show{transform: translateY(0)}
+    .sheetHead{
+      padding:14px 14px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .sheetTitle{font-weight:950; letter-spacing:.2px;}
+    .sheetClose{
+      border:none;
+      cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.30);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .sheetClose:hover{background:rgba(255,255,255,.06)}
+    .sheetBody{padding:12px; overflow:auto; min-height:0;}
+
+    /* Cart Drawer */
+    .cartBack{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.74);
+      display:none;
+      z-index:1100;
+      backdrop-filter: blur(6px);
+    }
+    .cartBack.show{display:block}
+
+    .cartDrawer{
+      position:fixed;
+      top:0; right:0; bottom:0;
+      width:min(420px, 92vw);
+      border-left:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
+      box-shadow: -18px 0 40px rgba(0,0,0,.60);
+      transform: translateX(100%);
+      transition: transform .18s ease;
+      z-index:1101;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+    .cartDrawer.show{transform: translateX(0)}
+
+    .cartHead{
+      padding:14px 14px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
+    }
+    .cartTitle{font-weight:950; letter-spacing:.2px;}
+    .cartClose{
+      border:none;
+      cursor:pointer;
+      padding:10px 12px;
+      border-radius:12px;
+      background:rgba(0,0,0,.30);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      line-height:1;
+    }
+    .cartClose:hover{background:rgba(255,255,255,.06)}
+    .cartBody{padding:12px; overflow:auto; min-height:0;}
+
+    .cartEmpty{
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+    }
+
+    .cartItem{
+      display:grid;
+      grid-template-columns:64px 1fr;
+      gap:10px;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      margin-bottom:10px;
+    }
+    .cartImg{
+      width:64px;height:64px;border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      overflow:hidden;
+      display:flex;align-items:center;justify-content:center;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .cartImg img{width:100%;height:100%;object-fit:cover;display:block;}
+    .cartName{font-weight:900; font-size:13px; margin:0}
+    .cartMeta{color:var(--muted); font-size:12px; margin:4px 0 0}
+    .cartRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
+    .cartQty{
+      display:flex; align-items:center; gap:6px;
+      padding:6px 8px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+    }
+    .cartQty button{
+      width:30px;height:30px;border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+    }
+    .cartQty input{
+      width:44px;
+      background:transparent;
+      border:none;
+      outline:none;
+      color:var(--text);
+      text-align:center;
+      font-weight:900;
+    }
+    .cartRemove{
+      border:none;
+      cursor:pointer;
+      padding:8px 10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.25);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:900;
+      line-height:1;
+    }
+    .cartRemove:hover{background:rgba(255,255,255,.06)}
+    .cartFoot{
+      padding:12px;
+      border-top:1px solid var(--line);
+      background:rgba(0,0,0,.40);
+    }
+    .cartSumRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+      color:var(--text);
+      font-weight:950;
+    }
+
+    .cartActions{display:grid; gap:10px;}
+    .payRow{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      align-items:stretch;
+    }
+    @media (max-width:420px){
+      .payRow{ grid-template-columns: 1fr; }
+    }
+    .payRow > *{width:100%; min-height:44px;}
+
+    .ppWrap{
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+      border-radius:12px;
+      padding:8px 10px;
+      display:none;
+      min-height:44px;
+      align-items:center;
+      justify-content:center;
+    }
+    #paypal-button-container{ width:100%; }
+    .ppNote{
+      color:var(--muted);
+      font-size:12px;
+      margin-top:6px;
+      line-height:1.3;
+      display:none;
+      text-align:center;
+    }
   </style>
 </head>
-<body>
 
+<body>
   <div class="app">
     <aside class="sidebar">
       <div class="sb-top">
@@ -525,7 +746,7 @@
         <div class="grid" id="grid"></div>
       </div>
 
-<footer class="footer" style="margin-top:auto;border-top:1px solid var(--line);background: rgba(0,0,0,.25);padding:14px 18px;flex: 0 0 auto;">
+      <footer class="footer" style="margin-top:auto;border-top:1px solid var(--line);background: rgba(0,0,0,.25);padding:14px 18px;flex: 0 0 auto;">
         <div class="footerRow" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div class="footerBrand" style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;white-space:nowrap;">
             <span class="dot" aria-hidden="true"></span>
@@ -574,7 +795,7 @@
     </div>
   </div>
 
-  <!-- Cart Drawer -->
+  <!-- Cart Drawer (ЕДИНСТВЕННЫЙ, без дублей ниже) -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -600,50 +821,22 @@
           <button class="btn" id="cartCheckout" type="button">Checkout</button>
         </div>
 
-        <button class="btn2" id="cartClear" type="button">Clear cart</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="toast" id="toast">
-    <div style="font-weight:800" id="toastTitle">Notice</div>
-    <small id="toastMsg">—</small>
-  </div>
-
-  <!-- ✅ обязательно: PayPal SDK placeholder -->
-  <script id="pp-sdk" data-loaded="0"></script>
-
-
-      <!-- ✅ actions -->
-      <div class="cartActions">
-        <!-- ✅ PayPal + Stripe Checkout одинакового размера -->
-        <div class="payRow" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch;">
-          <!-- PayPal button container -->
-          <div class="ppWrap" id="ppWrap" style="display:none;">
-            <div id="paypal-button-container"></div>
-            <div class="ppNote" id="ppNote">PayPal is loading…</div>
-          </div>
-
-          <!-- Stripe Checkout -->
-          <button class="btn" id="cartCheckout" type="button" style="width:100%;min-height:44px;">Checkout</button>
-        </div>
-
         <!-- ✅ Clear cart stays -->
         <button class="btn2" id="cartClear" type="button">Clear cart</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast -->
+  <!-- Toast (ЕДИНСТВЕННЫЙ) -->
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
 
-  <!-- ✅ IMPORTANT: PayPal SDK tag (иначе будет pp-sdk tag missing) -->
+  <!-- ✅ IMPORTANT: PayPal SDK tag (ЕДИНСТВЕННЫЙ) -->
   <script id="pp-sdk" data-loaded="0"></script>
 
-<script>
+  <script>
     // footer year
     document.getElementById("year").textContent = String(new Date().getFullYear());
 
@@ -665,6 +858,7 @@
     const MP_USER_SET_KEY  = "mp_user_set_ship";
     const MP_GEO_CACHE_KEY = "mp_geo_cache";
 
+    // EU ISO2 list
     const EU_SET = new Set([
       "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
       "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"
@@ -868,12 +1062,15 @@
       return "DE";
     }
 
+    // persist on change
     if (elCurrency){
       elCurrency.addEventListener("change", () => {
         setCurrency(elCurrency.value);
         enforceCurrencyByShipping();
+
         // PayPal SDK currency-bound → если валюта изменилась, переинициализируем SDK
         resetPayPalHard();
+
         render();
         renderCart();
       });
@@ -905,7 +1102,14 @@
       return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
     }
 
-    // sheet/cart open-close
+    // =========================
+    // ✅ IMPORTANT FIX FOR "Cart не открывается"
+    // Причина была в дублях HTML (две toast, две cartActions, два pp-sdk),
+    // из-за этого getElementById возвращал "первый" элемент, а обработчики вешались не туда.
+    // Мы выше оставили ТОЛЬКО ОДИН drawer/toast/pp-sdk. Здесь — чистые обработчики.
+    // =========================
+
+    // sheet open/close
     function openSheet(){
       elSheetBack.classList.add("show");
       elSheet.classList.add("show");
@@ -916,15 +1120,18 @@
       elSheet.classList.remove("show");
       document.body.style.overflow = "";
     }
-    elOpenFilters.addEventListener("click", openSheet);
-    elCloseFilters.addEventListener("click", closeSheet);
-    elSheetBack.addEventListener("click", closeSheet);
 
+    if (elOpenFilters) elOpenFilters.addEventListener("click", openSheet);
+    if (elCloseFilters) elCloseFilters.addEventListener("click", closeSheet);
+    if (elSheetBack) elSheetBack.addEventListener("click", closeSheet);
+
+    // cart open/close
     function openCart(){
       elCartBack.classList.add("show");
       elCartDrawer.classList.add("show");
       document.body.style.overflow = "hidden";
       renderCart();
+      // PayPal init only when drawer is visible
       maybeInitPayPal();
     }
     function closeCart(){
@@ -932,9 +1139,10 @@
       elCartDrawer.classList.remove("show");
       document.body.style.overflow = "";
     }
-    elOpenCart.addEventListener("click", openCart);
-    elCloseCart.addEventListener("click", closeCart);
-    elCartBack.addEventListener("click", closeCart);
+
+    if (elOpenCart) elOpenCart.addEventListener("click", openCart);
+    if (elCloseCart) elCloseCart.addEventListener("click", closeCart);
+    if (elCartBack) elCartBack.addEventListener("click", closeCart);
 
     window.addEventListener("keydown", (e)=>{
       if (e.key !== "Escape") return;
@@ -942,7 +1150,7 @@
       if (elSheet.classList.contains("show")) closeSheet();
     });
 
-    function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
+    function updateCartBadge(){ if (elCartBadge) elCartBadge.textContent = String(cartCount()); }
 
     // =========================
     // PayPal integration (ONLY PayPal button, disable cards+sepa)
@@ -981,7 +1189,6 @@
       try{ showPayPalNote(""); }catch(_){}
 
       try{
-        // remove old script
         const old = document.getElementById("pp-sdk");
         if (old && old.parentNode){
           old.parentNode.removeChild(old);
@@ -1003,7 +1210,6 @@
     function loadPayPalSDK(clientId){
       return new Promise((resolve, reject) => {
         try{
-          // already ready
           if (window.paypal && typeof window.paypal.Buttons === "function"){
             resolve(true);
             return;
@@ -1023,7 +1229,6 @@
             `&components=buttons` +
             `&disable-funding=card,sepa,ideal,bancontact,sofort,giropay,eps,mybank,p24,venmo`;
 
-          // if script already has same src: wait
           if (s.src && s.src === url){
             const t0 = Date.now();
             const tick = () => {
@@ -1035,9 +1240,7 @@
             return;
           }
 
-          // if script had different src: hard reset + set again
           if (s.src && s.src !== url){
-            // important: if user changed currency, we re-create script and try again
             resetPayPalHard();
             return loadPayPalSDK(clientId).then(resolve).catch(reject);
           }
@@ -1112,7 +1315,6 @@
       ppRenderedForKey = key;
 
       window.paypal.Buttons({
-        // ✅ ONE PayPal button, same height as Checkout
         style: { layout:"vertical", shape:"pill", label:"paypal", height: 44 },
 
         createOrder: async () => {
@@ -1334,7 +1536,9 @@
     }
 
     // keep Clear Cart button
-    elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+    if (elCartClear){
+      elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+    }
 
     // Stripe checkout
     async function startCheckout(){
@@ -1374,9 +1578,13 @@
         elCartCheckout.textContent = "Checkout";
       }
     }
-    elCartCheckout.addEventListener("click", startCheckout);
+    if (elCartCheckout) elCartCheckout.addEventListener("click", startCheckout);
 
-function parseDiameter(raw){
+    // ===== дальше: filters/products (без дублей функций!) =====
+
+    // ===== Diameter / Filters / Products =====
+    // ✅ ВАЖНО: parseDiameter определяем ОДИН раз (в вашем коде он был продублирован)
+    function parseDiameter(raw){
       if (raw == null) return { key:null, num:null, display:null, note:null, raw:null };
 
       if (typeof raw === "number" && Number.isFinite(raw)){
@@ -1408,7 +1616,8 @@ function parseDiameter(raw){
     }
 
     function updateSelectedUI(){
-      const arr = [...selectedDiameters].map(k => ({ k, n: (diameterMap.get(k)?.num ?? Infinity) }))
+      const arr = [...selectedDiameters]
+        .map(k => ({ k, n: (diameterMap.get(k)?.num ?? Infinity) }))
         .sort((a,b)=>a.n-b.n)
         .map(x => x.k);
 
@@ -1454,9 +1663,11 @@ function parseDiameter(raw){
     }
 
     function cardTemplate(p){
-      const img = (p.images && p.images[0]) ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.title)}" />` : "";
-      const soldOut = !(Number(p.stock||0) > 0);
+      const img = (p.images && p.images[0])
+        ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.title)}" />`
+        : "";
 
+      const soldOut = !(Number(p.stock||0) > 0);
       const diaText = p.diameterDisplay ? p.diameterDisplay : (p.diameterNum != null ? String(p.diameterNum).replace(".",",") : "—");
 
       return `
@@ -1605,8 +1816,9 @@ function parseDiameter(raw){
       buildDiameterLists();
       applyFilters();
     }
-    elClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
-    elMClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
+
+    if (elClearDiameters) elClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
+    if (elMClearDiameters) elMClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
 
     async function loadProducts(){
       try{
@@ -1614,6 +1826,7 @@ function parseDiameter(raw){
         if (r.ok){
           const data = await r.json();
           products = normalizeProducts(data);
+
           buildDiameterLists();
           applyFilters();
 
@@ -1655,10 +1868,12 @@ function parseDiameter(raw){
       renderPayPalButtonsIfNeeded();
     }
 
-    elQ.addEventListener("input", applyFilters);
-    elStock.addEventListener("change", applyFilters);
+    if (elQ) elQ.addEventListener("input", applyFilters);
+    if (elStock) elStock.addEventListener("change", applyFilters);
 
-    window.addEventListener("resize", () => { if (window.innerWidth > 980) closeSheet(); });
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 980) closeSheet();
+    });
 
     // initial
     updateCartBadge();
@@ -1707,4 +1922,3 @@ function parseDiameter(raw){
   </script>
 </body>
 </html>
-
