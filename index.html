@@ -398,6 +398,7 @@
       box-shadow: 0 10px 18px rgba(34,197,94,.18);
       transition: filter .15s ease, transform .15s ease;
       white-space:nowrap;
+      min-height:44px;
     }
     .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
     .btn:disabled{
@@ -417,6 +418,7 @@
       font-weight:900;
       transition: background .15s ease, transform .15s ease;
       white-space:nowrap;
+      min-height:44px;
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
@@ -438,279 +440,6 @@
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
-
-    /* Mobile Filters Sheet */
-    .sheetBack{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.72);
-      display:none;
-      z-index:1000;
-      backdrop-filter: blur(6px);
-    }
-    .sheetBack.show{display:block}
-
-    .sheet{
-      position:fixed;
-      left:0; right:0; bottom:0;
-      border-top-left-radius:18px;
-      border-top-right-radius:18px;
-      border:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
-      box-shadow: 0 -18px 40px rgba(0,0,0,.55);
-      transform: translateY(100%);
-      transition: transform .18s ease;
-      z-index:1001;
-
-      max-height: 82vh;
-      display:flex;
-      flex-direction:column;
-      overflow:hidden;
-      backdrop-filter: blur(10px);
-    }
-    .sheet.show{transform: translateY(0)}
-    .sheetHead{
-      padding:14px 14px 10px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      border-bottom:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
-    }
-    .sheetTitle{font-weight:950; letter-spacing:.2px;}
-    .sheetClose{
-      border:none;
-      cursor:pointer;
-      padding:10px 12px;
-      border-radius:12px;
-      background:rgba(0,0,0,.30);
-      border:1px solid var(--line);
-      color:var(--text);
-      font-weight:950;
-      line-height:1;
-    }
-    .sheetClose:hover{background:rgba(255,255,255,.06)}
-    .sheetBody{padding:12px; overflow:auto; min-height:0;}
-    .mSelectedWrap{display:none; margin-bottom:10px;}
-    .mList .item{padding:12px 12px; border-radius:14px;}
-
-    /* Cart Drawer (darker) */
-    .cartBack{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.74);
-      display:none;
-      z-index:1100;
-      backdrop-filter: blur(6px);
-    }
-    .cartBack.show{display:block}
-    .cartDrawer{
-      position:fixed;
-      top:0; right:0; bottom:0;
-      width:min(420px, 92vw);
-      border-left:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(0,0,0,.92), rgba(0,0,0,.78));
-      box-shadow: -18px 0 40px rgba(0,0,0,.60);
-      transform: translateX(100%);
-      transition: transform .18s ease;
-      z-index:1101;
-      display:flex;
-      flex-direction:column;
-      overflow:hidden;
-      backdrop-filter: blur(10px);
-    }
-    .cartDrawer.show{transform: translateX(0)}
-    .cartHead{
-      padding:14px 14px 10px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      border-bottom:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
-    }
-    .cartTitle{font-weight:950; letter-spacing:.2px;}
-    .cartClose{
-      border:none;
-      cursor:pointer;
-      padding:10px 12px;
-      border-radius:12px;
-      background:rgba(0,0,0,.30);
-      border:1px solid var(--line);
-      color:var(--text);
-      font-weight:950;
-      line-height:1;
-    }
-    .cartClose:hover{background:rgba(255,255,255,.06)}
-    .cartBody{padding:12px; overflow:auto; min-height:0;}
-    .cartEmpty{
-      padding:14px;
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:rgba(255,255,255,.04);
-      color:var(--muted);
-    }
-    .cartItem{
-      display:grid;
-      grid-template-columns:64px 1fr;
-      gap:10px;
-      padding:10px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      margin-bottom:10px;
-    }
-    .cartImg{
-      width:64px;height:64px;border-radius:12px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.25);
-      overflow:hidden;
-      display:flex;align-items:center;justify-content:center;
-      color:var(--muted);
-      font-size:12px;
-    }
-    .cartImg img{width:100%;height:100%;object-fit:cover;display:block;}
-    .cartName{font-weight:900; font-size:13px; margin:0}
-    .cartMeta{color:var(--muted); font-size:12px; margin:4px 0 0}
-    .cartRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
-    .cartQty{
-      display:flex; align-items:center; gap:6px;
-      padding:6px 8px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.25);
-    }
-    .cartQty button{
-      width:30px;height:30px;border-radius:10px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:900;
-    }
-    .cartQty input{
-      width:44px;
-      background:transparent;
-      border:none;
-      outline:none;
-      color:var(--text);
-      text-align:center;
-      font-weight:900;
-    }
-    .cartRemove{
-      border:none;
-      cursor:pointer;
-      padding:8px 10px;
-      border-radius:12px;
-      background:rgba(0,0,0,.25);
-      border:1px solid var(--line);
-      color:var(--text);
-      font-weight:900;
-      line-height:1;
-    }
-    .cartRemove:hover{background:rgba(255,255,255,.06)}
-    .cartFoot{
-      padding:12px;
-      border-top:1px solid var(--line);
-      background:rgba(0,0,0,.40);
-    }
-    .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
-
-    /* ✅ UPDATED: действия в корзине */
-    .cartActions{display:grid; gap:10px;}
-
-    /* ✅ NEW: ряд PayPal + Checkout одинакового размера */
-    .payRow{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-      align-items:stretch;
-    }
-    @media (max-width:420px){
-      .payRow{ grid-template-columns: 1fr; }
-    }
-    .payRow > *{
-      width:100%;
-      min-height:44px;
-    }
-
-    /* ✅ PayPal container “как кнопка” */
-    .ppWrap{
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.22);
-      border-radius:12px;
-      padding:8px 10px;
-      display:none; /* показываем только когда корзина не пустая */
-      min-height:44px;
-      align-items:center;
-      justify-content:center;
-    }
-
-    /* Когда PayPal рендерит кнопку - контейнер должен быть 100% */
-    #paypal-button-container{
-      width:100%;
-    }
-
-    .ppNote{
-      color:var(--muted);
-      font-size:12px;
-      margin-top:6px;
-      line-height:1.3;
-      display:none;
-      text-align:center;
-    }
-
-    /* Footer */
-    .footer{
-      margin-top:auto;
-      border-top:1px solid var(--line);
-      background: rgba(0,0,0,.25);
-      padding:14px 18px;
-      flex: 0 0 auto;
-    }
-    .footerRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-    .footerBrand{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      color:var(--muted);
-      font-size:12px;
-      white-space:nowrap;
-    }
-    .footerLinks{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-    .footerLinks a{
-      text-decoration:none;
-      color:var(--muted);
-      font-size:12px;
-      padding:8px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      transition: background .15s ease, transform .15s ease;
-      white-space:nowrap;
-    }
-    .footerLinks a:hover{
-      background:rgba(255,255,255,.08);
-      transform: translateY(-1px);
-      color:var(--text);
-    }
-    @media (max-width:980px){
-      .footer{padding:12px 14px;}
-      .footerRow{justify-content:center;}
-      .footerLinks{justify-content:center;}
-    }
   </style>
 </head>
 <body>
@@ -796,14 +525,14 @@
         <div class="grid" id="grid"></div>
       </div>
 
-      <footer class="footer">
-        <div class="footerRow">
-          <div class="footerBrand">
+<footer class="footer" style="margin-top:auto;border-top:1px solid var(--line);background: rgba(0,0,0,.25);padding:14px 18px;flex: 0 0 auto;">
+        <div class="footerRow" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div class="footerBrand" style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;white-space:nowrap;">
             <span class="dot" aria-hidden="true"></span>
             <span>© <span id="year"></span> Mosaic Pins</span>
           </div>
 
-          <div class="footerLinks" aria-label="Footer links">
+          <div class="footerLinks" aria-label="Footer links" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
             <a href="/index.html">Shop</a>
             <a href="/about">About</a>
             <a href="/shipping">Shipping</a>
@@ -818,6 +547,7 @@
     </main>
   </div>
 
+  <!-- Mobile Filters Sheet -->
   <div class="sheetBack" id="sheetBack"></div>
   <div class="sheet" id="sheet">
     <div class="sheetHead">
@@ -825,7 +555,7 @@
       <button class="sheetClose" id="closeFilters" type="button">✕</button>
     </div>
     <div class="sheetBody">
-      <div class="mSelectedWrap" id="mSelectedWrap">
+      <div class="mSelectedWrap" id="mSelectedWrap" style="display:none; margin-bottom:10px;">
         <div class="selectedBar">
           <div class="selectedLeft">
             <div class="selectedTitle">Selected</div>
@@ -844,7 +574,8 @@
     </div>
   </div>
 
-<div class="cartBack" id="cartBack"></div>
+  <!-- Cart Drawer -->
+  <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
       <div class="cartTitle">Cart</div>
@@ -859,48 +590,57 @@
         <div id="cartTotal">—</div>
       </div>
 
-<div class="cartActions">
-  <div class="payRow">
-    <div class="ppWrap" id="ppWrap">
-      <div id="paypal-button-container"></div>
-      <div class="ppNote" id="ppNote">PayPal is loading…</div>
-    </div>
+      <!-- ✅ actions -->
+      <div class="cartActions">
+        <!-- ✅ PayPal + Stripe Checkout одинакового размера -->
+        <div class="payRow" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch;">
+          <!-- PayPal button container -->
+          <div class="ppWrap" id="ppWrap" style="display:none;">
+            <div id="paypal-button-container"></div>
+            <div class="ppNote" id="ppNote">PayPal is loading…</div>
+          </div>
 
-    <button class="btn" id="cartCheckout" type="button">Checkout</button>
+          <!-- Stripe Checkout -->
+          <button class="btn" id="cartCheckout" type="button" style="width:100%;min-height:44px;">Checkout</button>
+        </div>
+
+        <!-- ✅ Clear cart stays -->
+        <button class="btn2" id="cartClear" type="button">Clear cart</button>
+      </div>
+    </div>
   </div>
 
-  <button class="btn2" id="cartClear" type="button">Clear cart</button>
-</div>
-
-
+  <!-- Toast -->
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
+
+  <!-- ✅ IMPORTANT: PayPal SDK tag (иначе будет pp-sdk tag missing) -->
+  <script id="pp-sdk" data-loaded="0"></script>
 
 <script>
     // footer year
     document.getElementById("year").textContent = String(new Date().getFullYear());
 
     const API_PRODUCTS = "/api/products";
-    const API_CHECKOUT = "/api/checkout";
+    const API_CHECKOUT  = "/api/checkout";
 
-    // ✅ PayPal endpoints
-    const API_PP_CONFIG = "/api/paypal/config";      // returns { clientId }
-    const API_PP_CREATE = "/api/paypal/create-order";// returns { id }
-    const API_PP_CAPTURE = "/api/paypal/capture";    // returns capture result
+    // PayPal endpoints
+    const API_PP_CONFIG  = "/api/paypal/config";       // returns { clientId }
+    const API_PP_CREATE  = "/api/paypal/create-order"; // returns { id }
+    const API_PP_CAPTURE = "/api/paypal/capture";      // returns capture result
 
     const CART_KEY = "mp_cart";
 
     // persisted settings
-    const MP_CUR_KEY = "mp_currency";
+    const MP_CUR_KEY  = "mp_currency";
     const MP_SHIP_KEY = "mp_ship_country";
 
     // user override + geo cache (7 days)
-    const MP_USER_SET_KEY = "mp_user_set_ship"; // "1" if user changed shipping manually
-    const MP_GEO_CACHE_KEY = "mp_geo_cache";    // JSON: { ts, ship }
+    const MP_USER_SET_KEY  = "mp_user_set_ship";
+    const MP_GEO_CACHE_KEY = "mp_geo_cache";
 
-    // EU ISO2 list
     const EU_SET = new Set([
       "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
       "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"
@@ -927,6 +667,7 @@
     const selectedDiameters = new Set();
     let diameterMap = new Map();
 
+    // refs
     const elGrid = document.getElementById("grid");
     const elQ = document.getElementById("q");
     const elStock = document.getElementById("inStockOnly");
@@ -959,11 +700,10 @@
     const elCartBody = document.getElementById("cartBody");
     const elCartTotal = document.getElementById("cartTotal");
 
-    // ✅ Stripe + Clear
     const elCartCheckout = document.getElementById("cartCheckout");
     const elCartClear = document.getElementById("cartClear");
 
-    // ✅ PayPal UI refs
+    // PayPal
     const elPpWrap = document.getElementById("ppWrap");
     const elPpNote = document.getElementById("ppNote");
 
@@ -1000,9 +740,7 @@
     function enforceCurrencyByShipping(){
       const ship = String(elShipCountry?.value || "US").toUpperCase();
       const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
-      if (getCurrency() !== must){
-        setCurrency(must);
-      }
+      if (getCurrency() !== must) setCurrency(must);
     }
 
     function setShipValue(v){
@@ -1036,15 +774,11 @@
         if (!["DE","EU","US","CA"].includes(ship)) return null;
 
         return ship;
-      }catch(_){
-        return null;
-      }
+      }catch(_){ return null; }
     }
 
     function cacheSetShip(ship){
-      try{
-        localStorage.setItem(MP_GEO_CACHE_KEY, JSON.stringify({ ts: Date.now(), ship }));
-      }catch(_){}
+      try{ localStorage.setItem(MP_GEO_CACHE_KEY, JSON.stringify({ ts: Date.now(), ship })); }catch(_){}
     }
 
     async function detectShipByIP(){
@@ -1061,11 +795,10 @@
         if (cc === "CA") return "CA";
         if (isEUCountry(cc)) return "EU";
         return "US";
-      }catch(_){
-        return null;
-      }
+      }catch(_){ return null; }
     }
 
+    // restore persisted selects
     (function restoreSettings(){
       try{
         if (!localStorage.getItem(MP_SHIP_KEY)) localStorage.setItem(MP_SHIP_KEY, "US");
@@ -1086,15 +819,13 @@
       }catch(_){}
     })();
 
+    // auto detect shipping once
     (async function autoDetectShippingOnce(){
       try{
         if (userHasSetShipping()) return;
 
         const cached = cacheGetShip();
-        if (cached){
-          setShipValue(cached);
-          return;
-        }
+        if (cached){ setShipValue(cached); return; }
 
         const detected = await detectShipByIP();
         if (!detected) return;
@@ -1113,11 +844,12 @@
       return "DE";
     }
 
-    // persist on change
     if (elCurrency){
       elCurrency.addEventListener("change", () => {
         setCurrency(elCurrency.value);
         enforceCurrencyByShipping();
+        // PayPal SDK currency-bound → если валюта изменилась, переинициализируем SDK
+        resetPayPalHard();
         render();
         renderCart();
       });
@@ -1132,6 +864,10 @@
         enforceCurrencyByShipping();
         setCurrency(getCurrency());
         cacheSetShip(String(elShipCountry.value || "US").toUpperCase());
+
+        // shipping может сменить валюту → PayPal переинициализируем
+        resetPayPalHard();
+
         render();
         renderCart();
         toast("Shipping", `Destination: ${elShipCountry.value}`);
@@ -1145,6 +881,7 @@
       return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
     }
 
+    // sheet/cart open-close
     function openSheet(){
       elSheetBack.classList.add("show");
       elSheet.classList.add("show");
@@ -1184,34 +921,8 @@
     function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
 
     // =========================
-    // ✅ PayPal integration (ONE BUTTON ONLY)
+    // PayPal integration (ONLY PayPal button, disable cards+sepa)
     // =========================
-
-    // ✅ NEW: Pay row equal height + PayPal button sizing helpers
-    (function injectPayRowCSS(){
-      try{
-        const css = `
-          .payRow{
-            display:grid;
-            grid-template-columns: 1fr 1fr;
-            gap:10px;
-            align-items:stretch;
-          }
-          @media (max-width:420px){
-            .payRow{ grid-template-columns: 1fr; }
-          }
-          /* make PayPal container same height as Checkout button (≈44px) */
-          .ppWrap{ padding:0; background:transparent; border:none; }
-          #paypal-button-container{ width:100%; }
-          #paypal-button-container .paypal-buttons{ width:100% !important; }
-          #paypal-button-container .paypal-buttons-layout-vertical{ min-width:100% !important; }
-        `;
-        const st = document.createElement("style");
-        st.textContent = css;
-        document.head.appendChild(st);
-      }catch(_){}
-    })();
-
     let ppReady = false;
     let ppLoading = false;
     let ppRenderedForKey = "";
@@ -1237,9 +948,38 @@
       return String(j.clientId);
     }
 
+    // ✅ HARD reset (для смены валюты/ошибок): удаляем SDK script и window.paypal
+    function resetPayPalHard(){
+      ppReady = false;
+      ppLoading = false;
+      ppRenderedForKey = "";
+      try{ clearPayPalButtons(); }catch(_){}
+      try{ showPayPalNote(""); }catch(_){}
+
+      try{
+        // remove old script
+        const old = document.getElementById("pp-sdk");
+        if (old && old.parentNode){
+          old.parentNode.removeChild(old);
+        }
+      }catch(_){}
+
+      try{ delete window.paypal; }catch(_){}
+      try{ window.paypal = undefined; }catch(_){}
+
+      // re-create script tag so getElementById("pp-sdk") works always
+      try{
+        const s = document.createElement("script");
+        s.id = "pp-sdk";
+        s.setAttribute("data-loaded","0");
+        document.body.appendChild(s);
+      }catch(_){}
+    }
+
     function loadPayPalSDK(clientId){
       return new Promise((resolve, reject) => {
         try{
+          // already ready
           if (window.paypal && typeof window.paypal.Buttons === "function"){
             resolve(true);
             return;
@@ -1248,18 +988,18 @@
           const s = document.getElementById("pp-sdk");
           if (!s) throw new Error("pp-sdk tag missing");
 
-          // ✅ IMPORTANT: disable funding sources (no sepa, no cards)
-          // PayPal docs: disable-funding=card,sepa,venmo,... (depends on region)
-          // We'll disable card + sepa explicitly.
           const cur = getCurrency();
+
+          // ✅ disable extra funding sources → оставляем только PayPal
           const url =
             "https://www.paypal.com/sdk/js" +
             `?client-id=${encodeURIComponent(clientId)}` +
             `&currency=${encodeURIComponent(cur)}` +
             `&intent=capture` +
             `&components=buttons` +
-            `&disable-funding=card,sepa`;
+            `&disable-funding=card,sepa,ideal,bancontact,sofort,giropay,eps,mybank,p24,venmo`;
 
+          // if script already has same src: wait
           if (s.src && s.src === url){
             const t0 = Date.now();
             const tick = () => {
@@ -1269,6 +1009,13 @@
             };
             tick();
             return;
+          }
+
+          // if script had different src: hard reset + set again
+          if (s.src && s.src !== url){
+            // important: if user changed currency, we re-create script and try again
+            resetPayPalHard();
+            return loadPayPalSDK(clientId).then(resolve).catch(reject);
           }
 
           s.onload = () => resolve(true);
@@ -1290,6 +1037,10 @@
         }
         if (elPpWrap) elPpWrap.style.display = "block";
 
+        // always enforce currency BEFORE sdk load
+        enforceCurrencyByShipping();
+        setCurrency(getCurrency());
+
         if (ppReady){
           renderPayPalButtonsIfNeeded();
           return;
@@ -1300,11 +1051,6 @@
         showPayPalNote("PayPal is loading…");
 
         const clientId = await fetchPayPalClientId();
-
-        // ensure currency is correct before loading SDK (currency-bound)
-        enforceCurrencyByShipping();
-        setCurrency(getCurrency());
-
         await loadPayPalSDK(clientId);
 
         ppReady = true;
@@ -1320,10 +1066,8 @@
     }
 
     function clearPayPalButtons(){
-      try{
-        const wrap = document.getElementById("paypal-button-container");
-        if (wrap) wrap.innerHTML = "";
-      }catch(_){}
+      const wrap = document.getElementById("paypal-button-container");
+      if (wrap) wrap.innerHTML = "";
     }
 
     function renderPayPalButtonsIfNeeded(){
@@ -1344,13 +1088,8 @@
       ppRenderedForKey = key;
 
       window.paypal.Buttons({
-        // ✅ ONE PayPal button (no credit/debit)
-        style: {
-          layout: "vertical",
-          shape: "pill",
-          label: "paypal",
-          height: 44
-        },
+        // ✅ ONE PayPal button, same height as Checkout
+        style: { layout:"vertical", shape:"pill", label:"paypal", height: 44 },
 
         createOrder: async () => {
           const cartNow = readCart();
@@ -1372,9 +1111,7 @@
           });
 
           const data = await r.json().catch(()=>({}));
-          if (!r.ok || !data?.id){
-            throw new Error(data?.error || "PayPal create order failed");
-          }
+          if (!r.ok || !data?.id) throw new Error(data?.error || "PayPal create order failed");
           return data.id;
         },
 
@@ -1390,9 +1127,7 @@
             });
 
             const j = await r.json().catch(()=>({}));
-            if (!r.ok || !j?.ok){
-              throw new Error(j?.error || "Capture failed");
-            }
+            if (!r.ok || !j?.ok) throw new Error(j?.error || "Capture failed");
 
             writeCart([]);
             updateCartBadge();
@@ -1410,10 +1145,9 @@
     }
 
     // =========================
-    // ✅ Cart logic (unchanged дальше, кроме мелочей в renderCart)
+    // Cart logic (Stripe + PayPal)
     // =========================
-
-function addToCartFromProduct(p, qty){
+    function addToCartFromProduct(p, qty){
       qty = Number(qty);
       if (!Number.isFinite(qty) || qty <= 0) qty = 1;
 
@@ -1503,15 +1237,7 @@ function addToCartFromProduct(p, qty){
     function renderCart(){
       const cart = readCart();
 
-      // ✅ show/hide PayPal wrap
-      if (elPpWrap){
-        elPpWrap.style.display = cart.length ? "block" : "none";
-      }
-
-      // ✅ Make PayPal + Checkout same size row when cart not empty:
-      // We'll wrap them into .payRow dynamically by ensuring HTML exists:
-      // (You already have .cartActions as grid; we just style #ppWrap and button)
-      // Nothing to change in HTML.
+      if (elPpWrap) elPpWrap.style.display = cart.length ? "block" : "none";
 
       if (!cart.length){
         elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
@@ -1578,22 +1304,15 @@ function addToCartFromProduct(p, qty){
       const sum = cartTotal();
       elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
 
-      // ✅ PayPal init/render when cart visible
+      // init/render PayPal when cart visible
       maybeInitPayPal();
       renderPayPalButtonsIfNeeded();
-
-      // ✅ Ensure Checkout button matches PayPal height nicely
-      // (PayPal style height=44 already; make Checkout height exactly 44)
-      try{
-        elCartCheckout.style.minHeight = "44px";
-        elCartCheckout.style.width = "100%";
-      }catch(_){}
     }
 
-    // ✅ Keep Clear Cart button
+    // keep Clear Cart button
     elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-    // ✅ Stripe checkout (unchanged)
+    // Stripe checkout
     async function startCheckout(){
       const cart = readCart();
       if (!cart.length) { toast("Checkout", "Cart is empty"); return; }
@@ -1633,9 +1352,7 @@ function addToCartFromProduct(p, qty){
     }
     elCartCheckout.addEventListener("click", startCheckout);
 
-    // ===== Diameter / Filters / Products (ВАШ КОД ДАЛЬШЕ БЕЗ ИЗМЕНЕНИЙ) =====
-
-    function parseDiameter(raw){
+function parseDiameter(raw){
       if (raw == null) return { key:null, num:null, display:null, note:null, raw:null };
 
       if (typeof raw === "number" && Number.isFinite(raw)){
@@ -1898,7 +1615,6 @@ function addToCartFromProduct(p, qty){
 
           ppRenderedForKey = "";
           renderPayPalButtonsIfNeeded();
-
           return;
         }
       }catch(_){
@@ -1967,3 +1683,4 @@ function addToCartFromProduct(p, qty){
   </script>
 </body>
 </html>
+
