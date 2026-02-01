@@ -616,24 +616,34 @@
       background:rgba(0,0,0,.40);
     }
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
+
+    /* =========================
+       ✅ CHANGES: PayPal + Checkout same size
+       ========================= */
+
+    /* actions wrapper */
     .cartActions{display:grid; gap:10px;}
 
-    /* ✅ NEW: PayPal + Checkout одинаковые по сетке и высоте */
+    /* PayPal + Checkout row */
     .payRow{
       display:grid;
       grid-template-columns:1fr 1fr;
       gap:10px;
       align-items:stretch;
     }
+
+    /* PayPal container looks like pill button */
     .ppWrap{
       border:1px solid var(--line);
       background:rgba(255,255,255,.04);
-      border-radius:999px;      /* pill */
-      padding:6px;              /* чтобы кнопка PayPal красиво сидела */
-      display:none;             /* показываем только когда корзина не пустая */
+      border-radius:999px;
+      padding:6px;              /* same visual padding as pill */
+      display:none;             /* show only when cart not empty */
       overflow:hidden;
+      min-height:44px;
     }
     #paypal-button-container{width:100%}
+
     .ppNote{
       color:var(--muted);
       font-size:12px;
@@ -642,12 +652,20 @@
       display:none;
       text-align:center;
     }
-    /* ✅ pill для Checkout, но НЕ трогаем .btn глобально */
-    .btnPill{
+
+    /* Checkout button becomes pill ONLY in cart */
+    #cartCheckout.btnPill{
       border-radius:999px !important;
       width:100%;
       min-height:44px;
-      padding:10px 12px;
+      height:44px;
+      padding:0 12px;
+      line-height:44px;
+    }
+
+    /* On very small screens stack PayPal/Checkout vertically */
+    @media (max-width:420px){
+      .payRow{grid-template-columns:1fr;}
     }
 
     /* Footer */
@@ -704,7 +722,7 @@
 </head>
 <body>
 
-  <div class="app">
+<div class="app">
     <aside class="sidebar">
       <div class="sb-top">
         <div class="brand"><span class="dot"></span> Mosaic Pins</div>
@@ -807,7 +825,7 @@
     </main>
   </div>
 
-<div class="sheetBack" id="sheetBack"></div>
+  <div class="sheetBack" id="sheetBack"></div>
   <div class="sheet" id="sheet">
     <div class="sheetHead">
       <div class="sheetTitle">Filters</div>
@@ -850,9 +868,9 @@
 
       <div class="cartActions">
 
-        <!-- ✅ NEW: PayPal + Checkout одинаковые (pill, одинаковая высота) -->
+        <!-- ✅ PayPal + Checkout: одинаковые по высоте/скруглению/ширине -->
         <div class="payRow">
-          <!-- PayPal button container -->
+          <!-- PayPal -->
           <div class="ppWrap" id="ppWrap">
             <div id="paypal-button-container"></div>
           </div>
@@ -861,7 +879,7 @@
           <button class="btn btnPill" id="cartCheckout" type="button">Checkout</button>
         </div>
 
-        <!-- note under PayPal row -->
+        <!-- note under row (same spacing) -->
         <div class="ppNote" id="ppNote">PayPal is loading…</div>
 
         <!-- Clear cart stays -->
@@ -875,7 +893,7 @@
     <small id="toastMsg">—</small>
   </div>
 
-  <!-- ✅ IMPORTANT: PayPal SDK placeholder -->
+  <!-- PayPal SDK placeholder -->
   <script id="pp-sdk" data-loaded="0"></script>
 
   <script>
@@ -983,7 +1001,7 @@
       }[m]));
     }
 
-function getCurrency(){
+    function getCurrency(){
       const saved = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
       if (saved === "EUR" || saved === "USD") return saved;
       return "USD";
@@ -1103,7 +1121,7 @@ function getCurrency(){
       return "DE";
     }
 
-    if (elCurrency){
+if (elCurrency){
       elCurrency.addEventListener("change", () => {
         setCurrency(elCurrency.value);
         enforceCurrencyByShipping();
@@ -1209,7 +1227,7 @@ function getCurrency(){
       return String(j.clientId);
     }
 
-    // ✅ HARD reset: remove SDK script + window.paypal (important for currency changes)
+    // HARD reset: remove SDK script + window.paypal (important for currency changes)
     function resetPayPalHard(){
       ppReady = false;
       ppLoading = false;
@@ -1249,7 +1267,7 @@ function getCurrency(){
 
           const cur = getCurrency();
 
-          // ✅ ONLY PayPal funding (disable cards etc)
+          // ONLY PayPal funding (disable cards etc)
           const url =
             "https://www.paypal.com/sdk/js" +
             `?client-id=${encodeURIComponent(clientId)}` +
@@ -1346,7 +1364,7 @@ function getCurrency(){
       ppRenderedForKey = key;
 
       window.paypal.Buttons({
-        // ✅ pill + height 44 (match Checkout)
+        // pill + height 44 (match Checkout)
         style: { layout:"vertical", shape:"pill", label:"paypal", height: 44 },
 
         createOrder: async () => {
@@ -1406,7 +1424,7 @@ function getCurrency(){
     // Cart logic (Stripe + PayPal)
     // =========================
 
-function addToCartFromProduct(p, qty){
+    function addToCartFromProduct(p, qty){
       qty = Number(qty);
       if (!Number.isFinite(qty) || qty <= 0) qty = 1;
 
@@ -1571,18 +1589,6 @@ function addToCartFromProduct(p, qty){
     // keep Clear Cart button
     elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-    // ✅ Make Checkout look like PayPal (pill + same height)
-    function syncCheckoutButtonLook(){
-      try{
-        if (!elCartCheckout) return;
-        // same "pill" feeling as PayPal button
-        elCartCheckout.style.borderRadius = "999px";
-        elCartCheckout.style.minHeight = "44px";
-        elCartCheckout.style.width = "100%";
-      }catch(_){}
-    }
-    syncCheckoutButtonLook();
-
     // Stripe checkout
     async function startCheckout(){
       const cart = readCart();
@@ -1654,7 +1660,7 @@ function addToCartFromProduct(p, qty){
       return info.display || key;
     }
 
-    function updateSelectedUI(){
+function updateSelectedUI(){
       const arr = [...selectedDiameters].map(k => ({ k, n: (diameterMap.get(k)?.num ?? Infinity) }))
         .sort((a,b)=>a.n-b.n)
         .map(x => x.k);
