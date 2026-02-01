@@ -345,7 +345,7 @@
       font-size:12px;
     }
 
-.priceRow{
+    .priceRow{
       display:flex; align-items:baseline; justify-content:space-between; gap:10px;
       margin:16px 0 10px;
     }
@@ -401,6 +401,7 @@
       transition: filter .15s ease, transform .15s ease;
       display:block;
       width:100%;
+      min-height:44px;
     }
     .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
     .btn:disabled{
@@ -422,9 +423,37 @@
       transition: background .15s ease, transform .15s ease;
       display:block;
       width:100%;
+      min-height:44px;
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
+
+    /* ✅ PayPal wrapper inside product card (looks like button, clickable, not black) */
+    .ppOneWrap{
+      width:100%;
+      min-height:44px;
+      height:44px;
+      border-radius:14px;
+      overflow:visible; /* IMPORTANT: do not block PayPal iframe clicks */
+      display:none;     /* shown when product in stock */
+      align-items:center;
+      justify-content:center;
+      padding:0;
+    }
+    #paypal-one-container{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .ppOneNote{
+      display:none;
+      margin:0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+      text-align:center;
+    }
 
     .toast{
       position: fixed;
@@ -569,6 +598,44 @@
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
 
+    /* ✅ EXACT buttons row like About: PayPal + Checkout + Clear */
+    .actionRow{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:10px;
+      align-items:stretch;
+    }
+    .actionBtn{
+      width:100%;
+      min-height:44px;
+      height:44px;
+      padding:0 12px;
+      line-height:44px;
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:visible; /* IMPORTANT for PayPal iframe clicks */
+    }
+    .ppWrap{
+      display:none;
+      padding:0;
+    }
+    #paypal-cart-container{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .ppNote{
+      color:var(--muted);
+      font-size:12px;
+      margin-top:0;
+      line-height:1.35;
+      display:none;
+      text-align:center;
+    }
+
     /* ✅ Footer НЕ фиксированный, но с безопасным нижним отступом */
     .footer{
       margin-top:auto;
@@ -619,6 +686,11 @@
       .footer{padding:12px 14px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));}
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
+    }
+
+    @media (max-width:520px){
+      .actionRow{grid-template-columns:1fr;}
+      .actionBtn{height:46px; min-height:46px; line-height:46px;}
     }
 
     @media (prefers-reduced-motion: reduce){
@@ -710,14 +782,23 @@
                   </div>
                 </div>
 
+                <!-- Add to cart -->
                 <button class="btn2" id="addBtn" type="button">Add to cart</button>
+
+                <!-- ✅ PayPal for this ONE product (below Add to cart) -->
+                <div class="ppOneWrap btn2" id="ppOneWrap" aria-label="PayPal for this item">
+                  <div id="paypal-one-container"></div>
+                </div>
+                <p class="ppOneNote" id="ppOneNote">PayPal is loading…</p>
+
+                <!-- Stripe Buy Now (keep) -->
                 <button class="btn" id="buyBtn" type="button">Buy now</button>
               </div>
             </div>
           </aside>
         </div>
 
-        <!-- ✅ Footer ВНУТРИ .content, чтобы он был в самом низу прокрутки -->
+        <!-- Footer inside content -->
         <footer class="footer">
           <div class="footerRow">
             <div class="footerBrand">
@@ -744,6 +825,7 @@
     </main>
   </div>
 
+  <!-- Cart drawer -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -758,9 +840,19 @@
         <div>Total</div>
         <div id="cartTotal">—</div>
       </div>
+
+      <!-- ✅ EXACT Like About: PayPal + Checkout + Clear -->
       <div class="cartActions">
-        <button class="btn" id="cartCheckout" type="button">Checkout</button>
-        <button class="btn2" id="cartClear" type="button">Clear cart</button>
+        <div class="actionRow">
+          <div class="ppWrap btn2 actionBtn" id="ppWrap">
+            <div id="paypal-cart-container"></div>
+          </div>
+
+          <button class="btn2 actionBtn" id="cartCheckout" type="button">Checkout</button>
+          <button class="btn2 actionBtn" id="cartClear" type="button">Clear cart</button>
+        </div>
+
+        <div class="ppNote" id="ppNote">PayPal is loading…</div>
       </div>
     </div>
   </div>
@@ -770,12 +862,17 @@
     <small id="toastMsg">—</small>
   </div>
 
+  <!-- ✅ PayPal SDK placeholder (same approach as About) -->
+  <script id="pp-sdk" data-loaded="0"></script>
+
 <script>
   // ✅ footer year
   document.getElementById("year").textContent = String(new Date().getFullYear());
 
-  const API_PRODUCT  = "/api/product";
-  const API_CHECKOUT = "/api/checkout";
+  const API_PRODUCT        = "/api/product";
+  const API_CHECKOUT       = "/api/checkout";
+  const API_PAYPAL_CLIENT  = "/api/paypal-client";
+  const API_PAYPAL_CAPTURE = "/api/paypal-capture";
 
   const CART_KEY    = "mp_cart";
   const MP_CUR_KEY  = "mp_currency";
@@ -797,12 +894,22 @@
       return Array.isArray(arr) ? arr : [];
     }catch(_){ return []; }
   }
-  function writeCart(arr){ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }
-  function cartCount(){ return readCart().reduce((s,it)=>s+(Number(it?.qty)||0),0); }
+  function writeCart(arr){
+    try{ localStorage.setItem(CART_KEY, JSON.stringify(arr)); }catch(_){}
+  }
+  function cartCount(){
+    return readCart().reduce((s,it)=> s + (Number(it?.qty)||0), 0);
+  }
 
   function updateCartBadge(){
     const badge = el("cartBadge");
     if (badge) badge.textContent = String(cartCount());
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
   }
 
   const toastEl    = el("toast");
@@ -811,16 +918,23 @@
 
   function toast(title, msg){
     if (!toastEl || !toastTitle || !toastMsg) return;
-    toastTitle.textContent = title;
-    toastMsg.textContent = msg;
+    toastTitle.textContent = String(title || "Notice");
+    toastMsg.textContent   = String(msg || "");
     toastEl.classList.add("show");
-    setTimeout(()=> toastEl.classList.remove("show"), 2600);
+    clearTimeout(toastEl.__t);
+    toastEl.__t = setTimeout(()=> toastEl.classList.remove("show"), 2600);
   }
 
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
+  function isMobile(){
+    return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
+  }
+
+  // ==========================
+  // Currency + Shipping (same rules)
+  // ==========================
+  function mustCurrencyByShip(ship){
+    ship = String(ship || DEFAULT_SHIP).toUpperCase();
+    return (ship === "US" || ship === "CA") ? "USD" : "EUR";
   }
 
   function getCurrency(){
@@ -836,17 +950,15 @@
     if (elCurrency) elCurrency.value = cur;
   }
 
-  // ✅ hard rule: US/CA => USD, DE/EU => EUR
   function enforceCurrencyByShipping(){
     const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
-    const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
+    const must = mustCurrencyByShip(ship);
     if (getCurrency() !== must){
       setCurrency(must);
       toast("Currency", `Auto set: ${must}`);
     }
   }
 
-  // ✅ restore persisted selects (currency + shipping) + defaults US/USD if unset
   (function restoreSettings(){
     try{
       const shipSaved = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
@@ -867,13 +979,11 @@
         setCurrency(DEFAULT_CUR);
       }
 
-      // enforce rule after restore/default
       enforceCurrencyByShipping();
       setCurrency(getCurrency());
     }catch(_){}
   })();
 
-  // ✅ Map UI selection -> ISO2 for API
   // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
     const v = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
@@ -883,7 +993,32 @@
     return "DE";
   }
 
-  // ✅ /p/PIN + ?pin=PIN
+  if (elCurrency){
+    elCurrency.addEventListener("change", () => {
+      setCurrency(elCurrency.value);
+      enforceCurrencyByShipping();
+      renderCart();
+      resetPayPalUI();      // ✅ keep PayPal correct if currency changed
+      resetPayPalOneUI();   // ✅ also for one-item PayPal
+      refreshPriceUI();
+    });
+  }
+
+  if (elShipCountry){
+    elShipCountry.addEventListener("change", () => {
+      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
+      enforceCurrencyByShipping();
+      renderCart();
+      resetPayPalUI();
+      resetPayPalOneUI();
+      refreshPriceUI();
+      toast("Shipping", `Destination: ${elShipCountry.value}`);
+    });
+  }
+
+  // ==========================
+  // Product URL
+  // ==========================
   function getPinFromUrl(){
     const u = new URL(window.location.href);
 
@@ -898,36 +1033,17 @@
 
   let currentProduct = null;
 
-  function refreshCurrencyUI(){
-    renderCart();
-    if (currentProduct){
-      el("price").textContent = priceText(currentProduct.price);
-    }
-  }
-
-  // ✅ persist on change (but do not allow wrong currency)
-  if (elCurrency){
-    elCurrency.addEventListener("change", () => {
-      setCurrency(elCurrency.value);
-      enforceCurrencyByShipping();
-      refreshCurrencyUI();
-    });
-  }
-
-  if (elShipCountry){
-    elShipCountry.addEventListener("change", () => {
-      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
-      enforceCurrencyByShipping();
-      refreshCurrencyUI();
-      toast("Shipping", `Destination: ${elShipCountry.value}`);
-    });
-  }
-
   function priceText(priceObj){
     const cur = getCurrency();
     const v = priceObj?.[cur];
     if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
     return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
+  }
+
+  function refreshPriceUI(){
+    if (currentProduct){
+      el("price").textContent = priceText(currentProduct.price);
+    }
   }
 
   function clampQty(q, max){
@@ -1004,7 +1120,7 @@
   }
 
   /* =========================
-     ✅ CART DRAWER
+     ✅ CART DRAWER (same base)
   ========================== */
   const elOpenCart     = el("openCart");
   const elCartBack     = el("cartBack");
@@ -1015,12 +1131,25 @@
   const elCartCheckout = el("cartCheckout");
   const elCartClear    = el("cartClear");
 
+  // PayPal cart UI
+  const elPpWrap = el("ppWrap");
+  const elPpNote = el("ppNote");
+  const elPpBox  = el("paypal-cart-container");
+  const elPpSdk  = el("pp-sdk");
+
   function openCart(){
     elCartBack?.classList.add("show");
     elCartDrawer?.classList.add("show");
-    document.body.style.overflow = "hidden";
+    if (!isMobile()) document.body.style.overflow = "hidden";
+
     renderCart();
+
+    // ✅ delay init: drawer must be visible before PayPal renders
+    setTimeout(() => {
+      maybeInitPayPalCart();
+    }, 180);
   }
+
   function closeCart(){
     elCartBack?.classList.remove("show");
     elCartDrawer?.classList.remove("show");
@@ -1063,6 +1192,7 @@
     writeCart(cart);
     updateCartBadge();
     renderCart();
+    resetPayPalUI(); // ✅ avoid stale PayPal order/cart
   }
 
   function removeFromCart(pin){
@@ -1070,41 +1200,50 @@
     writeCart(cart);
     updateCartBadge();
     renderCart();
+    resetPayPalUI();
   }
 
   function clearCart(){
     writeCart([]);
     updateCartBadge();
     renderCart();
+    resetPayPalUI();
+  }
+
+  function priceTextFromItem(it, cur){
+    const unit = it?.price?.[cur];
+    if (typeof unit !== "number") return "—";
+    return cur === "EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`;
   }
 
   function renderCart(){
     if (!elCartBody || !elCartTotal || !elCartCheckout) return;
 
     const cart = readCart();
+    const cur = getCurrency();
+
+    // ✅ show/hide PayPal area exactly like About
+    if (elPpWrap) elPpWrap.style.display = cart.length ? "flex" : "none";
+    if (elPpNote) elPpNote.style.display = cart.length ? "block" : "none";
 
     if (!cart.length){
       elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
       elCartTotal.textContent = "—";
       elCartCheckout.disabled = true;
       elCartCheckout.textContent = "Checkout";
+      if (elPpNote) elPpNote.textContent = "";
       return;
     }
 
     elCartCheckout.disabled = false;
     elCartCheckout.textContent = "Checkout";
 
-    const cur = getCurrency();
-
     elCartBody.innerHTML = cart.map(it => {
       const img = it.image
         ? `<img src="${escapeHtml(it.image)}" alt="${escapeHtml(it.title)}" />`
         : `<span>—</span>`;
 
-      const unit = it?.price?.[cur];
-      const unitText = (typeof unit === "number")
-        ? (cur==="EUR" ? `${unit.toFixed(2)} €` : `${unit.toFixed(2)} $`)
-        : "—";
+      const unitText = priceTextFromItem(it, cur);
 
       return `
         <div class="cartItem" data-pin="${escapeHtml(String(it.pin || ""))}">
@@ -1127,11 +1266,15 @@
     }).join("");
 
     [...elCartBody.querySelectorAll(".cartItem")].forEach(row => {
-      const pin = row.getAttribute("data-pin");
+      const pin = row.getAttribute("data-pin") || "";
       const input = row.querySelector("input");
 
-      row.querySelector('button[data-act="minus"]')?.addEventListener("click", () => setCartQty(pin, Number(input.value) - 1));
-      row.querySelector('button[data-act="plus"]')?.addEventListener("click",  () => setCartQty(pin, Number(input.value) + 1));
+      row.querySelector('button[data-act="minus"]')?.addEventListener("click", () => {
+        setCartQty(pin, Number(input?.value) - 1);
+      });
+      row.querySelector('button[data-act="plus"]')?.addEventListener("click", () => {
+        setCartQty(pin, Number(input?.value) + 1);
+      });
 
       input?.addEventListener("input", () => {
         const v = Number(input.value);
@@ -1144,37 +1287,37 @@
 
     const sum = cartTotal();
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
+
+    // ✅ if drawer open and has items, init paypal after render
+    setTimeout(() => maybeInitPayPalCart(), 0);
   }
 
   elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  // ✅ checkout from cart
-  elCartCheckout?.addEventListener("click", async () => {
+  // ✅ checkout from cart (Stripe redirect) — keep as btn2 like About
+  async function startCheckout(){
     const cart = readCart();
-
-    if (!cart.length){
-      toast("Checkout", "Your cart is empty");
-      return;
-    }
+    if (!cart.length){ toast("Checkout", "Cart is empty"); return; }
 
     try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
     enforceCurrencyByShipping();
 
-    const items = cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 }));
+    const payload = {
+      currency: getCurrency(),
+      shippingCountry: getShippingCountryISO2(),
+      items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+    };
 
-    elCartCheckout.disabled = true;
-    const oldText = elCartCheckout.textContent;
-    elCartCheckout.textContent = "Redirecting…";
+    if (elCartCheckout){
+      elCartCheckout.disabled = true;
+      elCartCheckout.textContent = "Redirecting…";
+    }
 
     try{
       const r = await fetch(API_CHECKOUT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currency: getCurrency(),
-          shippingCountry: getShippingCountryISO2(),
-          items
-        }),
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(payload),
       });
 
       const data = await r.json().catch(()=>({}));
@@ -1185,17 +1328,295 @@
       window.location.href = data.url;
     }catch(e){
       toast("Checkout", String(e?.message || e));
-      elCartCheckout.disabled = false;
-      elCartCheckout.textContent = oldText;
+      if (elCartCheckout){
+        elCartCheckout.disabled = false;
+        elCartCheckout.textContent = "Checkout";
+      }
     }
-  });
+  }
+  elCartCheckout?.addEventListener("click", startCheckout);
 
-  const hero     = el("hero");
-  const heroInner= el("heroInner");
-  const carousel = el("carousel");
-  const prevBtn  = el("prevBtn");
-  const nextBtn  = el("nextBtn");
-  const counter  = el("counter");
+  // ✅ initial
+  updateCartBadge();
+  renderCart();
+
+  // ==========================
+  // ✅ PayPal (CART) — EXACT pattern like About
+  // ==========================
+  let paypalCartReady = false;
+  let paypalCartInitAttempted = false;
+
+  function resetPayPalUI(){
+    paypalCartReady = false;
+    paypalCartInitAttempted = false;
+
+    if (elPpBox) elPpBox.innerHTML = "";
+    if (elPpSdk) elPpSdk.setAttribute("data-loaded","0");
+
+    const cart = readCart();
+    if (elPpNote){
+      elPpNote.textContent = cart.length ? "PayPal is loading…" : "";
+      elPpNote.style.display = cart.length ? "block" : "none";
+    }
+
+    const old = document.getElementById("paypal-sdk");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+
+  async function loadPayPalSDK(currency){
+    currency = String(currency || "EUR").toUpperCase();
+
+    const existing = document.getElementById("paypal-sdk");
+    if (existing) return true;
+
+    try{
+      const r = await fetch(API_PAYPAL_CLIENT, { cache:"no-store" });
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data?.clientId) throw new Error(data?.error || "PayPal clientId missing");
+
+      const s = document.createElement("script");
+      s.id = "paypal-sdk";
+      s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(data.clientId)}&currency=${encodeURIComponent(currency)}&intent=capture`;
+      s.async = true;
+
+      const ok = await new Promise((res) => {
+        s.onload = () => res(true);
+        s.onerror = () => res(false);
+        document.head.appendChild(s);
+      });
+
+      if (!ok) throw new Error("PayPal SDK failed to load");
+
+      elPpSdk?.setAttribute("data-loaded","1");
+      return true;
+    }catch(e){
+      if (elPpNote) elPpNote.textContent = "PayPal unavailable";
+      toast("PayPal", String(e?.message || e));
+      return false;
+    }
+  }
+
+  function maybeInitPayPalCart(){
+    const cartOpen = elCartDrawer?.classList.contains("show");
+    const cart = readCart();
+
+    if (!cartOpen) return;
+    if (!cart.length) return;
+    if (paypalCartReady) return;
+    if (paypalCartInitAttempted) return;
+
+    // ✅ ensure container is visible; PayPal sometimes becomes unclickable otherwise
+    if (elPpWrap && getComputedStyle(elPpWrap).display === "none") return;
+
+    paypalCartInitAttempted = true;
+
+    const cur = getCurrency();
+    if (elPpNote){ elPpNote.textContent = "PayPal is loading…"; elPpNote.style.display="block"; }
+
+    loadPayPalSDK(cur).then((ok)=>{
+      if (!ok) return;
+      if (!window.paypal || !elPpBox) {
+        if (elPpNote) elPpNote.textContent = "PayPal unavailable";
+        return;
+      }
+
+      try{
+        // ✅ IMPORTANT: clear container before render to avoid dead overlay/iframe
+        elPpBox.innerHTML = "";
+
+        window.paypal.Buttons({
+          style: { layout:"horizontal", tagline:false, height:44 },
+
+          createOrder: async () => {
+            enforceCurrencyByShipping();
+
+            const payload = {
+              currency: getCurrency(),
+              shippingCountry: getShippingCountryISO2(),
+              items: readCart().map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+              provider: "paypal"
+            };
+
+            const r = await fetch(API_CHECKOUT, {
+              method:"POST",
+              headers:{ "Content-Type":"application/json" },
+              body: JSON.stringify(payload),
+            });
+
+            const data = await r.json().catch(()=>({}));
+            if (!r.ok || !data?.ok || !data?.orderId){
+              throw new Error(data?.error || "Failed to create PayPal order");
+            }
+            return data.orderId;
+          },
+
+          onApprove: async (data) => {
+            try{
+              const r = await fetch(API_PAYPAL_CAPTURE, {
+                method:"POST",
+                headers:{ "Content-Type":"application/json" },
+                body: JSON.stringify({ orderId: data.orderID }),
+              });
+              const out = await r.json().catch(()=>({}));
+              if (!r.ok || !out?.ok){
+                throw new Error(out?.error || "Payment capture failed");
+              }
+
+              toast("PayPal", "Paid ✅ Thank you!");
+              clearCart();
+              closeCart();
+
+              if (out?.redirectUrl) window.location.href = out.redirectUrl;
+            }catch(e){
+              toast("PayPal", String(e?.message || e));
+            }
+          },
+
+          onCancel: () => toast("PayPal", "Cancelled"),
+          onError: (err) => toast("PayPal", String(err?.message || err || "PayPal error"))
+
+        }).render("#paypal-cart-container");
+
+        paypalCartReady = true;
+        if (elPpNote) elPpNote.style.display = "none";
+      }catch(e){
+        if (elPpNote) elPpNote.textContent = "PayPal unavailable";
+        toast("PayPal", String(e?.message || e));
+      }
+    });
+  }
+
+  // ==========================
+  // ✅ PayPal (ONE ITEM under Add to cart) — separate render, same SDK
+  // ==========================
+  const elPpOneWrap = el("ppOneWrap");
+  const elPpOneBox  = el("paypal-one-container");
+  const elPpOneNote = el("ppOneNote");
+
+  let paypalOneReady = false;
+  let paypalOneInitAttempted = false;
+
+  function resetPayPalOneUI(){
+    paypalOneReady = false;
+    paypalOneInitAttempted = false;
+
+    if (elPpOneBox) elPpOneBox.innerHTML = "";
+    if (elPpOneNote){
+      elPpOneNote.textContent = "";
+      elPpOneNote.style.display = "none";
+    }
+    // SDK is shared; do NOT remove paypal-sdk here
+  }
+
+function maybeInitPayPalOne(){
+    const p = currentProduct;
+    if (!p) return;
+
+    // show only when product is in stock
+    const stock = Number(p.stock || 0);
+    if (stock <= 0) return;
+
+    if (!elPpOneWrap || !elPpOneBox) return;
+    if (getComputedStyle(elPpOneWrap).display === "none") return;
+
+    if (paypalOneReady) return;
+    if (paypalOneInitAttempted) return;
+
+    paypalOneInitAttempted = true;
+
+    const cur = getCurrency();
+    if (elPpOneNote){
+      elPpOneNote.textContent = "PayPal is loading…";
+      elPpOneNote.style.display = "block";
+    }
+
+    loadPayPalSDK(cur).then((ok)=>{
+      if (!ok) return;
+      if (!window.paypal || !elPpOneBox){
+        if (elPpOneNote) elPpOneNote.textContent = "PayPal unavailable";
+        return;
+      }
+
+      try{
+        // IMPORTANT: clear container before render
+        elPpOneBox.innerHTML = "";
+
+        window.paypal.Buttons({
+          style: { layout:"horizontal", tagline:false, height:44 },
+
+          createOrder: async () => {
+            enforceCurrencyByShipping();
+
+            // qty from UI at the moment of click
+            const qtyInput = el("qty");
+            const q = clampQty(qtyInput?.value || 1, Number(p.stock || 0));
+
+            const payload = {
+              currency: getCurrency(),
+              shippingCountry: getShippingCountryISO2(),
+              items: [{ pin: String(p.pin), qty: Number(q) || 1 }],
+              provider: "paypal"
+            };
+
+            const r = await fetch(API_CHECKOUT, {
+              method:"POST",
+              headers:{ "Content-Type":"application/json" },
+              body: JSON.stringify(payload),
+            });
+
+            const data = await r.json().catch(()=>({}));
+            if (!r.ok || !data?.ok || !data?.orderId){
+              throw new Error(data?.error || "Failed to create PayPal order");
+            }
+            return data.orderId;
+          },
+
+          onApprove: async (data) => {
+            try{
+              const r = await fetch(API_PAYPAL_CAPTURE, {
+                method:"POST",
+                headers:{ "Content-Type":"application/json" },
+                body: JSON.stringify({ orderId: data.orderID }),
+              });
+              const out = await r.json().catch(()=>({}));
+              if (!r.ok || !out?.ok){
+                throw new Error(out?.error || "Payment capture failed");
+              }
+
+              toast("PayPal", "Paid ✅ Thank you!");
+
+              // after pay: clear cart (optional) — we don't add this item to cart here
+              // but if user had cart items, we keep it. So we DO NOT clearCart() here.
+
+              if (out?.redirectUrl) window.location.href = out.redirectUrl;
+            }catch(e){
+              toast("PayPal", String(e?.message || e));
+            }
+          },
+
+          onCancel: () => toast("PayPal", "Cancelled"),
+          onError: (err) => toast("PayPal", String(err?.message || err || "PayPal error"))
+
+        }).render("#paypal-one-container");
+
+        paypalOneReady = true;
+        if (elPpOneNote) elPpOneNote.style.display = "none";
+      }catch(e){
+        if (elPpOneNote) elPpOneNote.textContent = "PayPal unavailable";
+        toast("PayPal", String(e?.message || e));
+      }
+    });
+  }
+
+  // ==========================
+  // Carousel (unchanged)
+  // ==========================
+  const hero      = el("hero");
+  const heroInner = el("heroInner");
+  const carousel  = el("carousel");
+  const prevBtn   = el("prevBtn");
+  const nextBtn   = el("nextBtn");
+  const counter   = el("counter");
 
   let currentIndex = 0;
   let imagesState = [];
@@ -1287,10 +1708,6 @@
 
   /* ==========================================================
      ✅ MOBILE SWIPE FIX (stable)
-     - handlers ONLY on carousel (not window)
-     - lock direction after small threshold
-     - vertical dominant => do nothing (let page scroll)
-     - horizontal dominant => preventDefault + drag
   ========================================================== */
   function enableDragScroll(){
     if (!carousel) return;
@@ -1304,7 +1721,6 @@
     const THRESH = 6;
 
     const onDown = (e) => {
-      // mouse only left
       if (e.pointerType === "mouse" && e.button !== 0) return;
 
       active = true;
@@ -1328,7 +1744,6 @@
       if (!locked){
         if (Math.abs(dx) < THRESH && Math.abs(dy) < THRESH) return;
 
-        // vertical dominates -> allow scroll
         if (Math.abs(dy) > Math.abs(dx)){
           active = false;
           pointerId = null;
@@ -1336,7 +1751,6 @@
           return;
         }
 
-        // horizontal dominates -> lock
         locked = true;
         carousel.classList.add("dragging");
       }
@@ -1428,6 +1842,9 @@
     hero.addEventListener("mouseleave", reset);
   }
 
+  // ==========================
+  // Cart add + one-item checkout helpers
+  // ==========================
   function addToCart(p, qty){
     qty = Number(qty);
     if (!Number.isFinite(qty) || qty <= 0) qty = 1;
@@ -1465,7 +1882,7 @@
     toast("Cart", "Added ✅");
   }
 
-  async function buyNowOneItem(p, qty){
+  async function buyNowOneItemStripe(p, qty){
     enforceCurrencyByShipping();
     try{
       localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase());
@@ -1491,7 +1908,7 @@
     window.location.href = data.url;
   }
 
-  async function load(){
+async function load(){
     updateCartBadge();
     renderCart();
 
@@ -1556,8 +1973,18 @@
 
     const stock = Number(p.stock || 0);
     const badge = el("stockBadge");
-    const buyBtn = el("buyBtn");
-    const addBtn = el("addBtn");
+
+    const buyBtn   = el("buyBtn");   // Stripe buy now (already existed)
+    const addBtn   = el("addBtn");   // Add to cart
+    const ppOneWrap= el("ppOneWrap"); // PayPal one-item "button"
+    const ppOneNote= el("ppOneNote");
+
+    // show/hide one-item paypal button
+    if (ppOneWrap) ppOneWrap.style.display = (stock > 0) ? "flex" : "none";
+    if (ppOneNote){
+      ppOneNote.textContent = (stock > 0) ? "PayPal is loading…" : "";
+      ppOneNote.style.display = (stock > 0) ? "block" : "none";
+    }
 
     if (stock > 0){
       badge.textContent = `In stock: ${stock}`;
@@ -1589,6 +2016,7 @@
       addToCart(p, quantity);
     });
 
+    // ✅ Stripe Buy Now (single item)
     buyBtn?.addEventListener("click", async () => {
       const quantity = clampQty(qtyInput.value, stock);
       if (stock <= 0) return;
@@ -1598,13 +2026,19 @@
       buyBtn.textContent = "Redirecting…";
 
       try{
-        await buyNowOneItem(p, quantity);
+        await buyNowOneItemStripe(p, quantity);
       }catch(e){
         toast("Checkout", String(e?.message || e));
         buyBtn.disabled = false;
         buyBtn.textContent = oldText;
       }
     });
+
+    // ✅ One-item PayPal: render after product is ready and visible
+    setTimeout(() => {
+      resetPayPalOneUI();     // ensure clean container every product load
+      maybeInitPayPalOne();   // render paypal one-item button
+    }, 120);
 
     setupParallax();
   }
