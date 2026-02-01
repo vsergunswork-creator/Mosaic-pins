@@ -472,7 +472,7 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* ✅ CART DRAWER */
+/* ✅ CART DRAWER */
     .cartBack{
       position:fixed;
       inset:0;
@@ -606,7 +606,7 @@
 
     .cartActions{display:grid; gap:10px;}
 
-    /* ✅ EXACT buttons row like About */
+    /* ✅ EXACT buttons row like INDEX */
     .actionRow{
       display:grid;
       grid-template-columns:1fr 1fr 1fr;
@@ -623,7 +623,7 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      overflow:visible; /* IMPORTANT for PayPal iframe clicks */
+      overflow:hidden; /* ✅ MATCH INDEX (PayPal sits like a button) */
     }
 
     .ppWrap{display:none; padding:0;}
@@ -1009,6 +1009,30 @@
     if (badge) badge.textContent = String(cartCount());
   }
 
+  /* ✅ FIX (как в индексе): синхронизация badge/корзины при возврате на вкладку,
+        при изменениях в другой вкладке/странице, и при focus */
+  function syncCartUI(){
+    updateCartBadge();
+    if (elCartDrawer?.classList.contains("show")){
+      renderCart();
+      ppCartRenderedForKey = "";
+      setTimeout(() => { maybeInitPayPalCart(); renderPayPalCartIfNeeded(); }, 0);
+    }
+  }
+
+  window.addEventListener("storage", (e) => {
+    if (!e) return;
+    if (e.key === CART_KEY || e.key === MP_CUR_KEY || e.key === MP_SHIP_KEY){
+      syncCartUI();
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncCartUI();
+  });
+
+  window.addEventListener("focus", () => syncCartUI());
+
   /* ==========================
      Currency + Shipping rules
   ========================== */
@@ -1208,6 +1232,7 @@
       resetPayPalHard();
       renderCart();
       refreshPriceUI();
+      updateCartBadge(); // ✅ keep in sync
     });
   }
 
@@ -1218,6 +1243,7 @@
       resetPayPalHard();
       renderCart();
       refreshPriceUI();
+      updateCartBadge(); // ✅ keep in sync
       toast("Shipping", `Destination: ${elShipCountry.value}`);
     });
   }
@@ -1231,6 +1257,7 @@
     if (!isMobile()) document.body.style.overflow = "hidden";
 
     renderCart();
+    updateCartBadge();
 
     setTimeout(() => { maybeInitPayPalCart(); }, 180);
   }
@@ -2222,6 +2249,9 @@
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
     loadProduct();
+
+    // ✅ FIX: ещё раз синк после полной загрузки (на всякий)
+    setTimeout(syncCartUI, 0);
   })();
 </script>
 
