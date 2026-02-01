@@ -602,10 +602,6 @@
     }
     .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
 
-    /* =========================
-       ✅ NEW: 3 buttons in a row одинакового размера (как Clear cart)
-       PayPal / Checkout / Clear cart
-       ========================= */
     .cartActions{display:grid; gap:10px;}
 
     .actionRow{
@@ -624,12 +620,11 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      overflow:hidden; /* важно для PayPal iframe */
+      overflow:visible; /* ✅ was hidden: can block PayPal iframe clicks */
     }
 
-    /* PayPal wrapper выглядит как обычная кнопка */
     .ppWrap{
-      display:none; /* показываем только когда корзина не пустая */
+      display:none;
       padding:0;
     }
     #paypal-button-container{
@@ -639,7 +634,6 @@
       justify-content:center;
     }
 
-    /* note under row */
     .ppNote{
       color:var(--muted);
       font-size:12px;
@@ -654,7 +648,6 @@
       .actionBtn{height:46px; min-height:46px; line-height:46px;}
     }
 
-    /* ✅ Checkout green (only this button) */
     #cartCheckout{
       background: linear-gradient(135deg,#22c55e,#16a34a);
       color:#07110b;
@@ -672,75 +665,6 @@
       transform:none;
     }
 
-    /* ✅ Lightbox */
-    .lightboxBack{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.72);
-      display:none;
-      z-index:2200;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-    }
-    .lightboxBack.show{display:block}
-    .lightbox{
-      position:fixed;
-      inset:0;
-      display:none;
-      z-index:2201;
-      align-items:center;
-      justify-content:center;
-      padding:16px;
-    }
-    .lightbox.show{display:flex}
-    .lightboxCard{
-      width:min(920px, 96vw);
-      border-radius:18px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.55);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .lbTop{
-      padding:12px 12px 10px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      border-bottom:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(34,197,94,.12), rgba(0,0,0,0));
-    }
-    .lbPill{
-      padding:8px 10px;
-      border-radius:999px;
-      background:rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      color:var(--muted);
-      font-size:12px;
-      white-space:nowrap;
-    }
-    .lbClose{
-      border:none;
-      cursor:pointer;
-      padding:10px 12px;
-      border-radius:12px;
-      background:rgba(0,0,0,.30);
-      border:1px solid var(--line);
-      color:var(--text);
-      font-weight:950;
-      line-height:1;
-    }
-    .lbClose:hover{background:rgba(255,255,255,.06)}
-    .lightboxImg{
-      width:100%;
-      height:auto;
-      display:block;
-      max-height: 78vh;
-      object-fit: contain;
-      background: rgba(0,0,0,.35);
-    }
-
-    /* ✅ Toast */
     .toast{
       position: fixed;
       right: 16px;
@@ -760,10 +684,8 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* ✅ Back to shop ONLY on mobile */
     .onlyMobile{display:none;}
 
-    /* ===== Responsive ===== */
     @media (max-width:980px){
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
@@ -774,7 +696,6 @@
 
       .content{
         padding:14px;
-        /* mobile bottom nav removed => no +86px */
         padding-bottom: calc(14px + env(safe-area-inset-bottom));
       }
 
@@ -784,11 +705,9 @@
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
 
-      /* ✅ remove heavy blur on mobile (less lag) */
       .cartDrawer,
       .cartBack,
-      .toast,
-      .lightboxBack{
+      .toast{
         backdrop-filter:none !important;
         -webkit-backdrop-filter:none !important;
       }
@@ -910,7 +829,6 @@
                 Thank you very much for your feedback! 😉
               </div>
 
-              <!-- ✅ Back button ONLY on mobile -->
               <div class="onlyMobile" style="margin-top:12px;">
                 <a class="btn2" href="/" aria-label="Back to shop">
                   ← Back to Shop
@@ -932,7 +850,6 @@
         </div>
       </div>
 
-      <!-- ✅ Footer -->
       <footer class="footer">
         <div class="footerRow">
           <div class="footerBrand">
@@ -955,7 +872,6 @@
     </main>
   </div>
 
-  <!-- ✅ CART (drawer) -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -966,14 +882,12 @@
     <div class="cartBody" id="cartBody"></div>
 
     <div class="cartFoot">
-
       <div class="cartSumRow">
         <div>Total</div>
         <div id="cartTotal">—</div>
       </div>
 
       <div class="cartActions">
-
         <div class="actionRow">
           <div class="ppWrap btn2 actionBtn" id="ppWrap">
             <div id="paypal-button-container"></div>
@@ -994,12 +908,9 @@
     <small id="toastMsg">—</small>
   </div>
 
-  <!-- PayPal SDK placeholder -->
   <script id="pp-sdk" data-loaded="0"></script>
 
 <script>
-
-// ✅ footer year
   (function(){
     const y = document.getElementById("year");
     if (y) y.textContent = String(new Date().getFullYear());
@@ -1034,9 +945,6 @@
     }[m]));
   }
 
-  // ======================
-  // Toast
-  // ======================
   const toastEl    = el("toast");
   const toastTitle = el("toastTitle");
   const toastMsg   = el("toastMsg");
@@ -1050,16 +958,12 @@
     toastEl.__t = setTimeout(()=> toastEl.classList.remove("show"), 2600);
   }
 
-  // ==========================
-  // Shipping + Currency (same rules)
-  // ==========================
   const elShipCountry = el("shipCountry");
 
   function isMobile(){
     return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
   }
 
-  // ✅ hard rule: US/CA => USD, DE/EU => EUR
   function mustCurrencyByShip(ship){
     ship = String(ship || "DE").toUpperCase();
     return (ship === "US" || ship === "CA") ? "USD" : "EUR";
@@ -1068,7 +972,6 @@
   function getCurrency(){
     const saved = (localStorage.getItem(CURRENCY_KEY) || "").toUpperCase();
     if (saved === "EUR" || saved === "USD") return saved;
-    // currency select removed from UI in this page; fallback:
     return mustCurrencyByShip(elShipCountry?.value || "DE");
   }
 
@@ -1089,11 +992,9 @@
 
   (function restoreShippingAndCurrency(){
     try{
-      // restore shipping
       const ship = (localStorage.getItem(SHIP_KEY) || "").toUpperCase();
       if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
 
-      // first time guess shipping if not set
       if (!localStorage.getItem(SHIP_KEY) && elShipCountry){
         let guess = "DE";
         try{
@@ -1108,7 +1009,6 @@
         try{ localStorage.setItem(SHIP_KEY, guess); }catch(_){}
       }
 
-      // enforce currency once
       enforceCurrencyByShipping();
       setCurrency(getCurrency());
     }catch(_){}
@@ -1118,28 +1018,20 @@
     elShipCountry.addEventListener("change", () => {
       try{ localStorage.setItem(SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
       enforceCurrencyByShipping();
-
-      // ✅ IMPORTANT: on ship change re-render cart + reset paypal
       renderCart();
       resetPayPalUI();
-
       toast("Shipping", `Destination: ${elShipCountry.value}`);
     });
   }
 
-  // ✅ Map UI selection -> ISO2 for API
-  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
     const v = String(elShipCountry?.value || "DE").toUpperCase();
     if (v === "US") return "US";
     if (v === "CA") return "CA";
-    if (v === "EU") return "FR"; // any EU ISO2 works
+    if (v === "EU") return "FR";
     return "DE";
   }
 
-  // ==========================
-  // CART (Drawer)
-  // ==========================
   const elCartBadge    = el("cartBadge");
   const elOpenCart     = el("openCart");
   const elCartBack     = el("cartBack");
@@ -1150,7 +1042,6 @@
   const elCartCheckout = el("cartCheckout");
   const elCartClear    = el("cartClear");
 
-  // NEW paypal ui refs
   const elPpWrap = el("ppWrap");
   const elPpNote = el("ppNote");
   const elPpBox  = el("paypal-button-container");
@@ -1165,12 +1056,16 @@
     elCartBack.classList.add("show");
     elCartDrawer.classList.add("show");
     if (!isMobile()) document.body.style.overflow = "hidden";
+
     renderCart();
-    // show paypal only when cart not empty
-    maybeInitPayPal();
+
+    // ✅ delay init: drawer must be visible before PayPal renders
+    setTimeout(() => {
+      maybeInitPayPal();
+    }, 180);
   }
 
-  function closeCart(){
+function closeCart(){
     elCartBack?.classList.remove("show");
     elCartDrawer?.classList.remove("show");
     document.body.style.overflow = "";
@@ -1179,15 +1074,6 @@
   elOpenCart?.addEventListener("click", openCart);
   elCloseCart?.addEventListener("click", closeCart);
   elCartBack?.addEventListener("click", closeCart);
-
-  // ✅ ESC closes cart + photo (same)
-  window.addEventListener("keydown", (e)=>{
-    if (e.key !== "Escape") return;
-    const lbOpen = el("lightbox")?.classList.contains("show");
-    const cartOpen = elCartDrawer?.classList.contains("show");
-    if (cartOpen && !lbOpen) closeCart();
-    closePhoto();
-  });
 
   function setCartQty(pin, qty){
     const cart = readCart();
@@ -1245,7 +1131,6 @@
     const cart = readCart();
     const cur = getCurrency();
 
-    // paypal visible only if cart has items
     if (elPpWrap) elPpWrap.style.display = cart.length ? "flex" : "none";
     if (elPpNote) elPpNote.style.display = cart.length ? "block" : "none";
 
@@ -1311,8 +1196,8 @@
     const sum = cartTotal();
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
 
-    // try init paypal when open and items exist
-    maybeInitPayPal();
+    // ✅ if drawer is open and has items, init paypal after render
+    setTimeout(() => maybeInitPayPal(), 0);
   }
 
   elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
@@ -1359,12 +1244,11 @@
   }
   elCartCheckout?.addEventListener("click", startCheckout);
 
-  // init cart
   updateCartBadge();
   renderCart();
 
   // ==========================
-  // ✅ PayPal (same logic as index)
+  // ✅ PayPal
   // ==========================
   let paypalReady = false;
   let paypalInitAttempted = false;
@@ -1380,17 +1264,16 @@
       elPpNote.textContent = cart.length ? "PayPal is loading…" : "";
       elPpNote.style.display = cart.length ? "block" : "none";
     }
-    // Remove existing sdk script if added
+
     const old = document.getElementById("paypal-sdk");
     if (old && old.parentNode) old.parentNode.removeChild(old);
   }
 
   async function loadPayPalSDK(currency){
     currency = String(currency || "EUR").toUpperCase();
-    if (!elPpSdk) return false;
 
-    const already = document.getElementById("paypal-sdk");
-    if (already) return true;
+    const existing = document.getElementById("paypal-sdk");
+    if (existing) return true;
 
     try{
       const r = await fetch("/api/paypal-client", { cache:"no-store" });
@@ -1410,7 +1293,7 @@
 
       if (!ok) throw new Error("PayPal SDK failed to load");
 
-      elPpSdk.setAttribute("data-loaded","1");
+      elPpSdk?.setAttribute("data-loaded","1");
       return true;
     }catch(e){
       if (elPpNote) elPpNote.textContent = "PayPal unavailable";
@@ -1422,10 +1305,15 @@
   function maybeInitPayPal(){
     const cartOpen = elCartDrawer?.classList.contains("show");
     const cart = readCart();
+
     if (!cartOpen) return;
     if (!cart.length) return;
     if (paypalReady) return;
     if (paypalInitAttempted) return;
+
+    // ✅ ensure container is visible; PayPal sometimes becomes unclickable otherwise
+    if (elPpWrap && getComputedStyle(elPpWrap).display === "none") return;
+
     paypalInitAttempted = true;
 
     const cur = getCurrency();
@@ -1439,6 +1327,9 @@
       }
 
       try{
+        // ✅ IMPORTANT: clear container before render to avoid dead overlay/iframe
+        elPpBox.innerHTML = "";
+
         window.paypal.Buttons({
           style: { layout:"horizontal", tagline:false, height:44 },
 
@@ -1506,9 +1397,6 @@
     });
   }
 
-  // ==========================
-  // ✅ Active state (DESKTOP SIDEBAR ONLY)
-  // ==========================
   (function navActive(){
     const path = (window.location.pathname || "/").toLowerCase();
 
@@ -1541,7 +1429,6 @@
     return div;
   }
 
-  // rating picker
   const starsPick  = el("starsPick");
   const ratingText = el("ratingText");
   let rating = 5;
@@ -1566,7 +1453,7 @@
   }
   renderPicker();
 
-  // ==========================
+// ==========================
   // Lightbox (photos)
   // ==========================
   const lbBack    = el("lightboxBack");
@@ -1648,7 +1535,6 @@
     wrap.appendChild(top);
     wrap.appendChild(text);
 
-    // photos (if your API returns "photos": ["url", ...])
     if (Array.isArray(r.photos) && r.photos.length){
       const ph = document.createElement("div");
       ph.className = "rPhotos";
@@ -1665,7 +1551,7 @@
     return wrap;
   }
 
-async function loadReviews(){
+  async function loadReviews(){
     if (heroMeta) heroMeta.textContent = "Loading…";
     if (elList) elList.innerHTML = "";
 
@@ -1783,7 +1669,6 @@ async function loadReviews(){
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendReview();
   });
 
-  // load
   loadReviews();
 </script>
 </body>
