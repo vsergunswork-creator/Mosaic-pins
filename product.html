@@ -208,6 +208,7 @@
       user-select:none;
       touch-action: pan-y;
     }
+
     .hero-inner{width:100%; height:100%; transform-style: preserve-3d; will-change: transform;}
 
     .carousel{
@@ -291,14 +292,27 @@
     .t.active{outline:2px solid rgba(34,197,94,.45); opacity:1}
     .t img{width:100%; height:100%; object-fit:cover; display:block;}
 
-    #rightPanel{display:flex; flex-direction:column; min-height:0;}
-    #rightPanel .details{flex:1 1 auto; min-height:0; overflow:visible;}
+    #rightPanel{
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    #rightPanel .details{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:visible;
+    }
 
     .details{padding:16px;}
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    .meta{
+    /* (дальше продолжу во 2/4) */
+  </style>
+</head>
+<body>
+
+.meta{
       color:var(--text);
       font-size:13px;
       line-height:1.7;
@@ -416,7 +430,7 @@
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
 
-    /* PayPal ONE wrapper */
+    /* ✅ PayPal wrapper inside product card */
     .ppOneWrap{
       width:100%;
       min-height:44px;
@@ -461,7 +475,7 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
-    /* CART DRAWER */
+    /* ✅ CART DRAWER */
     .cartBack{
       position:fixed;
       inset:0;
@@ -584,13 +598,17 @@
       padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     }
     .cartSumRow{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      margin-bottom:10px; color:var(--text); font-weight:950;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+      color:var(--text);
+      font-weight:950;
     }
-
     .cartActions{display:grid; gap:10px;}
 
-    /* EXACT row like About */
+    /* ✅ EXACT buttons row like About */
     .actionRow{
       display:grid;
       grid-template-columns:1fr 1fr 1fr;
@@ -607,7 +625,7 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      overflow:hidden; /* like about */
+      overflow:visible; /* IMPORTANT for PayPal iframe clicks */
     }
 
     .ppWrap{display:none; padding:0;}
@@ -631,17 +649,14 @@
       .actionBtn{height:46px; min-height:46px; line-height:46px;}
     }
 
-    /* ✅ Checkout GREEN like About */
+    /* ✅ Checkout green (ONLY this button) — like About */
     #cartCheckout{
       background: linear-gradient(135deg,#22c55e,#16a34a);
       color:#07110b;
       border:none;
       box-shadow: 0 10px 18px rgba(34,197,94,.18);
     }
-    #cartCheckout:hover{
-      filter: brightness(1.05);
-      transform: translateY(-1px);
-    }
+    #cartCheckout:hover{filter:brightness(1.05); transform: translateY(-1px);}
     #cartCheckout:disabled{
       background: rgba(255,255,255,.10);
       color: rgba(255,255,255,.55);
@@ -649,6 +664,7 @@
       transform:none;
     }
 
+    /* ✅ Footer */
     .footer{
       margin-top:auto;
       border-top:1px solid var(--line);
@@ -704,6 +720,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="app">
     <aside class="sidebar">
@@ -789,7 +806,6 @@
 
                 <button class="btn2" id="addBtn" type="button">Add to cart</button>
 
-                <!-- PayPal ONE item -->
                 <div class="ppOneWrap btn2" id="ppOneWrap" aria-label="PayPal for this item">
                   <div id="paypal-one-container"></div>
                 </div>
@@ -842,7 +858,6 @@
         <div id="cartTotal">—</div>
       </div>
 
-      <!-- ✅ EXACT like about: PayPal + Checkout (green) + Clear -->
       <div class="cartActions">
         <div class="actionRow">
           <div class="ppWrap btn2 actionBtn" id="ppWrap">
@@ -863,20 +878,39 @@
     <small id="toastMsg">—</small>
   </div>
 
-  <!-- ✅ PayPal SDK placeholder (keep, do not delete) -->
+  <!-- ✅ PayPal SDK placeholder -->
   <script id="pp-sdk" data-loaded="0"></script>
 
+  <!-- =======================================================
+       ✅ IMPORTANT FIX FOR EMPTY CART:
+       Declare PayPal state BEFORE ANY renderCart() can run
+       (no TDZ, no "Cannot access before initialization")
+  ======================================================== -->
+  <script>
+    // ✅ footer year
+    (function(){
+      var y = document.getElementById("year");
+      if (y) y.textContent = String(new Date().getFullYear());
+    })();
+
+    // ✅ PayPal globals: MUST exist before renderCart()
+    // Use var to avoid TDZ across multiple script tags.
+    var ppReady = false;
+    var ppLoading = false;
+    var ppCartRenderedForKey = "";
+    var ppOneRenderedForKey  = "";
+  </script>
+
 <script>
-  // ✅ footer year
-  (function(){
-    const y = document.getElementById("year");
-    if (y) y.textContent = String(new Date().getFullYear());
-  })();
+  /* ==========================================================
+     CORE: storage + settings + cart drawer open/close
+     (PayPal endpoints are correct; NO TDZ issues)
+  ========================================================== */
 
-  const API_PRODUCT  = "/api/product";
-  const API_CHECKOUT = "/api/checkout";
+  const API_PRODUCT   = "/api/product";
+  const API_CHECKOUT  = "/api/checkout";
 
-  // ✅ PayPal endpoints (✅ correct paths)
+  // ✅ Correct PayPal API paths
   const API_PP_CONFIG  = "/api/paypal/config";
   const API_PP_CREATE  = "/api/paypal/create-order";
   const API_PP_CAPTURE = "/api/paypal/capture";
@@ -890,12 +924,54 @@
 
   const el = (id) => document.getElementById(id);
 
+  // UI refs
   const elCurrency    = el("currency");
   const elShipCountry = el("shipCountry");
 
-  /* ==========================
-     Cart storage (safe)
-  ========================== */
+  // cart drawer refs
+  const elOpenCart     = el("openCart");
+  const elCartBack     = el("cartBack");
+  const elCartDrawer   = el("cartDrawer");
+  const elCloseCart    = el("closeCart");
+  const elCartBody     = el("cartBody");
+  const elCartTotal    = el("cartTotal");
+  const elCartCheckout = el("cartCheckout");
+  const elCartClear    = el("cartClear");
+
+  // PayPal cart UI
+  const elPpWrap = el("ppWrap");
+  const elPpNote = el("ppNote");
+
+  // ==========================================================
+  // Helpers
+  // ==========================================================
+  function isMobile(){
+    return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  // toast
+  const toastEl    = el("toast");
+  const toastTitle = el("toastTitle");
+  const toastMsg   = el("toastMsg");
+
+  function toast(title, msg){
+    if (!toastEl || !toastTitle || !toastMsg) return;
+    toastTitle.textContent = String(title || "Notice");
+    toastMsg.textContent   = String(msg || "");
+    toastEl.classList.add("show");
+    clearTimeout(toastEl.__t);
+    toastEl.__t = setTimeout(()=> toastEl.classList.remove("show"), 2600);
+  }
+
+  // ==========================================================
+  // Cart storage (hardened)
+  // ==========================================================
   function sanitizeCart(raw){
     if (!Array.isArray(raw)) return [];
     const out = [];
@@ -929,9 +1005,7 @@
         localStorage.setItem(CART_KEY, JSON.stringify(clean));
       }
       return clean;
-    }catch(_){
-      return [];
-    }
+    }catch(_){ return []; }
   }
 
   function writeCart(arr){
@@ -947,33 +1021,9 @@
     if (badge) badge.textContent = String(cartCount());
   }
 
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-  }
-
-  // toast
-  const toastEl    = el("toast");
-  const toastTitle = el("toastTitle");
-  const toastMsg   = el("toastMsg");
-
-  function toast(title, msg){
-    if (!toastEl || !toastTitle || !toastMsg) return;
-    toastTitle.textContent = String(title || "Notice");
-    toastMsg.textContent   = String(msg || "");
-    toastEl.classList.add("show");
-    clearTimeout(toastEl.__t);
-    toastEl.__t = setTimeout(()=> toastEl.classList.remove("show"), 2600);
-  }
-
-  function isMobile(){
-    return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
-  }
-
-  /* ==========================
-     Currency + Shipping rules
-  ========================== */
+  // ==========================================================
+  // Currency + Shipping rules (US/CA => USD, DE/EU => EUR)
+  // ==========================================================
   function mustCurrencyByShip(ship){
     ship = String(ship || DEFAULT_SHIP).toUpperCase();
     return (ship === "US" || ship === "CA") ? "USD" : "EUR";
@@ -995,9 +1045,15 @@
   function enforceCurrencyByShipping(){
     const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
     const must = mustCurrencyByShip(ship);
-    if (getCurrency() !== must){
-      setCurrency(must);
-    }
+    if (getCurrency() !== must) setCurrency(must);
+  }
+
+  function getShippingCountryISO2(){
+    const v = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
+    if (v === "US") return "US";
+    if (v === "CA") return "CA";
+    if (v === "EU") return "FR"; // any EU ISO2 works
+    return "DE";
   }
 
   (function restoreSettings(){
@@ -1023,121 +1079,15 @@
     }catch(_){}
   })();
 
-  // IMPORTANT: EU must send real EU ISO2 to backend
-  function getShippingCountryISO2(){
-    const v = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
-    if (v === "US") return "US";
-    if (v === "CA") return "CA";
-    if (v === "EU") return "FR";
-    return "DE";
-  }
-
-  /* ==========================
-     Product URL helper
-  ========================== */
-  function getPinFromUrl(){
-    const u = new URL(window.location.href);
-    const qPin = (u.searchParams.get("pin") || "").trim();
-    if (qPin) return qPin;
-
-    const parts = u.pathname.split("/").filter(Boolean);
-    if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
-
-    return "";
-  }
-
-  let currentProduct = null;
-
-  function priceText(priceObj){
-    const cur = getCurrency();
-    const v = priceObj?.[cur];
-    if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
-    return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
-  }
-
-  function clampQty(q, max){
-    q = Number(q);
-    if (!Number.isFinite(q)) q = 1;
-    if (q < 1) q = 1;
-    if (max >= 1 && q > max) q = max;
-    return q;
-  }
-
-  /* ==========================
-     Airtable text -> HTML
-  ========================== */
-  function mdInlineToHtml(line){
-    let s = escapeHtml(line);
-    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/(^|[^*])\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "$1<em>$2</em>");
-    s = s.replace(/__(.+?)__/g, "<u>$1</u>");
-    s = s.replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-      `<a href="$2" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline; opacity:.95;">$1</a>`
-    );
-    return s;
-  }
-
-  function airtableTextToHtml(raw){
-    const text = String(raw || "").replace(/\r\n/g, "\n").trim();
-    if (!text) return "";
-
-    const lines = text.split("\n");
-    let html = "";
-    let inList = false;
-
-    const closeList = () => {
-      if (inList){
-        html += "</ul>";
-        inList = false;
-      }
-    };
-
-    for (let i=0;i<lines.length;i++){
-      const l0 = lines[i];
-      const line = l0.trimEnd();
-
-      if (!line.trim()){
-        closeList();
-        html += "<div style='height:10px'></div>";
-        continue;
-      }
-
-      if (line.startsWith("# ")){
-        closeList();
-        html += `<h3 style="margin:14px 0 8px; font-size:14px; letter-spacing:.2px;">${mdInlineToHtml(line.slice(2).trim())}</h3>`;
-        continue;
-      }
-
-      const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
-      if (isBullet){
-        if (!inList){
-          html += "<ul style='margin:10px 0 0 18px; padding:0; display:grid; gap:6px;'>";
-          inList = true;
-        }
-        const item = line.trim().replace(/^(- |• )/, "");
-        html += `<li style="color:var(--muted); font-size:13px; line-height:1.55;">${mdInlineToHtml(item)}</li>`;
-        continue;
-      }
-
-      closeList();
-      html += `<p style="margin:0 0 10px; color:var(--muted); font-size:13px; line-height:1.65;">${mdInlineToHtml(line)}</p>`;
-    }
-
-    closeList();
-    return html;
-  }
-
-  /* ==========================
-     Settings listeners
-  ========================== */
+  // Settings listeners
   if (elCurrency){
     elCurrency.addEventListener("change", () => {
       setCurrency(elCurrency.value);
       enforceCurrencyByShipping();
+      // currency changes => PayPal reload
+      resetPayPalHard();
       renderCart();
-      resetPayPalHard(); // currency changes => reload SDK
-      if (currentProduct) el("price").textContent = priceText(currentProduct.price);
+      refreshPriceUI(); // defined later in part 4
     });
   }
 
@@ -1145,29 +1095,17 @@
     elShipCountry.addEventListener("change", () => {
       try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
       enforceCurrencyByShipping();
+      // shipping may switch currency => PayPal reload
+      resetPayPalHard();
       renderCart();
-      resetPayPalHard(); // shipping may switch currency
-      if (currentProduct) el("price").textContent = priceText(currentProduct.price);
+      refreshPriceUI();
       toast("Shipping", `Destination: ${elShipCountry.value}`);
     });
   }
 
-  /* ==========================
-     Cart drawer open/close
-  ========================== */
-  const elOpenCart     = el("openCart");
-  const elCartBack     = el("cartBack");
-  const elCartDrawer   = el("cartDrawer");
-  const elCloseCart    = el("closeCart");
-  const elCartBody     = el("cartBody");
-  const elCartTotal    = el("cartTotal");
-  const elCartCheckout = el("cartCheckout");
-  const elCartClear    = el("cartClear");
-
-  // PayPal UI (cart)
-  const elPpWrap = el("ppWrap");
-  const elPpNote = el("ppNote");
-
+  // ==========================================================
+  // Cart drawer open/close
+  // ==========================================================
   function openCart(){
     elCartBack?.classList.add("show");
     elCartDrawer?.classList.add("show");
@@ -1176,9 +1114,7 @@
     renderCart();
 
     // drawer must be visible before PayPal renders
-    setTimeout(() => {
-      maybeInitPayPalCart();
-    }, 180);
+    setTimeout(() => { maybeInitPayPalCart(); }, 180);
   }
 
   function closeCart(){
@@ -1193,21 +1129,12 @@
 
   window.addEventListener("keydown", (e)=>{
     if (e.key !== "Escape") return;
-    const cartOpen = elCartDrawer?.classList.contains("show");
-    if (cartOpen) closeCart();
+    if (elCartDrawer?.classList.contains("show")) closeCart();
   });
 
-  // initial
-  updateCartBadge();
-  enforceCurrencyByShipping();
-  setCurrency(getCurrency());
-</script>
-
-<script>
-  /* ==========================================================
-     Cart render + Stripe checkout + PayPal (cart + one-item)
-  ========================================================== */
-
+  // ==========================================================
+  // Cart logic
+  // ==========================================================
   function cartTotal(){
     const cur = getCurrency();
     const cart = readCart();
@@ -1241,6 +1168,7 @@
     updateCartBadge();
     renderCart();
 
+    // ✅ PayPal must re-render for new snapshot
     ppCartRenderedForKey = "";
     renderPayPalCartIfNeeded();
   }
@@ -1264,24 +1192,32 @@
     renderPayPalCartIfNeeded();
   }
 
+  // ==========================================================
+  // Cart render (About-style buttons, Checkout is green by CSS)
+  // ==========================================================
   function renderCart(){
     if (!elCartBody || !elCartTotal || !elCartCheckout) return;
 
     const cart = readCart();
     const cur  = getCurrency();
 
+    // PayPal wrapper only if cart has items
     if (elPpWrap) elPpWrap.style.display = cart.length ? "flex" : "none";
+
+    // Note text
     if (elPpNote){
       elPpNote.style.display = cart.length ? "block" : "none";
       elPpNote.textContent = cart.length ? "PayPal is loading…" : "";
     }
 
+    // enable/disable actions
     elCartCheckout.disabled = !cart.length;
     elCartClear.disabled    = !cart.length;
 
     if (!cart.length){
       elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
       elCartTotal.textContent = "—";
+
       clearPayPalCartButtons();
       ppCartRenderedForKey = "";
       return;
@@ -1337,6 +1273,7 @@
     const sum = cartTotal();
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
 
+    // ✅ PayPal init/render only when drawer visible
     setTimeout(() => {
       maybeInitPayPalCart();
       renderPayPalCartIfNeeded();
@@ -1348,6 +1285,9 @@
     toast("Cart", "Cleared");
   });
 
+  // ==========================================================
+  // Stripe checkout (cart)
+  // ==========================================================
   async function startCheckout(){
     const cart = readCart();
     if (!cart.length){ toast("Checkout", "Cart is empty"); return; }
@@ -1391,48 +1331,47 @@
   }
   elCartCheckout?.addEventListener("click", startCheckout);
 
-  // render once on load
-  renderCart();
+  // ==========================================================
+  // Product / price helpers (used later in part 4)
+  // ==========================================================
+  var currentProduct = null;
 
-  /* ==========================================================
-     PayPal shared SDK + TWO targets
-       - CART: #paypal-cart-container
-       - ONE:  #paypal-one-container
-  ========================================================== */
-  let ppReady = false;
-  let ppLoading = false;
-
-  let ppCartRenderedForKey = "";
-  let ppOneRenderedForKey  = "";
-
-  function cartSnapshotKey(){
-    const cart = readCart();
-    const cur  = getCurrency();
-    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
-    const itemsKey = cart.map(it => `${String(it.pin)}:${Number(it.qty)||1}`).sort().join("|");
-    return `${cur}|${ship}|${itemsKey}`;
+  function priceText(priceObj){
+    const cur = getCurrency();
+    const v = priceObj?.[cur];
+    if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
+    return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
   }
 
-  function oneSnapshotKey(){
-    const p = currentProduct;
-    if (!p) return "";
-    const cur  = getCurrency();
-    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
-    const qty  = Number(el("qty")?.value || 1) || 1;
-    return `${cur}|${ship}|${String(p.pin)}|${qty}`;
+  function refreshPriceUI(){
+    if (currentProduct){
+      const p = el("price");
+      if (p) p.textContent = priceText(currentProduct.price);
+    }
+  }
+
+  function clampQty(q, max){
+    q = Number(q);
+    if (!Number.isFinite(q)) q = 1;
+    if (q < 1) q = 1;
+    if (max >= 1 && q > max) q = max;
+    return q;
+  }
+
+  // ==========================================================
+  // PayPal shared SDK (About-style) + HARD reset
+  // ==========================================================
+  async function fetchPayPalClientId(){
+    const r = await fetch(API_PP_CONFIG, { method:"GET", cache:"no-store" });
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || !j?.clientId) throw new Error(j?.error || "PayPal config error");
+    return String(j.clientId);
   }
 
   function showPayPalCartNote(msg){
     if (!elPpNote) return;
     elPpNote.textContent = String(msg || "");
     elPpNote.style.display = msg ? "block" : "none";
-  }
-
-  async function fetchPayPalClientId(){
-    const r = await fetch(API_PP_CONFIG, { method:"GET", cache:"no-store" });
-    const j = await r.json().catch(()=>null);
-    if (!r.ok || !j?.clientId) throw new Error(j?.error || "PayPal config error");
-    return String(j.clientId);
   }
 
   function clearPayPalCartButtons(){
@@ -1468,6 +1407,7 @@
     try{ delete window.paypal; }catch(_){}
     try{ window.paypal = undefined; }catch(_){}
 
+    // recreate placeholder
     try{
       const s = document.createElement("script");
       s.id = "pp-sdk";
@@ -1522,6 +1462,17 @@
         reject(e);
       }
     });
+  }
+
+  // ==========================================================
+  // PayPal CART init/render
+  // ==========================================================
+  function cartSnapshotKey(){
+    const cart = readCart();
+    const cur  = getCurrency();
+    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
+    const itemsKey = cart.map(it => `${String(it.pin)}:${Number(it.qty)||1}`).sort().join("|");
+    return `${cur}|${ship}|${itemsKey}`;
   }
 
   async function maybeInitPayPalCart(){
@@ -1646,6 +1597,106 @@
     }).render("#paypal-cart-container");
   }
 
+  // ==========================================================
+  // Boot (safe even with empty cart)
+  // ==========================================================
+  updateCartBadge();
+  enforceCurrencyByShipping();
+  setCurrency(getCurrency());
+  renderCart();
+</script>
+
+<script>
+  /* ==========================================================
+     ✅ PayPal GLOBAL STATE (IMPORTANT: declared BEFORE any usage)
+     Fixes: "Cannot access 'ppCartRenderedForKey' before initialization"
+  ========================================================== */
+  let ppReady = false;
+  let ppLoading = false;
+
+  // ✅ these MUST exist before renderCart() touches them
+  let ppCartRenderedForKey = "";
+  let ppOneRenderedForKey  = "";
+</script>
+
+<script>
+  /* ==========================================================
+     Airtable text -> HTML (safe)
+  ========================================================== */
+  function mdInlineToHtml(line){
+    let s = escapeHtml(line);
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*])\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "$1<em>$2</em>");
+    s = s.replace(/__(.+?)__/g, "<u>$1</u>");
+    s = s.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      `<a href="$2" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline; opacity:.95;">$1</a>`
+    );
+    return s;
+  }
+
+  function airtableTextToHtml(raw){
+    const text = String(raw || "").replace(/\r\n/g, "\n").trim();
+    if (!text) return "";
+
+    const lines = text.split("\n");
+    let html = "";
+    let inList = false;
+
+    const closeList = () => {
+      if (inList){ html += "</ul>"; inList = false; }
+    };
+
+    for (let i=0;i<lines.length;i++){
+      const l0 = lines[i];
+      const line = l0.trimEnd();
+
+      if (!line.trim()){
+        closeList();
+        html += "<div style='height:10px'></div>";
+        continue;
+      }
+
+      if (line.startsWith("# ")){
+        closeList();
+        html += `<h3 style="margin:14px 0 8px; font-size:14px; letter-spacing:.2px;">${mdInlineToHtml(line.slice(2).trim())}</h3>`;
+        continue;
+      }
+
+      const isBullet = line.trim().startsWith("- ") || line.trim().startsWith("• ");
+      if (isBullet){
+        if (!inList){
+          html += "<ul style='margin:10px 0 0 18px; padding:0; display:grid; gap:6px;'>";
+          inList = true;
+        }
+        const item = line.trim().replace(/^(- |• )/, "");
+        html += `<li style="color:var(--muted); font-size:13px; line-height:1.55;">${mdInlineToHtml(item)}</li>`;
+        continue;
+      }
+
+      closeList();
+      html += `<p style="margin:0 0 10px; color:var(--muted); font-size:13px; line-height:1.65;">${mdInlineToHtml(line)}</p>`;
+    }
+
+    closeList();
+    return html;
+  }
+</script>
+
+<script>
+  /* ==========================================================
+     ✅ PayPal ONE item (product card)
+  ========================================================== */
+
+  function oneSnapshotKey(){
+    const p = currentProduct;
+    if (!p) return "";
+    const cur  = getCurrency();
+    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
+    const qty  = Number(el("qty")?.value || 1) || 1;
+    return `${cur}|${ship}|${String(p.pin)}|${qty}`;
+  }
+
   async function maybeInitPayPalOne(){
     const p = currentProduct;
     if (!p) return;
@@ -1657,11 +1708,13 @@
     const note = el("ppOneNote");
     if (!wrap) return;
 
+    // must be visible for clickability
     if (getComputedStyle(wrap).display === "none") return;
 
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
 
+    // ensure SDK ready
     if (!ppReady && !ppLoading){
       try{
         ppLoading = true;
@@ -1706,7 +1759,8 @@
         enforceCurrencyByShipping();
         setCurrency(getCurrency());
 
-        const q = clampQty(el("qty")?.value || 1, Number(p.stock || 0));
+        const qtyInput = el("qty");
+        const q = clampQty(qtyInput?.value || 1, Number(p.stock || 0));
 
         const payload = {
           currency: getCurrency(),
@@ -1751,7 +1805,7 @@
     }).render("#paypal-one-container");
   }
 
-  // qty -> re-render PayPal ONE
+  // re-render one-item paypal when qty changes
   (function wireQtyForPayPalOne(){
     const qtyInput = el("qty");
     if (!qtyInput) return;
@@ -1769,12 +1823,11 @@
 
 <script>
   /* ==========================================================
-     Carousel + Product load + fixes
+     ✅ Carousel + Product load + Add-to-cart + Buy-now
+     Fix: product loads even with empty cart (no PayPal TDZ crash)
   ========================================================== */
 
-  // ==========================
-  // Carousel
-  // ==========================
+  // Carousel refs
   const hero      = el("hero");
   const heroInner = el("heroInner");
   const carousel  = el("carousel");
@@ -1785,6 +1838,15 @@
   let currentIndex = 0;
   let imagesState = [];
   let carouselWired = false;
+
+  function getPinFromUrl(){
+    const u = new URL(window.location.href);
+    const qPin = (u.searchParams.get("pin") || "").trim();
+    if (qPin) return qPin;
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
+    return "";
+  }
 
   function updateNav(){
     const n = imagesState.length;
@@ -1870,9 +1932,6 @@
     });
   }
 
-  /* ==========================================================
-     MOBILE SWIPE FIX (stable)
-  ========================================================== */
   function enableDragScroll(){
     if (!carousel) return;
 
@@ -1886,15 +1945,12 @@
 
     const onDown = (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
-
       active = true;
       locked = false;
       pointerId = e.pointerId;
-
       startX = e.clientX;
       startY = e.clientY;
       lastX  = e.clientX;
-
       try{ carousel.setPointerCapture(pointerId); }catch(_){}
     };
 
@@ -1908,7 +1964,6 @@
       if (!locked){
         if (Math.abs(dx) < THRESH && Math.abs(dy) < THRESH) return;
 
-        // vertical scroll -> let page scroll
         if (Math.abs(dy) > Math.abs(dx)){
           active = false;
           pointerId = null;
@@ -1930,13 +1985,10 @@
 
     const onUp = () => {
       const wasLocked = locked;
-
       active = false;
       locked = false;
       pointerId = null;
-
       carousel.classList.remove("dragging");
-
       if (wasLocked){
         detectIndexFromScroll();
         scrollToIndex(currentIndex);
@@ -2007,9 +2059,6 @@
     hero.addEventListener("mouseleave", reset);
   }
 
-  /* ==========================================================
-     Cart add helper
-  ========================================================== */
   function addToCart(p, qty){
     qty = Number(qty);
     if (!Number.isFinite(qty) || qty <= 0) qty = 1;
@@ -2044,7 +2093,6 @@
     writeCart(cart);
     updateCartBadge();
 
-    // if drawer open -> refresh + paypal
     if (elCartDrawer?.classList.contains("show")){
       renderCart();
       ppCartRenderedForKey = "";
@@ -2080,12 +2128,8 @@
     window.location.href = data.url;
   }
 
-  /* ==========================================================
-     Product load
-  ========================================================== */
   async function loadProduct(){
     updateCartBadge();
-
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
 
@@ -2115,7 +2159,6 @@
     const p = data.product;
     currentProduct = p;
 
-    // SEO
     document.title = `${p.title} • Mosaic Pins`;
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute("content", String(p.description || "").slice(0, 155));
@@ -2152,7 +2195,6 @@
     const addBtn   = el("addBtn");
     const qtyInput = el("qty");
 
-    // show/hide PayPal ONE area
     const oneWrap = el("ppOneWrap");
     const oneNote = el("ppOneNote");
     if (oneWrap) oneWrap.style.display = (stock > 0) ? "flex" : "none";
@@ -2181,6 +2223,7 @@
     qtyInput.oninput    = () => setQty(qtyInput.value);
 
     el("price").textContent = priceText(p.price);
+    refreshPriceUI();
 
     addBtn.onclick = () => {
       const quantity = clampQty(qtyInput.value, stock);
@@ -2205,6 +2248,7 @@
       }
     };
 
+    // ✅ render one-item PayPal after product is ready
     setTimeout(() => {
       ppOneRenderedForKey = "";
       maybeInitPayPalOne();
@@ -2213,16 +2257,14 @@
     setupParallax();
   }
 
-  /* ==========================================================
-     Init
-  ========================================================== */
+  // ==========================================================
+  // Init (safe with empty cart)
+  // ==========================================================
   (function init(){
     updateCartBadge();
-    renderCart(); // safe when empty
-
+    renderCart(); // ✅ no crash now (ppCartRenderedForKey exists)
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
-
     loadProduct();
   })();
 </script>
