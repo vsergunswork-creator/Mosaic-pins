@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mosaic Pins</title>
-
   <style>
     :root{
       --bg:#0b0d11;
@@ -13,6 +12,11 @@
       --line:rgba(255,255,255,.08);
       --shadow: 0 12px 30px rgba(0,0,0,.45);
       --r:18px;
+
+      --overlay: rgba(0,0,0,.72);
+      --overlay2: rgba(0,0,0,.82);
+      --panel: rgba(0,0,0,.28);
+      --panelHover: rgba(255,255,255,.05);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -59,6 +63,7 @@
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
+
       display:flex;
       flex-direction:column;
       min-height:0;
@@ -383,7 +388,6 @@
     }
     .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px}
     .price{font-weight:900}
-
     .btn{
       border:none; cursor:pointer;
       padding:10px 12px;
@@ -394,7 +398,6 @@
       box-shadow: 0 10px 18px rgba(34,197,94,.18);
       transition: filter .15s ease, transform .15s ease;
       white-space:nowrap;
-      min-height:44px;
     }
     .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
     .btn:disabled{
@@ -414,12 +417,10 @@
       font-weight:900;
       transition: background .15s ease, transform .15s ease;
       white-space:nowrap;
-      min-height:44px;
     }
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
 
-    /* ====== TOAST ====== */
     .toast{
       position: fixed;
       right: 16px;
@@ -437,11 +438,6 @@
     }
     .toast.show{display:block}
     .toast small{color:var(--muted)}
-
-    /* =========================================================
-       ✅ ВАЖНО: ВОЗВРАЩАЕМ CSS ДЛЯ SHEET + CART (у Вас он пропал,
-       из-за этого корзина НЕ открывалась)
-       ========================================================= */
 
     /* Mobile Filters Sheet */
     .sheetBack{
@@ -465,6 +461,7 @@
       transform: translateY(100%);
       transition: transform .18s ease;
       z-index:1001;
+
       max-height: 82vh;
       display:flex;
       flex-direction:column;
@@ -495,6 +492,8 @@
     }
     .sheetClose:hover{background:rgba(255,255,255,.06)}
     .sheetBody{padding:12px; overflow:auto; min-height:0;}
+    .mSelectedWrap{display:none; margin-bottom:10px;}
+    .mList .item{padding:12px 12px; border-radius:14px;}
 
     /* Cart Drawer */
     .cartBack{
@@ -506,7 +505,6 @@
       backdrop-filter: blur(6px);
     }
     .cartBack.show{display:block}
-
     .cartDrawer{
       position:fixed;
       top:0; right:0; bottom:0;
@@ -523,7 +521,6 @@
       backdrop-filter: blur(10px);
     }
     .cartDrawer.show{transform: translateX(0)}
-
     .cartHead{
       padding:14px 14px 10px;
       display:flex;
@@ -547,7 +544,6 @@
     }
     .cartClose:hover{background:rgba(255,255,255,.06)}
     .cartBody{padding:12px; overflow:auto; min-height:0;}
-
     .cartEmpty{
       padding:14px;
       border:1px solid var(--line);
@@ -555,7 +551,6 @@
       background:rgba(255,255,255,.04);
       color:var(--muted);
     }
-
     .cartItem{
       display:grid;
       grid-template-columns:64px 1fr;
@@ -620,51 +615,95 @@
       border-top:1px solid var(--line);
       background:rgba(0,0,0,.40);
     }
-    .cartSumRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:10px;
-      color:var(--text);
-      font-weight:950;
-    }
-
+    .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
     .cartActions{display:grid; gap:10px;}
+
+    /* ✅ NEW: PayPal + Checkout одинаковые по сетке и высоте */
     .payRow{
       display:grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns:1fr 1fr;
       gap:10px;
       align-items:stretch;
     }
-    @media (max-width:420px){
-      .payRow{ grid-template-columns: 1fr; }
-    }
-    .payRow > *{width:100%; min-height:44px;}
-
     .ppWrap{
       border:1px solid var(--line);
-      background:rgba(0,0,0,.22);
-      border-radius:12px;
-      padding:8px 10px;
-      display:none;
-      min-height:44px;
-      align-items:center;
-      justify-content:center;
+      background:rgba(255,255,255,.04);
+      border-radius:999px;      /* pill */
+      padding:6px;              /* чтобы кнопка PayPal красиво сидела */
+      display:none;             /* показываем только когда корзина не пустая */
+      overflow:hidden;
     }
-    #paypal-button-container{ width:100%; }
+    #paypal-button-container{width:100%}
     .ppNote{
       color:var(--muted);
       font-size:12px;
-      margin-top:6px;
-      line-height:1.3;
+      margin-top:8px;
+      line-height:1.35;
       display:none;
       text-align:center;
     }
+    /* ✅ pill для Checkout, но НЕ трогаем .btn глобально */
+    .btnPill{
+      border-radius:999px !important;
+      width:100%;
+      min-height:44px;
+      padding:10px 12px;
+    }
+
+    /* Footer */
+    .footer{
+      margin-top:auto;
+      border-top:1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      padding:14px 18px;
+      flex: 0 0 auto;
+    }
+    .footerRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .footerBrand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .footerLinks{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .footerLinks a{
+      text-decoration:none;
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+    }
+    .footerLinks a:hover{
+      background:rgba(255,255,255,.08);
+      transform: translateY(-1px);
+      color:var(--text);
+    }
+    @media (max-width:980px){
+      .footer{padding:12px 14px;}
+      .footerRow{justify-content:center;}
+      .footerLinks{justify-content:center;}
+    }
   </style>
 </head>
-
 <body>
+
   <div class="app">
     <aside class="sidebar">
       <div class="sb-top">
@@ -746,14 +785,14 @@
         <div class="grid" id="grid"></div>
       </div>
 
-      <footer class="footer" style="margin-top:auto;border-top:1px solid var(--line);background: rgba(0,0,0,.25);padding:14px 18px;flex: 0 0 auto;">
-        <div class="footerRow" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-          <div class="footerBrand" style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;white-space:nowrap;">
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
             <span class="dot" aria-hidden="true"></span>
             <span>© <span id="year"></span> Mosaic Pins</span>
           </div>
 
-          <div class="footerLinks" aria-label="Footer links" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+          <div class="footerLinks" aria-label="Footer links">
             <a href="/index.html">Shop</a>
             <a href="/about">About</a>
             <a href="/shipping">Shipping</a>
@@ -768,15 +807,14 @@
     </main>
   </div>
 
-  <!-- Mobile Filters Sheet -->
-  <div class="sheetBack" id="sheetBack"></div>
+<div class="sheetBack" id="sheetBack"></div>
   <div class="sheet" id="sheet">
     <div class="sheetHead">
       <div class="sheetTitle">Filters</div>
       <button class="sheetClose" id="closeFilters" type="button">✕</button>
     </div>
     <div class="sheetBody">
-      <div class="mSelectedWrap" id="mSelectedWrap" style="display:none; margin-bottom:10px;">
+      <div class="mSelectedWrap" id="mSelectedWrap">
         <div class="selectedBar">
           <div class="selectedLeft">
             <div class="selectedTitle">Selected</div>
@@ -795,7 +833,6 @@
     </div>
   </div>
 
-  <!-- Cart Drawer (ЕДИНСТВЕННЫЙ, без дублей ниже) -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -812,28 +849,33 @@
       </div>
 
       <div class="cartActions">
+
+        <!-- ✅ NEW: PayPal + Checkout одинаковые (pill, одинаковая высота) -->
         <div class="payRow">
+          <!-- PayPal button container -->
           <div class="ppWrap" id="ppWrap">
             <div id="paypal-button-container"></div>
-            <div class="ppNote" id="ppNote">PayPal is loading…</div>
           </div>
 
-          <button class="btn" id="cartCheckout" type="button">Checkout</button>
+          <!-- Stripe Checkout (pill like PayPal) -->
+          <button class="btn btnPill" id="cartCheckout" type="button">Checkout</button>
         </div>
 
-        <!-- ✅ Clear cart stays -->
+        <!-- note under PayPal row -->
+        <div class="ppNote" id="ppNote">PayPal is loading…</div>
+
+        <!-- Clear cart stays -->
         <button class="btn2" id="cartClear" type="button">Clear cart</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast (ЕДИНСТВЕННЫЙ) -->
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
 
-  <!-- ✅ IMPORTANT: PayPal SDK tag (ЕДИНСТВЕННЫЙ) -->
+  <!-- ✅ IMPORTANT: PayPal SDK placeholder -->
   <script id="pp-sdk" data-loaded="0"></script>
 
   <script>
@@ -841,7 +883,7 @@
     document.getElementById("year").textContent = String(new Date().getFullYear());
 
     const API_PRODUCTS = "/api/products";
-    const API_CHECKOUT  = "/api/checkout";
+    const API_CHECKOUT = "/api/checkout";
 
     // PayPal endpoints
     const API_PP_CONFIG  = "/api/paypal/config";       // returns { clientId }
@@ -858,7 +900,6 @@
     const MP_USER_SET_KEY  = "mp_user_set_ship";
     const MP_GEO_CACHE_KEY = "mp_geo_cache";
 
-    // EU ISO2 list
     const EU_SET = new Set([
       "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
       "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE"
@@ -942,7 +983,7 @@
       }[m]));
     }
 
-    function getCurrency(){
+function getCurrency(){
       const saved = (localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
       if (saved === "EUR" || saved === "USD") return saved;
       return "USD";
@@ -1062,7 +1103,6 @@
       return "DE";
     }
 
-    // persist on change
     if (elCurrency){
       elCurrency.addEventListener("change", () => {
         setCurrency(elCurrency.value);
@@ -1102,14 +1142,7 @@
       return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
     }
 
-    // =========================
-    // ✅ IMPORTANT FIX FOR "Cart не открывается"
-    // Причина была в дублях HTML (две toast, две cartActions, два pp-sdk),
-    // из-за этого getElementById возвращал "первый" элемент, а обработчики вешались не туда.
-    // Мы выше оставили ТОЛЬКО ОДИН drawer/toast/pp-sdk. Здесь — чистые обработчики.
-    // =========================
-
-    // sheet open/close
+    // sheet/cart open-close
     function openSheet(){
       elSheetBack.classList.add("show");
       elSheet.classList.add("show");
@@ -1120,18 +1153,15 @@
       elSheet.classList.remove("show");
       document.body.style.overflow = "";
     }
+    elOpenFilters.addEventListener("click", openSheet);
+    elCloseFilters.addEventListener("click", closeSheet);
+    elSheetBack.addEventListener("click", closeSheet);
 
-    if (elOpenFilters) elOpenFilters.addEventListener("click", openSheet);
-    if (elCloseFilters) elCloseFilters.addEventListener("click", closeSheet);
-    if (elSheetBack) elSheetBack.addEventListener("click", closeSheet);
-
-    // cart open/close
     function openCart(){
       elCartBack.classList.add("show");
       elCartDrawer.classList.add("show");
       document.body.style.overflow = "hidden";
       renderCart();
-      // PayPal init only when drawer is visible
       maybeInitPayPal();
     }
     function closeCart(){
@@ -1139,10 +1169,9 @@
       elCartDrawer.classList.remove("show");
       document.body.style.overflow = "";
     }
-
-    if (elOpenCart) elOpenCart.addEventListener("click", openCart);
-    if (elCloseCart) elCloseCart.addEventListener("click", closeCart);
-    if (elCartBack) elCartBack.addEventListener("click", closeCart);
+    elOpenCart.addEventListener("click", openCart);
+    elCloseCart.addEventListener("click", closeCart);
+    elCartBack.addEventListener("click", closeCart);
 
     window.addEventListener("keydown", (e)=>{
       if (e.key !== "Escape") return;
@@ -1150,7 +1179,7 @@
       if (elSheet.classList.contains("show")) closeSheet();
     });
 
-    function updateCartBadge(){ if (elCartBadge) elCartBadge.textContent = String(cartCount()); }
+    function updateCartBadge(){ elCartBadge.textContent = String(cartCount()); }
 
     // =========================
     // PayPal integration (ONLY PayPal button, disable cards+sepa)
@@ -1180,7 +1209,7 @@
       return String(j.clientId);
     }
 
-    // ✅ HARD reset (для смены валюты/ошибок): удаляем SDK script и window.paypal
+    // ✅ HARD reset: remove SDK script + window.paypal (important for currency changes)
     function resetPayPalHard(){
       ppReady = false;
       ppLoading = false;
@@ -1198,7 +1227,7 @@
       try{ delete window.paypal; }catch(_){}
       try{ window.paypal = undefined; }catch(_){}
 
-      // re-create script tag so getElementById("pp-sdk") works always
+      // recreate placeholder
       try{
         const s = document.createElement("script");
         s.id = "pp-sdk";
@@ -1220,7 +1249,7 @@
 
           const cur = getCurrency();
 
-          // ✅ disable extra funding sources → оставляем только PayPal
+          // ✅ ONLY PayPal funding (disable cards etc)
           const url =
             "https://www.paypal.com/sdk/js" +
             `?client-id=${encodeURIComponent(clientId)}` +
@@ -1229,6 +1258,7 @@
             `&components=buttons` +
             `&disable-funding=card,sepa,ideal,bancontact,sofort,giropay,eps,mybank,p24,venmo`;
 
+          // same src → wait
           if (s.src && s.src === url){
             const t0 = Date.now();
             const tick = () => {
@@ -1240,6 +1270,7 @@
             return;
           }
 
+          // different src → hard reset then load again
           if (s.src && s.src !== url){
             resetPayPalHard();
             return loadPayPalSDK(clientId).then(resolve).catch(reject);
@@ -1264,7 +1295,7 @@
         }
         if (elPpWrap) elPpWrap.style.display = "block";
 
-        // always enforce currency BEFORE sdk load
+        // enforce currency BEFORE sdk load
         enforceCurrencyByShipping();
         setCurrency(getCurrency());
 
@@ -1315,6 +1346,7 @@
       ppRenderedForKey = key;
 
       window.paypal.Buttons({
+        // ✅ pill + height 44 (match Checkout)
         style: { layout:"vertical", shape:"pill", label:"paypal", height: 44 },
 
         createOrder: async () => {
@@ -1373,7 +1405,8 @@
     // =========================
     // Cart logic (Stripe + PayPal)
     // =========================
-    function addToCartFromProduct(p, qty){
+
+function addToCartFromProduct(p, qty){
       qty = Number(qty);
       if (!Number.isFinite(qty) || qty <= 0) qty = 1;
 
@@ -1536,9 +1569,19 @@
     }
 
     // keep Clear Cart button
-    if (elCartClear){
-      elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+    elCartClear.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
+
+    // ✅ Make Checkout look like PayPal (pill + same height)
+    function syncCheckoutButtonLook(){
+      try{
+        if (!elCartCheckout) return;
+        // same "pill" feeling as PayPal button
+        elCartCheckout.style.borderRadius = "999px";
+        elCartCheckout.style.minHeight = "44px";
+        elCartCheckout.style.width = "100%";
+      }catch(_){}
     }
+    syncCheckoutButtonLook();
 
     // Stripe checkout
     async function startCheckout(){
@@ -1578,12 +1621,8 @@
         elCartCheckout.textContent = "Checkout";
       }
     }
-    if (elCartCheckout) elCartCheckout.addEventListener("click", startCheckout);
+    elCartCheckout.addEventListener("click", startCheckout);
 
-    // ===== дальше: filters/products (без дублей функций!) =====
-
-    // ===== Diameter / Filters / Products =====
-    // ✅ ВАЖНО: parseDiameter определяем ОДИН раз (в вашем коде он был продублирован)
     function parseDiameter(raw){
       if (raw == null) return { key:null, num:null, display:null, note:null, raw:null };
 
@@ -1616,8 +1655,7 @@
     }
 
     function updateSelectedUI(){
-      const arr = [...selectedDiameters]
-        .map(k => ({ k, n: (diameterMap.get(k)?.num ?? Infinity) }))
+      const arr = [...selectedDiameters].map(k => ({ k, n: (diameterMap.get(k)?.num ?? Infinity) }))
         .sort((a,b)=>a.n-b.n)
         .map(x => x.k);
 
@@ -1663,11 +1701,9 @@
     }
 
     function cardTemplate(p){
-      const img = (p.images && p.images[0])
-        ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.title)}" />`
-        : "";
-
+      const img = (p.images && p.images[0]) ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.title)}" />` : "";
       const soldOut = !(Number(p.stock||0) > 0);
+
       const diaText = p.diameterDisplay ? p.diameterDisplay : (p.diameterNum != null ? String(p.diameterNum).replace(".",",") : "—");
 
       return `
@@ -1816,9 +1852,8 @@
       buildDiameterLists();
       applyFilters();
     }
-
-    if (elClearDiameters) elClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
-    if (elMClearDiameters) elMClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
+    elClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
+    elMClearDiameters.addEventListener("click", (e) => { e.preventDefault(); clearDiameters(); });
 
     async function loadProducts(){
       try{
@@ -1826,7 +1861,6 @@
         if (r.ok){
           const data = await r.json();
           products = normalizeProducts(data);
-
           buildDiameterLists();
           applyFilters();
 
@@ -1868,12 +1902,10 @@
       renderPayPalButtonsIfNeeded();
     }
 
-    if (elQ) elQ.addEventListener("input", applyFilters);
-    if (elStock) elStock.addEventListener("change", applyFilters);
+    elQ.addEventListener("input", applyFilters);
+    elStock.addEventListener("change", applyFilters);
 
-    window.addEventListener("resize", () => {
-      if (window.innerWidth > 980) closeSheet();
-    });
+    window.addEventListener("resize", () => { if (window.innerWidth > 980) closeSheet(); });
 
     // initial
     updateCartBadge();
