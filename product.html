@@ -27,6 +27,7 @@
     *{-webkit-tap-highlight-color: rgba(0,0,0,0);}
     html,body{height:100%}
 
+    /* ✅ body не скроллится — скролл только в .content */
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
@@ -162,6 +163,7 @@
       text-align:center;
     }
 
+    /* ✅ главный вертикальный скролл */
     .content{
       padding:18px;
       padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px) + 14px);
@@ -307,11 +309,6 @@
     .kicker{color:var(--muted); font-size:12px}
     .title{font-size:22px; font-weight:950; margin:6px 0 8px;}
 
-    /* (дальше продолжу во 2/4) */
-  </style>
-</head>
-<body>
-
 .meta{
       color:var(--text);
       font-size:13px;
@@ -430,13 +427,13 @@
     .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
     .btn2:disabled{opacity:.45; cursor:not-allowed}
 
-    /* ✅ PayPal wrapper inside product card */
+    /* ✅ PayPal ONE item wrapper */
     .ppOneWrap{
       width:100%;
       min-height:44px;
       height:44px;
       border-radius:14px;
-      overflow:visible;
+      overflow:visible; /* IMPORTANT: do not block PayPal iframe clicks */
       display:none;
       align-items:center;
       justify-content:center;
@@ -606,6 +603,7 @@
       color:var(--text);
       font-weight:950;
     }
+
     .cartActions{display:grid; gap:10px;}
 
     /* ✅ EXACT buttons row like About */
@@ -649,7 +647,7 @@
       .actionBtn{height:46px; min-height:46px; line-height:46px;}
     }
 
-    /* ✅ Checkout green (ONLY this button) — like About */
+    /* ✅ Checkout green (ONLY this button) */
     #cartCheckout{
       background: linear-gradient(135deg,#22c55e,#16a34a);
       color:#07110b;
@@ -881,20 +879,14 @@
   <!-- ✅ PayPal SDK placeholder -->
   <script id="pp-sdk" data-loaded="0"></script>
 
-  <!-- =======================================================
-       ✅ IMPORTANT FIX FOR EMPTY CART:
-       Declare PayPal state BEFORE ANY renderCart() can run
-       (no TDZ, no "Cannot access before initialization")
-  ======================================================== -->
+  <!-- ✅ PayPal globals: declared ONCE, early (NO TDZ across script tags) -->
   <script>
-    // ✅ footer year
     (function(){
       var y = document.getElementById("year");
       if (y) y.textContent = String(new Date().getFullYear());
     })();
 
-    // ✅ PayPal globals: MUST exist before renderCart()
-    // Use var to avoid TDZ across multiple script tags.
+    // IMPORTANT: keep as var (shared between scripts without TDZ)
     var ppReady = false;
     var ppLoading = false;
     var ppCartRenderedForKey = "";
@@ -903,8 +895,7 @@
 
 <script>
   /* ==========================================================
-     CORE: storage + settings + cart drawer open/close
-     (PayPal endpoints are correct; NO TDZ issues)
+     CORE: storage + settings + cart render + Stripe + PayPal CART
   ========================================================== */
 
   const API_PRODUCT   = "/api/product";
@@ -942,19 +933,6 @@
   const elPpWrap = el("ppWrap");
   const elPpNote = el("ppNote");
 
-  // ==========================================================
-  // Helpers
-  // ==========================================================
-  function isMobile(){
-    return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
-  }
-
-  function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-  }
-
   // toast
   const toastEl    = el("toast");
   const toastTitle = el("toastTitle");
@@ -969,9 +947,19 @@
     toastEl.__t = setTimeout(()=> toastEl.classList.remove("show"), 2600);
   }
 
-  // ==========================================================
-  // Cart storage (hardened)
-  // ==========================================================
+  function isMobile(){
+    return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[m]));
+  }
+
+  /* ==========================
+     Cart storage (hardened)
+  ========================== */
   function sanitizeCart(raw){
     if (!Array.isArray(raw)) return [];
     const out = [];
@@ -1021,9 +1009,9 @@
     if (badge) badge.textContent = String(cartCount());
   }
 
-  // ==========================================================
-  // Currency + Shipping rules (US/CA => USD, DE/EU => EUR)
-  // ==========================================================
+  /* ==========================
+     Currency + Shipping rules
+  ========================== */
   function mustCurrencyByShip(ship){
     ship = String(ship || DEFAULT_SHIP).toUpperCase();
     return (ship === "US" || ship === "CA") ? "USD" : "EUR";
@@ -1079,15 +1067,147 @@
     }catch(_){}
   })();
 
-  // Settings listeners
+  /* ==========================
+     Product helpers shared
+  ========================== */
+  var currentProduct = null;
+
+  function priceText(priceObj){
+    const cur = getCurrency();
+    const v = priceObj?.[cur];
+    if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
+    return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
+  }
+
+  function refreshPriceUI(){
+    if (currentProduct){
+      const p = el("price");
+      if (p) p.textContent = priceText(currentProduct.price);
+    }
+  }
+
+  function clampQty(q, max){
+    q = Number(q);
+    if (!Number.isFinite(q)) q = 1;
+    if (q < 1) q = 1;
+    if (max >= 1 && q > max) q = max;
+    return q;
+  }
+
+  /* ==========================
+     PayPal SDK helpers
+  ========================== */
+  async function fetchPayPalClientId(){
+    const r = await fetch(API_PP_CONFIG, { method:"GET", cache:"no-store" });
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || !j?.clientId) throw new Error(j?.error || "PayPal config error");
+    return String(j.clientId);
+  }
+
+  function showPayPalCartNote(msg){
+    if (!elPpNote) return;
+    elPpNote.textContent = String(msg || "");
+    elPpNote.style.display = msg ? "block" : "none";
+  }
+
+  function clearPayPalCartButtons(){
+    const wrap = document.getElementById("paypal-cart-container");
+    if (wrap) wrap.innerHTML = "";
+  }
+  function clearPayPalOneButtons(){
+    const wrap = document.getElementById("paypal-one-container");
+    if (wrap) wrap.innerHTML = "";
+  }
+
+  function resetPayPalHard(){
+    ppReady = false;
+    ppLoading = false;
+    ppCartRenderedForKey = "";
+    ppOneRenderedForKey  = "";
+
+    try{ clearPayPalCartButtons(); }catch(_){}
+    try{ clearPayPalOneButtons(); }catch(_){}
+    try{ showPayPalCartNote(""); }catch(_){}
+
+    const oneNote = el("ppOneNote");
+    if (oneNote){
+      oneNote.textContent = "";
+      oneNote.style.display = "none";
+    }
+
+    try{
+      const old = document.getElementById("pp-sdk");
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+    }catch(_){}
+
+    try{ delete window.paypal; }catch(_){}
+    try{ window.paypal = undefined; }catch(_){}
+
+    try{
+      const s = document.createElement("script");
+      s.id = "pp-sdk";
+      s.setAttribute("data-loaded","0");
+      document.body.appendChild(s);
+    }catch(_){}
+  }
+
+  function loadPayPalSDK(clientId){
+    return new Promise((resolve, reject) => {
+      try{
+        if (window.paypal && typeof window.paypal.Buttons === "function"){
+          resolve(true);
+          return;
+        }
+
+        const s = document.getElementById("pp-sdk");
+        if (!s) throw new Error("pp-sdk tag missing");
+
+        const cur = getCurrency();
+        const url =
+          "https://www.paypal.com/sdk/js" +
+          `?client-id=${encodeURIComponent(clientId)}` +
+          `&currency=${encodeURIComponent(cur)}` +
+          `&intent=capture` +
+          `&components=buttons` +
+          `&disable-funding=card,sepa,ideal,bancontact,sofort,giropay,eps,mybank,p24,venmo`;
+
+        if (s.src && s.src === url){
+          const t0 = Date.now();
+          const tick = () => {
+            if (window.paypal && typeof window.paypal.Buttons === "function") return resolve(true);
+            if (Date.now() - t0 > 12000) return reject(new Error("PayPal SDK timeout"));
+            setTimeout(tick, 120);
+          };
+          tick();
+          return;
+        }
+
+        if (s.src && s.src !== url){
+          resetPayPalHard();
+          fetchPayPalClientId().then(loadPayPalSDK).then(resolve).catch(reject);
+          return;
+        }
+
+        s.onload = () => resolve(true);
+        s.onerror = () => reject(new Error("PayPal SDK failed to load"));
+        s.src = url;
+        s.setAttribute("data-loaded","1");
+      }catch(e){
+        reject(e);
+      }
+    });
+  }
+
+  /* ==========================
+     Settings listeners
+  ========================== */
   if (elCurrency){
     elCurrency.addEventListener("change", () => {
       setCurrency(elCurrency.value);
       enforceCurrencyByShipping();
-      // currency changes => PayPal reload
       resetPayPalHard();
       renderCart();
-      refreshPriceUI(); // defined later in part 4
+      refreshPriceUI();
     });
   }
 
@@ -1095,7 +1215,6 @@
     elShipCountry.addEventListener("change", () => {
       try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
       enforceCurrencyByShipping();
-      // shipping may switch currency => PayPal reload
       resetPayPalHard();
       renderCart();
       refreshPriceUI();
@@ -1103,9 +1222,9 @@
     });
   }
 
-  // ==========================================================
-  // Cart drawer open/close
-  // ==========================================================
+  /* ==========================
+     Cart drawer open/close
+  ========================== */
   function openCart(){
     elCartBack?.classList.add("show");
     elCartDrawer?.classList.add("show");
@@ -1113,7 +1232,6 @@
 
     renderCart();
 
-    // drawer must be visible before PayPal renders
     setTimeout(() => { maybeInitPayPalCart(); }, 180);
   }
 
@@ -1132,9 +1250,9 @@
     if (elCartDrawer?.classList.contains("show")) closeCart();
   });
 
-  // ==========================================================
-  // Cart logic
-  // ==========================================================
+  /* ==========================
+     Cart math + render
+  ========================== */
   function cartTotal(){
     const cur = getCurrency();
     const cart = readCart();
@@ -1168,7 +1286,6 @@
     updateCartBadge();
     renderCart();
 
-    // ✅ PayPal must re-render for new snapshot
     ppCartRenderedForKey = "";
     renderPayPalCartIfNeeded();
   }
@@ -1192,32 +1309,24 @@
     renderPayPalCartIfNeeded();
   }
 
-  // ==========================================================
-  // Cart render (About-style buttons, Checkout is green by CSS)
-  // ==========================================================
   function renderCart(){
     if (!elCartBody || !elCartTotal || !elCartCheckout) return;
 
     const cart = readCart();
     const cur  = getCurrency();
 
-    // PayPal wrapper only if cart has items
     if (elPpWrap) elPpWrap.style.display = cart.length ? "flex" : "none";
-
-    // Note text
     if (elPpNote){
       elPpNote.style.display = cart.length ? "block" : "none";
       elPpNote.textContent = cart.length ? "PayPal is loading…" : "";
     }
 
-    // enable/disable actions
     elCartCheckout.disabled = !cart.length;
     elCartClear.disabled    = !cart.length;
 
     if (!cart.length){
       elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
       elCartTotal.textContent = "—";
-
       clearPayPalCartButtons();
       ppCartRenderedForKey = "";
       return;
@@ -1273,7 +1382,6 @@
     const sum = cartTotal();
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
 
-    // ✅ PayPal init/render only when drawer visible
     setTimeout(() => {
       maybeInitPayPalCart();
       renderPayPalCartIfNeeded();
@@ -1285,9 +1393,9 @@
     toast("Cart", "Cleared");
   });
 
-  // ==========================================================
-  // Stripe checkout (cart)
-  // ==========================================================
+  /* ==========================
+     Stripe checkout (Cart)
+  ========================== */
   async function startCheckout(){
     const cart = readCart();
     if (!cart.length){ toast("Checkout", "Cart is empty"); return; }
@@ -1331,142 +1439,9 @@
   }
   elCartCheckout?.addEventListener("click", startCheckout);
 
-  // ==========================================================
-  // Product / price helpers (used later in part 4)
-  // ==========================================================
-  var currentProduct = null;
-
-  function priceText(priceObj){
-    const cur = getCurrency();
-    const v = priceObj?.[cur];
-    if (typeof v !== "number") return cur === "EUR" ? "— €" : "— $";
-    return cur === "EUR" ? `${v.toFixed(2)} €` : `${v.toFixed(2)} $`;
-  }
-
-  function refreshPriceUI(){
-    if (currentProduct){
-      const p = el("price");
-      if (p) p.textContent = priceText(currentProduct.price);
-    }
-  }
-
-  function clampQty(q, max){
-    q = Number(q);
-    if (!Number.isFinite(q)) q = 1;
-    if (q < 1) q = 1;
-    if (max >= 1 && q > max) q = max;
-    return q;
-  }
-
-  // ==========================================================
-  // PayPal shared SDK (About-style) + HARD reset
-  // ==========================================================
-  async function fetchPayPalClientId(){
-    const r = await fetch(API_PP_CONFIG, { method:"GET", cache:"no-store" });
-    const j = await r.json().catch(()=>null);
-    if (!r.ok || !j?.clientId) throw new Error(j?.error || "PayPal config error");
-    return String(j.clientId);
-  }
-
-  function showPayPalCartNote(msg){
-    if (!elPpNote) return;
-    elPpNote.textContent = String(msg || "");
-    elPpNote.style.display = msg ? "block" : "none";
-  }
-
-  function clearPayPalCartButtons(){
-    const wrap = document.getElementById("paypal-cart-container");
-    if (wrap) wrap.innerHTML = "";
-  }
-  function clearPayPalOneButtons(){
-    const wrap = document.getElementById("paypal-one-container");
-    if (wrap) wrap.innerHTML = "";
-  }
-
-  function resetPayPalHard(){
-    ppReady = false;
-    ppLoading = false;
-    ppCartRenderedForKey = "";
-    ppOneRenderedForKey  = "";
-
-    try{ clearPayPalCartButtons(); }catch(_){}
-    try{ clearPayPalOneButtons(); }catch(_){}
-    try{ showPayPalCartNote(""); }catch(_){}
-
-    const oneNote = el("ppOneNote");
-    if (oneNote){
-      oneNote.textContent = "";
-      oneNote.style.display = "none";
-    }
-
-    try{
-      const old = document.getElementById("pp-sdk");
-      if (old && old.parentNode) old.parentNode.removeChild(old);
-    }catch(_){}
-
-    try{ delete window.paypal; }catch(_){}
-    try{ window.paypal = undefined; }catch(_){}
-
-    // recreate placeholder
-    try{
-      const s = document.createElement("script");
-      s.id = "pp-sdk";
-      s.setAttribute("data-loaded","0");
-      document.body.appendChild(s);
-    }catch(_){}
-  }
-
-  function loadPayPalSDK(clientId){
-    return new Promise((resolve, reject) => {
-      try{
-        if (window.paypal && typeof window.paypal.Buttons === "function"){
-          resolve(true);
-          return;
-        }
-
-        const s = document.getElementById("pp-sdk");
-        if (!s) throw new Error("pp-sdk tag missing");
-
-        const cur = getCurrency();
-
-        const url =
-          "https://www.paypal.com/sdk/js" +
-          `?client-id=${encodeURIComponent(clientId)}` +
-          `&currency=${encodeURIComponent(cur)}` +
-          `&intent=capture` +
-          `&components=buttons` +
-          `&disable-funding=card,sepa,ideal,bancontact,sofort,giropay,eps,mybank,p24,venmo`;
-
-        if (s.src && s.src === url){
-          const t0 = Date.now();
-          const tick = () => {
-            if (window.paypal && typeof window.paypal.Buttons === "function") return resolve(true);
-            if (Date.now() - t0 > 12000) return reject(new Error("PayPal SDK timeout"));
-            setTimeout(tick, 120);
-          };
-          tick();
-          return;
-        }
-
-        if (s.src && s.src !== url){
-          resetPayPalHard();
-          fetchPayPalClientId().then(loadPayPalSDK).then(resolve).catch(reject);
-          return;
-        }
-
-        s.onload = () => resolve(true);
-        s.onerror = () => reject(new Error("PayPal SDK failed to load"));
-        s.src = url;
-        s.setAttribute("data-loaded","1");
-      }catch(e){
-        reject(e);
-      }
-    });
-  }
-
-  // ==========================================================
-  // PayPal CART init/render
-  // ==========================================================
+  /* ==========================
+     PayPal CART
+  ========================== */
   function cartSnapshotKey(){
     const cart = readCart();
     const cur  = getCurrency();
@@ -1597,26 +1572,13 @@
     }).render("#paypal-cart-container");
   }
 
-  // ==========================================================
-  // Boot (safe even with empty cart)
-  // ==========================================================
+  /* ==========================
+     Boot (safe with empty cart)
+  ========================== */
   updateCartBadge();
   enforceCurrencyByShipping();
   setCurrency(getCurrency());
   renderCart();
-</script>
-
-<script>
-  /* ==========================================================
-     ✅ PayPal GLOBAL STATE (IMPORTANT: declared BEFORE any usage)
-     Fixes: "Cannot access 'ppCartRenderedForKey' before initialization"
-  ========================================================== */
-  let ppReady = false;
-  let ppLoading = false;
-
-  // ✅ these MUST exist before renderCart() touches them
-  let ppCartRenderedForKey = "";
-  let ppOneRenderedForKey  = "";
 </script>
 
 <script>
@@ -1648,8 +1610,7 @@
     };
 
     for (let i=0;i<lines.length;i++){
-      const l0 = lines[i];
-      const line = l0.trimEnd();
+      const line = lines[i].trimEnd();
 
       if (!line.trim()){
         closeList();
@@ -1685,7 +1646,7 @@
 
 <script>
   /* ==========================================================
-     ✅ PayPal ONE item (product card)
+     PayPal ONE item (product card)
   ========================================================== */
 
   function oneSnapshotKey(){
@@ -1708,13 +1669,11 @@
     const note = el("ppOneNote");
     if (!wrap) return;
 
-    // must be visible for clickability
     if (getComputedStyle(wrap).display === "none") return;
 
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
 
-    // ensure SDK ready
     if (!ppReady && !ppLoading){
       try{
         ppLoading = true;
@@ -1805,7 +1764,6 @@
     }).render("#paypal-one-container");
   }
 
-  // re-render one-item paypal when qty changes
   (function wireQtyForPayPalOne(){
     const qtyInput = el("qty");
     if (!qtyInput) return;
@@ -1823,11 +1781,9 @@
 
 <script>
   /* ==========================================================
-     ✅ Carousel + Product load + Add-to-cart + Buy-now
-     Fix: product loads even with empty cart (no PayPal TDZ crash)
+     Carousel + Product load + Add-to-cart + Buy-now
   ========================================================== */
 
-  // Carousel refs
   const hero      = el("hero");
   const heroInner = el("heroInner");
   const carousel  = el("carousel");
@@ -1841,10 +1797,13 @@
 
   function getPinFromUrl(){
     const u = new URL(window.location.href);
+
     const qPin = (u.searchParams.get("pin") || "").trim();
     if (qPin) return qPin;
+
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts[0] === "p" && parts[1]) return decodeURIComponent(parts[1]).trim();
+
     return "";
   }
 
@@ -1989,6 +1948,7 @@
       locked = false;
       pointerId = null;
       carousel.classList.remove("dragging");
+
       if (wasLocked){
         detectIndexFromScroll();
         scrollToIndex(currentIndex);
@@ -2248,7 +2208,6 @@
       }
     };
 
-    // ✅ render one-item PayPal after product is ready
     setTimeout(() => {
       ppOneRenderedForKey = "";
       maybeInitPayPalOne();
@@ -2257,12 +2216,9 @@
     setupParallax();
   }
 
-  // ==========================================================
-  // Init (safe with empty cart)
-  // ==========================================================
   (function init(){
     updateCartBadge();
-    renderCart(); // ✅ no crash now (ppCartRenderedForKey exists)
+    renderCart();              // ✅ safe when empty cart
     enforceCurrencyByShipping();
     setCurrency(getCurrency());
     loadProduct();
