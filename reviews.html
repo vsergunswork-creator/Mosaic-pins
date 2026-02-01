@@ -247,26 +247,6 @@
       transform:none;
     }
 
-    .btn2{
-      border:none; cursor:pointer;
-      padding:12px 14px;
-      border-radius:14px;
-      background:rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      color:var(--text);
-      font-weight:950;
-      transition: background .15s ease, transform .15s ease;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:8px;
-      text-decoration:none;
-      width:100%;
-      min-height:44px;
-    }
-    .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
-    .btn2:disabled{opacity:.45; cursor:not-allowed}
-
     /* ===== Reviews blocks ===== */
     .hero{
       border-radius:18px;
@@ -413,7 +393,7 @@
       font-size:13px;
     }
 
-    /* photos */
+    /* ✅ photos grid inside review */
     .rPhotos{
       margin-top:10px;
       display:flex;
@@ -430,7 +410,7 @@
     }
     .rPhoto img{width:100%;height:100%;object-fit:cover;display:block;}
 
-    /* Footer */
+    /* ✅ Footer */
     .footer{
       margin-top:auto;
       border-top:1px solid var(--line);
@@ -476,7 +456,7 @@
       color:var(--text);
     }
 
-    /* Cart Drawer */
+    /* ✅ Cart Drawer */
     .cartBack{
       position:fixed;
       inset:0;
@@ -600,15 +580,23 @@
       background:rgba(0,0,0,.40);
       padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     }
-    .cartSumRow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--text); font-weight:950;}
+    .cartSumRow{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom:10px; color:var(--text); font-weight:950;
+    }
 
+    /* ==========================
+       ✅ Buttons identical to About
+       ========================== */
     .cartActions{display:grid; gap:10px;}
+
     .actionRow{
       display:grid;
       grid-template-columns:1fr 1fr 1fr;
       gap:10px;
       align-items:stretch;
     }
+
     .actionBtn{
       width:100%;
       min-height:44px;
@@ -619,20 +607,42 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      overflow:visible; /* important: don't block PayPal iframe clicks */
+      overflow:hidden; /* like About */
     }
 
-    .ppWrap{
-      display:none;
-      padding:0;
+    .btn2{
+      border:none; cursor:pointer;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--text);
+      font-weight:950;
+      transition: background .15s ease, transform .15s ease;
+      white-space:nowrap;
+
+      width:100%;
+      min-height:44px;
+      height:44px;
+      padding:0 12px;
+      line-height:44px;
+      border-radius:12px;
+
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-decoration:none;
+      overflow:hidden;
     }
+    .btn2:hover{background:rgba(255,255,255,.10); transform: translateY(-1px)}
+    .btn2:disabled{opacity:.45; cursor:not-allowed}
+
+    .ppWrap{display:none; padding:0;}
     #paypal-button-container{
       width:100%;
       display:flex;
       align-items:center;
       justify-content:center;
-      pointer-events:auto;
     }
+
     .ppNote{
       color:var(--muted);
       font-size:12px;
@@ -645,8 +655,10 @@
     @media (max-width:520px){
       .actionRow{grid-template-columns:1fr;}
       .actionBtn{height:46px; min-height:46px; line-height:46px;}
+      .btn2{height:46px; min-height:46px; line-height:46px;}
     }
 
+    /* ✅ Checkout green (only this button) */
     #cartCheckout{
       background: linear-gradient(135deg,#22c55e,#16a34a);
       color:#07110b;
@@ -664,7 +676,7 @@
       transform:none;
     }
 
-    /* Lightbox (review photos) */
+    /* ✅ Lightbox (photos) */
     .lightboxBack{
       position:fixed;
       inset:0;
@@ -732,7 +744,7 @@
       background: rgba(0,0,0,.35);
     }
 
-    /* Toast */
+    /* ✅ Toast */
     .toast{
       position: fixed;
       right: 16px;
@@ -752,8 +764,10 @@
     .toast.show{display:block}
     .toast small{color:var(--muted)}
 
+    /* ✅ Back to shop ONLY on mobile */
     .onlyMobile{display:none;}
 
+    /* ===== Responsive ===== */
     @media (max-width:980px){
       body{overflow:auto}
       .app{grid-template-columns:1fr; height:auto; min-height:100vh}
@@ -773,6 +787,7 @@
       .footerRow{justify-content:center;}
       .footerLinks{justify-content:center;}
 
+      /* ✅ remove heavy blur on mobile (less lag) */
       .cartDrawer,
       .cartBack,
       .toast,
@@ -941,19 +956,7 @@
     </main>
   </div>
 
-  <!-- Lightbox (review photos) -->
-  <div class="lightboxBack" id="lightboxBack"></div>
-  <div class="lightbox" id="lightbox">
-    <div class="lightboxCard">
-      <div class="lbTop">
-        <div class="lbPill" id="lbCounter">Photo</div>
-        <button class="lbClose" id="lbClose" type="button" aria-label="Close">✕</button>
-      </div>
-      <img class="lightboxImg" id="lbImg" alt="Review photo" />
-    </div>
-  </div>
-
-  <!-- Cart -->
+  <!-- ✅ CART (drawer) -->
   <div class="cartBack" id="cartBack"></div>
   <div class="cartDrawer" id="cartDrawer">
     <div class="cartHead">
@@ -985,12 +988,24 @@
     </div>
   </div>
 
+  <!-- ✅ LIGHTBOX (photos) -->
+  <div class="lightboxBack" id="lightboxBack"></div>
+  <div class="lightbox" id="lightbox">
+    <div class="lightboxCard">
+      <div class="lbTop">
+        <div class="lbPill" id="lbCounter">Photo</div>
+        <button class="lbClose" id="lbClose" type="button" aria-label="Close">✕</button>
+      </div>
+      <img class="lightboxImg" id="lbImg" alt="Photo large" />
+    </div>
+  </div>
+
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Notice</div>
     <small id="toastMsg">—</small>
   </div>
 
-  <!-- PayPal SDK placeholder (same approach as about.html) -->
+  <!-- PayPal SDK placeholder -->
   <script id="pp-sdk" data-loaded="0"></script>
 
 <script>
@@ -1001,11 +1016,6 @@
 
   const API_REVIEWS  = "/api/reviews";
   const API_CHECKOUT = "/api/checkout";
-
-  // ✅ PayPal endpoints (same as about.html)
-  const API_PP_CONFIG  = "/api/paypal/config";
-  const API_PP_CREATE  = "/api/paypal/create-order";
-  const API_PP_CAPTURE = "/api/paypal/capture";
 
   const CART_KEY     = "mp_cart";
   const CURRENCY_KEY = "mp_currency";
@@ -1033,7 +1043,9 @@
     }[m]));
   }
 
+  // ======================
   // Toast
+  // ======================
   const toastEl    = el("toast");
   const toastTitle = el("toastTitle");
   const toastMsg   = el("toastMsg");
@@ -1047,13 +1059,16 @@
     toastEl.__t = setTimeout(()=> toastEl.classList.remove("show"), 2600);
   }
 
-  // Shipping + currency
+  // ==========================
+  // Shipping + Currency (same rules)
+  // ==========================
   const elShipCountry = el("shipCountry");
 
   function isMobile(){
     return window.matchMedia && window.matchMedia("(max-width: 980px)").matches;
   }
 
+  // ✅ hard rule: US/CA => USD, DE/EU => EUR
   function mustCurrencyByShip(ship){
     ship = String(ship || "DE").toUpperCase();
     return (ship === "US" || ship === "CA") ? "USD" : "EUR";
@@ -1082,9 +1097,11 @@
 
   (function restoreShippingAndCurrency(){
     try{
+      // restore shipping
       const ship = (localStorage.getItem(SHIP_KEY) || "").toUpperCase();
       if (ship && ["DE","EU","US","CA"].includes(ship) && elShipCountry) elShipCountry.value = ship;
 
+      // first time guess shipping if not set
       if (!localStorage.getItem(SHIP_KEY) && elShipCountry){
         let guess = "DE";
         try{
@@ -1099,22 +1116,38 @@
         try{ localStorage.setItem(SHIP_KEY, guess); }catch(_){}
       }
 
+      // enforce currency once
       enforceCurrencyByShipping();
       setCurrency(getCurrency());
     }catch(_){}
   })();
 
+  if (elShipCountry){
+    elShipCountry.addEventListener("change", () => {
+      try{ localStorage.setItem(SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
+      enforceCurrencyByShipping();
+
+      // ✅ IMPORTANT: on ship change re-render cart + reset paypal
+      renderCart();
+      resetPayPalUI();
+
+      toast("Shipping", `Destination: ${elShipCountry.value}`);
+    });
+  }
+
   // ✅ Map UI selection -> ISO2 for API
-  // EU must send a real EU ISO2 (any EU) so backend detectZone returns EU bucket
+  // IMPORTANT: EU must send a real EU ISO2 code so backend detectZone() returns "EU"
   function getShippingCountryISO2(){
     const v = String(elShipCountry?.value || "DE").toUpperCase();
     if (v === "US") return "US";
     if (v === "CA") return "CA";
-    if (v === "EU") return "FR";
+    if (v === "EU") return "FR"; // any EU ISO2 works
     return "DE";
   }
 
-  // Cart UI refs
+  // ==========================
+  // CART (Drawer)
+  // ==========================
   const elCartBadge    = el("cartBadge");
   const elOpenCart     = el("openCart");
   const elCartBack     = el("cartBack");
@@ -1125,9 +1158,11 @@
   const elCartCheckout = el("cartCheckout");
   const elCartClear    = el("cartClear");
 
-  // PayPal UI refs
+  // paypal ui refs
   const elPpWrap = el("ppWrap");
   const elPpNote = el("ppNote");
+  const elPpBox  = el("paypal-button-container");
+  const elPpSdk  = el("pp-sdk");
 
   function updateCartBadge(){
     if (elCartBadge) elCartBadge.textContent = String(cartCount());
@@ -1141,10 +1176,9 @@
 
     renderCart();
 
-    // ✅ ensure drawer is visible before PayPal render
+    // ✅ delay init: drawer must be visible before PayPal renders
     setTimeout(() => {
       maybeInitPayPal();
-      renderPayPalButtonsIfNeeded();
     }, 180);
   }
 
@@ -1158,243 +1192,15 @@
   elCloseCart?.addEventListener("click", closeCart);
   elCartBack?.addEventListener("click", closeCart);
 
-  // ==========================
-  // ✅ PayPal (stable like about.html)
-  // ==========================
-  let ppReady = false;
-  let ppLoading = false;
-  let ppRenderedForKey = "";
-
-  function cartSnapshotKey(){
-    const cart = readCart();
-    const cur = getCurrency();
-    const ship = String(elShipCountry?.value || "DE").toUpperCase();
-    const itemsKey = cart.map(it => `${String(it.pin)}:${Number(it.qty)||1}`).sort().join("|");
-    return `${cur}|${ship}|${itemsKey}`;
-  }
-
-  function showPayPalNote(msg){
-    if (!elPpNote) return;
-    elPpNote.textContent = String(msg || "");
-    elPpNote.style.display = msg ? "block" : "none";
-  }
-
-  async function fetchPayPalClientId(){
-    const r = await fetch(API_PP_CONFIG, { method:"GET", cache:"no-store" });
-    const j = await r.json().catch(()=>null);
-    if (!r.ok || !j?.clientId) throw new Error(j?.error || "PayPal config error");
-    return String(j.clientId);
-  }
-
-  function clearPayPalButtons(){
-    const wrap = document.getElementById("paypal-button-container");
-    if (wrap) wrap.innerHTML = "";
-  }
-
-  function resetPayPalHard(){
-    ppReady = false;
-    ppLoading = false;
-    ppRenderedForKey = "";
-
-    try{ clearPayPalButtons(); }catch(_){}
-    try{ showPayPalNote(""); }catch(_){}
-
-    // remove placeholder script element (we reuse #pp-sdk as host)
-    try{
-      const old = document.getElementById("pp-sdk");
-      if (old && old.parentNode) old.parentNode.removeChild(old);
-    }catch(_){}
-
-    try{ delete window.paypal; }catch(_){}
-    try{ window.paypal = undefined; }catch(_){}
-
-    // recreate placeholder
-    try{
-      const s = document.createElement("script");
-      s.id = "pp-sdk";
-      s.setAttribute("data-loaded","0");
-      document.body.appendChild(s);
-    }catch(_){}
-  }
-
-  function loadPayPalSDK(clientId){
-    return new Promise((resolve, reject) => {
-      try{
-        if (window.paypal && typeof window.paypal.Buttons === "function"){
-          resolve(true);
-          return;
-        }
-
-        const s = document.getElementById("pp-sdk");
-        if (!s) throw new Error("pp-sdk tag missing");
-
-        const cur = getCurrency();
-
-        const url =
-          "https://www.paypal.com/sdk/js" +
-          `?client-id=${encodeURIComponent(clientId)}` +
-          `&currency=${encodeURIComponent(cur)}` +
-          `&intent=capture` +
-          `&components=buttons` +
-          `&disable-funding=card,sepa,ideal,bancontact,sofort,giropay,eps,mybank,p24,venmo`;
-
-        if (s.src && s.src === url){
-          const t0 = Date.now();
-          const tick = () => {
-            if (window.paypal && typeof window.paypal.Buttons === "function") return resolve(true);
-            if (Date.now() - t0 > 12000) return reject(new Error("PayPal SDK timeout"));
-            setTimeout(tick, 120);
-          };
-          tick();
-          return;
-        }
-
-        if (s.src && s.src !== url){
-          resetPayPalHard();
-          return loadPayPalSDK(clientId).then(resolve).catch(reject);
-        }
-
-        s.onload = () => resolve(true);
-        s.onerror = () => reject(new Error("PayPal SDK failed to load"));
-        s.src = url;
-        s.setAttribute("data-loaded","1");
-      }catch(e){
-        reject(e);
-      }
-    });
-  }
-
-  async function maybeInitPayPal(){
-    try{
-      const cartOpen = elCartDrawer?.classList.contains("show");
-      const cart = readCart();
-
-      if (!cartOpen) return;
-      if (!cart.length){
-        if (elPpWrap) elPpWrap.style.display = "none";
-        return;
-      }
-
-      if (elPpWrap) elPpWrap.style.display = "flex";
-
-      enforceCurrencyByShipping();
-      setCurrency(getCurrency());
-
-      if (ppReady){
-        renderPayPalButtonsIfNeeded();
-        return;
-      }
-      if (ppLoading) return;
-
-      ppLoading = true;
-      showPayPalNote("PayPal is loading…");
-
-      const clientId = await fetchPayPalClientId();
-      await loadPayPalSDK(clientId);
-
-      ppReady = true;
-      ppLoading = false;
-
-      showPayPalNote("");
-      renderPayPalButtonsIfNeeded();
-    }catch(e){
-      ppLoading = false;
-      ppReady = false;
-      showPayPalNote(`PayPal unavailable: ${String(e?.message || e)}`);
-    }
-  }
-
-  function renderPayPalButtonsIfNeeded(){
-    if (!ppReady) return;
-    if (!window.paypal || typeof window.paypal.Buttons !== "function") return;
-
+  // ✅ ESC closes cart + photo (same)
+  window.addEventListener("keydown", (e)=>{
+    if (e.key !== "Escape") return;
+    const lbOpen = el("lightbox")?.classList.contains("show");
     const cartOpen = elCartDrawer?.classList.contains("show");
-    if (!cartOpen) return;
+    if (cartOpen && !lbOpen) closeCart();
+    closePhoto();
+  });
 
-    const cart = readCart();
-    if (!cart.length){
-      clearPayPalButtons();
-      ppRenderedForKey = "";
-      return;
-    }
-
-    const key = cartSnapshotKey();
-    if (key === ppRenderedForKey) return;
-
-    clearPayPalButtons();
-    ppRenderedForKey = key;
-
-    window.paypal.Buttons({
-      style: { layout:"vertical", shape:"rect", label:"paypal", height: 44 },
-
-      createOrder: async () => {
-        const cartNow = readCart();
-        if (!cartNow.length) throw new Error("Cart is empty");
-
-        enforceCurrencyByShipping();
-        setCurrency(getCurrency());
-
-        const payload = {
-          currency: getCurrency(),
-          shippingCountry: getShippingCountryISO2(),
-          items: cartNow.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
-        };
-
-        const r = await fetch(API_PP_CREATE, {
-          method: "POST",
-          headers: { "Content-Type":"application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await r.json().catch(()=>({}));
-        if (!r.ok || !data?.id) throw new Error(data?.error || "PayPal create order failed");
-        return data.id;
-      },
-
-      onApprove: async (data) => {
-        try{
-          const orderID = data?.orderID;
-          if (!orderID) throw new Error("Missing orderID");
-
-          const r = await fetch(API_PP_CAPTURE, {
-            method: "POST",
-            headers: { "Content-Type":"application/json" },
-            body: JSON.stringify({ orderID }),
-          });
-
-          const j = await r.json().catch(()=>({}));
-          if (!r.ok || !j?.ok) throw new Error(j?.error || "Capture failed");
-
-          writeCart([]);
-          updateCartBadge();
-          renderCart();
-          toast("PayPal", "Payment success ✅");
-          closeCart();
-        }catch(e){
-          toast("PayPal", String(e?.message || e));
-        }
-      },
-
-      onCancel: () => toast("PayPal", "Canceled"),
-      onError: (err) => toast("PayPal", String(err?.message || err || "PayPal error")),
-    }).render("#paypal-button-container");
-  }
-
-  // Shipping change -> currency + hard reset PayPal (currency may change)
-  if (elShipCountry){
-    elShipCountry.addEventListener("change", () => {
-      try{ localStorage.setItem(SHIP_KEY, String(elShipCountry.value || "DE").toUpperCase()); }catch(_){}
-      enforceCurrencyByShipping();
-      setCurrency(getCurrency());
-
-      resetPayPalHard();     // ✅ important: currency-dependent SDK
-      renderCart();
-
-      toast("Shipping", `Destination: ${elShipCountry.value}`);
-    });
-  }
-
-  // Cart logic
   function setCartQty(pin, qty){
     const cart = readCart();
     const idx = cart.findIndex(x => String(x.pin) === String(pin));
@@ -1410,9 +1216,7 @@
     writeCart(cart);
     updateCartBadge();
     renderCart();
-
-    ppRenderedForKey = "";
-    renderPayPalButtonsIfNeeded();
+    resetPayPalUI();
   }
 
   function removeFromCart(pin){
@@ -1420,18 +1224,14 @@
     writeCart(cart);
     updateCartBadge();
     renderCart();
-
-    ppRenderedForKey = "";
-    renderPayPalButtonsIfNeeded();
+    resetPayPalUI();
   }
 
   function clearCart(){
     writeCart([]);
     updateCartBadge();
     renderCart();
-
-    ppRenderedForKey = "";
-    renderPayPalButtonsIfNeeded();
+    resetPayPalUI();
   }
 
   function cartTotal(){
@@ -1457,17 +1257,16 @@
     const cart = readCart();
     const cur = getCurrency();
 
-    // show/hide PayPal wrapper + note
+    // paypal visible only if cart has items
     if (elPpWrap) elPpWrap.style.display = cart.length ? "flex" : "none";
-    showPayPalNote(cart.length ? (ppReady ? "" : "PayPal is loading…") : "");
+    if (elPpNote) elPpNote.style.display = cart.length ? "block" : "none";
 
     if (!cart.length){
       elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
       elCartTotal.textContent = "—";
       elCartCheckout.disabled = true;
       elCartCheckout.textContent = "Checkout";
-      clearPayPalButtons();
-      ppRenderedForKey = "";
+      if (elPpNote) elPpNote.textContent = "";
       return;
     }
 
@@ -1524,16 +1323,12 @@
     const sum = cartTotal();
     elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
 
-    // if cart is open, ensure PayPal is ready & rendered
-    setTimeout(() => {
-      maybeInitPayPal();
-      renderPayPalButtonsIfNeeded();
-    }, 0);
+    // ✅ if drawer is open and has items, init paypal after render
+    setTimeout(() => maybeInitPayPal(), 0);
   }
 
   elCartClear?.addEventListener("click", () => { clearCart(); toast("Cart", "Cleared"); });
 
-  // Stripe checkout (unchanged)
   async function startCheckout(){
     const cart = readCart();
     if (!cart.length){ toast("Checkout", "Cart is empty"); return; }
@@ -1541,7 +1336,6 @@
     try{ localStorage.setItem(SHIP_KEY, String(elShipCountry?.value || "DE").toUpperCase()); }catch(_){}
 
     enforceCurrencyByShipping();
-    setCurrency(getCurrency());
 
     const payload = {
       currency: getCurrency(),
@@ -1577,39 +1371,157 @@
   }
   elCartCheckout?.addEventListener("click", startCheckout);
 
-  // Lightbox (photos)
-  const lbBack    = el("lightboxBack");
-  const lb        = el("lightbox");
-  const lbImg     = el("lbImg");
-  const lbClose   = el("lbClose");
-  const lbCounter = el("lbCounter");
+  // init cart
+  updateCartBadge();
+  renderCart();
 
-  function openPhoto(url){
-    if (!lbBack || !lb || !lbImg) return;
-    lbImg.src = url;
-    if (lbCounter) lbCounter.textContent = "Photo";
-    lbBack.classList.add("show");
-    lb.classList.add("show");
-    if (!isMobile()) document.body.style.overflow = "hidden";
-  }
-  function closePhoto(){
-    lbBack?.classList.remove("show");
-    lb?.classList.remove("show");
-    document.body.style.overflow = "";
-  }
-  lbClose?.addEventListener("click", closePhoto);
-  lbBack?.addEventListener("click", closePhoto);
+  // ==========================
+  // ✅ PayPal
+  // ==========================
+  let paypalReady = false;
+  let paypalInitAttempted = false;
 
-  // ESC closes cart or photo
-  window.addEventListener("keydown", (e)=>{
-    if (e.key !== "Escape") return;
-    const lbOpen = lb?.classList.contains("show");
+  function resetPayPalUI(){
+    paypalReady = false;
+    paypalInitAttempted = false;
+
+    if (elPpBox) elPpBox.innerHTML = "";
+    if (elPpSdk) elPpSdk.setAttribute("data-loaded","0");
+    if (elPpNote){
+      const cart = readCart();
+      elPpNote.textContent = cart.length ? "PayPal is loading…" : "";
+      elPpNote.style.display = cart.length ? "block" : "none";
+    }
+    // Remove existing sdk script if added
+    const old = document.getElementById("paypal-sdk");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+
+  async function loadPayPalSDK(currency){
+    currency = String(currency || "EUR").toUpperCase();
+
+    const existing = document.getElementById("paypal-sdk");
+    if (existing) return true;
+
+    try{
+      const r = await fetch("/api/paypal-client", { cache:"no-store" });
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data?.clientId) throw new Error(data?.error || "PayPal clientId missing");
+
+      const s = document.createElement("script");
+      s.id = "paypal-sdk";
+      s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(data.clientId)}&currency=${encodeURIComponent(currency)}&intent=capture`;
+      s.async = true;
+
+      const ok = await new Promise((res) => {
+        s.onload = () => res(true);
+        s.onerror = () => res(false);
+        document.head.appendChild(s);
+      });
+
+      if (!ok) throw new Error("PayPal SDK failed to load");
+
+      elPpSdk?.setAttribute("data-loaded","1");
+      return true;
+    }catch(e){
+      if (elPpNote) elPpNote.textContent = "PayPal unavailable";
+      toast("PayPal", String(e?.message || e));
+      return false;
+    }
+  }
+
+  function maybeInitPayPal(){
     const cartOpen = elCartDrawer?.classList.contains("show");
-    if (lbOpen) closePhoto();
-    else if (cartOpen) closeCart();
-  });
+    const cart = readCart();
 
-  // Active state (desktop sidebar)
+    if (!cartOpen) return;
+    if (!cart.length) return;
+    if (paypalReady) return;
+    if (paypalInitAttempted) return;
+
+    // ensure wrapper is visible
+    if (elPpWrap && getComputedStyle(elPpWrap).display === "none") return;
+
+    paypalInitAttempted = true;
+
+    const cur = getCurrency();
+    if (elPpNote){ elPpNote.textContent = "PayPal is loading…"; elPpNote.style.display="block"; }
+
+    loadPayPalSDK(cur).then((ok)=>{
+      if (!ok) return;
+      if (!window.paypal || !elPpBox) {
+        if (elPpNote) elPpNote.textContent = "PayPal unavailable";
+        return;
+      }
+
+      try{
+        // clear container before render
+        elPpBox.innerHTML = "";
+
+        window.paypal.Buttons({
+          style: { layout:"horizontal", tagline:false, height:44 },
+
+          createOrder: async () => {
+            enforceCurrencyByShipping();
+
+            const payload = {
+              currency: getCurrency(),
+              shippingCountry: getShippingCountryISO2(),
+              items: readCart().map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+              provider: "paypal"
+            };
+
+            const r = await fetch(API_CHECKOUT, {
+              method:"POST",
+              headers:{ "Content-Type":"application/json" },
+              body: JSON.stringify(payload),
+            });
+
+            const data = await r.json().catch(()=>({}));
+            if (!r.ok || !data?.ok || !data?.orderId){
+              throw new Error(data?.error || "Failed to create PayPal order");
+            }
+            return data.orderId;
+          },
+
+          onApprove: async (data) => {
+            try{
+              const r = await fetch("/api/paypal-capture", {
+                method:"POST",
+                headers:{ "Content-Type":"application/json" },
+                body: JSON.stringify({ orderId: data.orderID }),
+              });
+              const out = await r.json().catch(()=>({}));
+              if (!r.ok || !out?.ok){
+                throw new Error(out?.error || "Payment capture failed");
+              }
+
+              toast("PayPal", "Paid ✅ Thank you!");
+              clearCart();
+              closeCart();
+
+              if (out?.redirectUrl) window.location.href = out.redirectUrl;
+            }catch(e){
+              toast("PayPal", String(e?.message || e));
+            }
+          },
+
+          onCancel: () => toast("PayPal", "Cancelled"),
+          onError: (err) => toast("PayPal", String(err?.message || err || "PayPal error"))
+        }).render("#paypal-button-container");
+
+        paypalReady = true;
+        if (elPpNote) elPpNote.style.display = "none";
+      }catch(e){
+        if (elPpNote) elPpNote.textContent = "PayPal unavailable";
+        toast("PayPal", String(e?.message || e));
+      }
+    });
+  }
+
+  // ==========================
+  // ✅ Active state (DESKTOP SIDEBAR ONLY)
+  // ==========================
   (function navActive(){
     const path = (window.location.pathname || "/").toLowerCase();
 
@@ -1625,7 +1537,9 @@
     else set("navShop");
   })();
 
+  // ==========================
   // Reviews helpers
+  // ==========================
   function starsText(r){
     r = Number(r)||0;
     let s = "";
@@ -1640,7 +1554,7 @@
     return div;
   }
 
-  // Rating picker
+  // rating picker
   const starsPick  = el("starsPick");
   const ratingText = el("ratingText");
   let rating = 5;
@@ -1665,10 +1579,37 @@
   }
   renderPicker();
 
+  // ==========================
+  // Lightbox (photos)
+  // ==========================
+  const lbBack    = el("lightboxBack");
+  const lb        = el("lightbox");
+  const lbImg     = el("lbImg");
+  const lbClose   = el("lbClose");
+  const lbCounter = el("lbCounter");
+
+  function openPhoto(url){
+    if (!lbBack || !lb || !lbImg) return;
+    lbImg.src = url;
+    if (lbCounter) lbCounter.textContent = "Photo";
+    lbBack.classList.add("show");
+    lb.classList.add("show");
+    if (!isMobile()) document.body.style.overflow = "hidden";
+  }
+  function closePhoto(){
+    lbBack?.classList.remove("show");
+    lb?.classList.remove("show");
+    document.body.style.overflow = "";
+  }
+  lbClose?.addEventListener("click", closePhoto);
+  lbBack?.addEventListener("click", closePhoto);
+
+  // ==========================
   // Reviews rendering
-  const elList    = el("list");
-  const heroMeta  = el("heroMeta");
-  const countHint = el("countHint");
+  // ==========================
+  const elList   = el("list");
+  const heroMeta = el("heroMeta");
+  const countHint= el("countHint");
 
   const avgNum   = el("avgNum");
   const avgStars = el("avgStars");
@@ -1720,6 +1661,7 @@
     wrap.appendChild(top);
     wrap.appendChild(text);
 
+    // photos (if API returns "photos": ["url", ...])
     if (Array.isArray(r.photos) && r.photos.length){
       const ph = document.createElement("div");
       ph.className = "rPhotos";
@@ -1790,7 +1732,9 @@
     }
   }
 
+  // ==========================
   // Submit review
+  // ==========================
   const elName    = el("name");
   const elCountry = el("country");
   const elText    = el("text");
@@ -1847,17 +1791,12 @@
   }
 
   elSend?.addEventListener("click", sendReview);
+
   elText?.addEventListener("keydown", (e)=>{
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendReview();
   });
 
-  // Init
-  enforceCurrencyByShipping();
-  setCurrency(getCurrency());
-
-  updateCartBadge();
-  renderCart();
-
+  // load
   loadReviews();
 </script>
 </body>
