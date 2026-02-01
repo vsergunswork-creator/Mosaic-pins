@@ -859,25 +859,19 @@
         <div id="cartTotal">—</div>
       </div>
 
-      <div class="cartActions">
-
-        <!-- ✅ NEW: PayPal + Stripe Checkout одинакового размера -->
-        <div class="payRow" id="payRow">
-          <!-- PayPal (одна кнопка PayPal без доп. способов) -->
-          <div class="ppWrap" id="ppWrap" aria-label="PayPal payment">
-            <div id="paypal-button-container"></div>
-            <div class="ppNote" id="ppNote">PayPal is loading…</div>
-          </div>
-
-          <!-- Stripe checkout -->
-          <button class="btn" id="cartCheckout" type="button">Checkout</button>
-        </div>
-
-        <!-- ✅ НЕ УДАЛЯЕМ: очистка корзины -->
-        <button class="btn2" id="cartClear" type="button">Clear cart</button>
-      </div>
+<div class="cartActions">
+  <div class="payRow">
+    <div class="ppWrap" id="ppWrap">
+      <div id="paypal-button-container"></div>
+      <div class="ppNote" id="ppNote">PayPal is loading…</div>
     </div>
+
+    <button class="btn" id="cartCheckout" type="button">Checkout</button>
   </div>
+
+  <button class="btn2" id="cartClear" type="button">Clear cart</button>
+</div>
+
 
   <div class="toast" id="toast">
     <div style="font-weight:800" id="toastTitle">Notice</div>
