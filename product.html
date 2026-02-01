@@ -696,6 +696,27 @@
     @media (prefers-reduced-motion: reduce){
       .hero-inner{will-change:auto}
     }
+
+/* ✅ GREEN CHECKOUT BUTTON (Cart) — identical to About */
+#cartCheckout{
+  background: linear-gradient(135deg,#22c55e,#16a34a);
+  color:#07110b;
+  border:none;
+  box-shadow: 0 10px 18px rgba(34,197,94,.18);
+}
+
+#cartCheckout:hover{
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+#cartCheckout:disabled{
+  background: rgba(255,255,255,.10);
+  color: rgba(255,255,255,.55);
+  box-shadow:none;
+  transform:none;
+}
+   
   </style>
 </head>
 
