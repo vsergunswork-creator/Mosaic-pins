@@ -1239,11 +1239,19 @@
     const cart = readCart();
     const cur  = getCurrency();
 
-    if (elPpWrap) elPpWrap.style.display = cart.length ? "flex" : "none";
-    if (elPpNote){
-      elPpNote.style.display = cart.length ? "block" : "none";
-      elPpNote.textContent = cart.length ? "PayPal is loading…" : "";
-    }
+if (elPpWrap) elPpWrap.style.display = cart.length ? "flex" : "none";
+if (elPpNote){
+  if (!cart.length){
+    elPpNote.style.display = "none";
+    elPpNote.textContent = "";
+  } else {
+    // ✅ показываем только если PayPal реально грузится или ещё не готов
+    const shouldShow = ppLoading || !ppReady;
+    elPpNote.style.display = shouldShow ? "block" : "none";
+    elPpNote.textContent   = shouldShow ? "PayPal is loading…" : "";
+  }
+}
+
 
     elCartCheckout.disabled = !cart.length;
     elCartClear.disabled    = !cart.length;
