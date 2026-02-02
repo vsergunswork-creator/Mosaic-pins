@@ -287,7 +287,7 @@
       text-shadow: 0 10px 26px rgba(0,0,0,.45);
     }
 
-    .aboutWrap{
+.aboutWrap{
       margin-top: 14px;
       display:grid;
       grid-template-columns: 1.2fr .8fr;
@@ -331,7 +331,7 @@
     }
     .hint{
       font-size: 12px;
-      color: var(--muted);
+      color:var(--muted);
       opacity:.9;
     }
 
@@ -594,7 +594,7 @@
       .lightboxImg{height: 80vh;}
     }
 
-    /* ==========================
+/* ==========================
        ✅ CART DRAWER (обновлено как в index)
     ========================== */
     .cartBack{
@@ -1272,6 +1272,10 @@
   let ppLoading = false;
   let ppRenderedForKey = "";
 
+  /* ✅ FIX race: keep instance + global render sequence */
+  let ppButtons = null;
+  let ppRenderSeq = 0;
+
   function cartSnapshotKey(){
     const cart = readCart();
     const cur = getCurrency();
@@ -1293,7 +1297,17 @@
     return String(j.clientId);
   }
 
+  function safeClose(btns){
+    try{
+      if (btns && typeof btns.close === "function") btns.close();
+    }catch(_){}
+  }
+
   function clearPayPalButtons(){
+    // ✅ FIX: close old instance before wiping DOM
+    safeClose(ppButtons);
+    ppButtons = null;
+
     const wrap = document.getElementById("paypal-button-container");
     if (wrap) wrap.innerHTML = "";
   }
@@ -1303,6 +1317,10 @@
     ppReady = false;
     ppLoading = false;
     ppRenderedForKey = "";
+
+    // bump seq to cancel any pending render microtasks
+    ppRenderSeq++;
+
     try{ clearPayPalButtons(); }catch(_){}
     try{ showPayPalNote(""); }catch(_){}
 
@@ -1422,62 +1440,86 @@
     const key = cartSnapshotKey();
     if (key === ppRenderedForKey) return;
 
-    clearPayPalButtons();
     ppRenderedForKey = key;
 
-    window.paypal.Buttons({
-      style: { layout:"vertical", shape:"rect", label:"paypal", height: 44 },
+    /* ✅ FIX race: seq + close + render in microtask */
+    const mySeq = ++ppRenderSeq;
 
-      createOrder: async () => {
-        const cartNow = readCart();
-        if (!cartNow.length) throw new Error("Cart is empty");
+    safeClose(ppButtons);
+    ppButtons = null;
 
-        enforceCurrencyByShipping();
-        setCurrency(getCurrency());
+    Promise.resolve().then(() => {
+      if (mySeq !== ppRenderSeq) return;
 
-        const payload = {
-          currency: getCurrency(),
-          shippingCountry: getShippingCountryISO2(),
-          items: cartNow.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
-        };
+      const cartNow = readCart();
+      if (!cartNow.length){
+        clearPayPalButtons();
+        ppRenderedForKey = "";
+        return;
+      }
 
-        const r = await fetch(API_PP_CREATE, {
-          method: "POST",
-          headers: { "Content-Type":"application/json" },
-          body: JSON.stringify(payload),
-        });
+      const wrap = document.getElementById("paypal-button-container");
+      if (!wrap) return;
+      wrap.innerHTML = "";
 
-        const data = await r.json().catch(()=>({}));
-        if (!r.ok || !data?.id) throw new Error(data?.error || "PayPal create order failed");
-        return data.id;
-      },
+      ppButtons = window.paypal.Buttons({
+        style: { layout:"vertical", shape:"rect", label:"paypal", height: 44 },
 
-      onApprove: async (data) => {
-        try{
-          const orderID = data?.orderID;
-          if (!orderID) throw new Error("Missing orderID");
+        createOrder: async () => {
+          const cartNow2 = readCart();
+          if (!cartNow2.length) throw new Error("Cart is empty");
 
-          const r = await fetch(API_PP_CAPTURE, {
+          enforceCurrencyByShipping();
+          setCurrency(getCurrency());
+
+          const payload = {
+            currency: getCurrency(),
+            shippingCountry: getShippingCountryISO2(),
+            items: cartNow2.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
+          };
+
+          const r = await fetch(API_PP_CREATE, {
             method: "POST",
             headers: { "Content-Type":"application/json" },
-            body: JSON.stringify({ orderID }),
+            body: JSON.stringify(payload),
           });
 
-          const j = await r.json().catch(()=>({}));
-          if (!r.ok || !j?.ok) throw new Error(j?.error || "Capture failed");
+          const data = await r.json().catch(()=>({}));
+          if (!r.ok || !data?.id) throw new Error(data?.error || "PayPal create order failed");
+          return data.id;
+        },
 
-          writeCart([]);
-          updateCartBadge();
-          renderCart();
-          toast("PayPal", "Payment success ✅");
-        }catch(e){
-          toast("PayPal", String(e?.message || e));
-        }
-      },
+        onApprove: async (data) => {
+          try{
+            const orderID = data?.orderID;
+            if (!orderID) throw new Error("Missing orderID");
 
-      onCancel: () => toast("PayPal", "Canceled"),
-      onError: (err) => toast("PayPal", String(err?.message || err || "PayPal error")),
-    }).render("#paypal-button-container");
+            const r = await fetch(API_PP_CAPTURE, {
+              method: "POST",
+              headers: { "Content-Type":"application/json" },
+              body: JSON.stringify({ orderID }),
+            });
+
+            const j = await r.json().catch(()=>({}));
+            if (!r.ok || !j?.ok) throw new Error(j?.error || "Capture failed");
+
+            writeCart([]);
+            updateCartBadge();
+            renderCart();
+            toast("PayPal", "Payment success ✅");
+          }catch(e){
+            toast("PayPal", String(e?.message || e));
+          }
+        },
+
+        onCancel: () => toast("PayPal", "Canceled"),
+        onError: (err) => toast("PayPal", String(err?.message || err || "PayPal error")),
+      });
+
+      try{
+        ppButtons.render("#paypal-button-container");
+      }catch(_){}
+    });
   }
 
   // ==========================
@@ -1741,7 +1783,7 @@
     }
   }
 
-function buildCarousel(){
+  function buildCarousel(){
     track.innerHTML = "";
     dots.innerHTML = "";
     index = Math.min(index, Math.max(0, gallery.length - 1));
@@ -1929,7 +1971,7 @@ function buildCarousel(){
   // init
   loadAbout();
 
-// init
+  // init (как было у Вас)
   updateCartBadge();
   renderCart();
   loadAbout();
