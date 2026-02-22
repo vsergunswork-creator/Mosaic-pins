@@ -2,6 +2,11 @@
 // GET /api/content?key=about
 // Reads content from Airtable table (default: SiteContent)
 
+import { cacheGet, cacheSet } from "./_cache.js";
+
+const TTL_SEC = 3600;                 // ✅ 1 hour cache
+const FALLBACK_TTL_SEC = 7 * 86400;   // ✅ keep last good for a week
+
 export async function onRequestGet({ env, request }) {
   try {
     // Prefer a dedicated token for content (safe), fallback to main token
@@ -17,11 +22,36 @@ export async function onRequestGet({ env, request }) {
     const key = String(url.searchParams.get("key") || "").trim();
     if (!key) return json({ error: "Missing key" }, 400);
 
+    // ✅ cache keys per content key + per table/base (на всякий)
+    const CACHE_KEY = `cache:content:v1:${baseId}:${table}:${key}`;
+    const FALLBACK_KEY = `cache:content:last_good:${baseId}:${table}:${key}`;
+
+    // ✅ 1) return cached instantly
+    const cached = await cacheGet(env, CACHE_KEY);
+    if (cached) {
+      return new Response(cached, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+          "X-Cache": "HIT",
+        },
+      });
+    }
+
     const formula = `AND({Key}="${escapeForFormula(key)}", {Active}=TRUE())`;
 
     const apiUrl = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
     apiUrl.searchParams.set("maxRecords", "1");
     apiUrl.searchParams.set("filterByFormula", formula);
+
+    // Optional: limit fields to reduce payload (safe)
+    apiUrl.searchParams.append("fields[]", "Key");
+    apiUrl.searchParams.append("fields[]", "Hero Image");
+    apiUrl.searchParams.append("fields[]", "Hero Title");
+    apiUrl.searchParams.append("fields[]", "Hero Subtitle");
+    apiUrl.searchParams.append("fields[]", "About Body");
+    apiUrl.searchParams.append("fields[]", "Gallery");
+    apiUrl.searchParams.append("fields[]", "Active");
 
     const r = await fetch(apiUrl.toString(), {
       headers: { Authorization: `Bearer ${token}` },
@@ -31,6 +61,19 @@ export async function onRequestGet({ env, request }) {
 
     // Better error visibility
     if (!r.ok) {
+      // ✅ fallback if Airtable fails
+      const last = await cacheGet(env, FALLBACK_KEY);
+      if (last) {
+        return new Response(last, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+            "X-Cache": "FALLBACK",
+          },
+        });
+      }
+
       return json(
         {
           error: "Airtable request failed",
@@ -46,14 +89,18 @@ export async function onRequestGet({ env, request }) {
     }
 
     const rec = data?.records?.[0];
-    if (!rec) return json({ error: "Not found" }, 404);
+    if (!rec) {
+      // ✅ not found: cache short negative to reduce Airtable hits (optional)
+      const body = JSON.stringify({ error: "Not found" });
+      await cacheSet(env, CACHE_KEY, body, 60);
+      return new Response(body, { status: 404, headers: { "Content-Type": "application/json; charset=utf-8" } });
+    }
 
     const f = rec.fields || {};
 
     const heroAttachment = Array.isArray(f["Hero Image"]) ? f["Hero Image"][0] : null;
     const heroImage = heroAttachment?.url || "";
 
-    // ✅ IMPORTANT: Airtable attachments часто содержат width/height
     const heroImageWidth =
       Number(heroAttachment?.width) ||
       Number(heroAttachment?.thumbnails?.large?.width) ||
@@ -79,7 +126,19 @@ export async function onRequestGet({ env, request }) {
       gallery,
     };
 
-    return json({ content }, 200, { "Cache-Control": "public, max-age=60" });
+    const body = JSON.stringify({ content });
+
+    // ✅ 2) save cache + last_good
+    await cacheSet(env, CACHE_KEY, body, TTL_SEC);
+    await cacheSet(env, FALLBACK_KEY, body, FALLBACK_TTL_SEC);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+        "X-Cache": "MISS",
+      },
+    });
   } catch (e) {
     return json({ error: "Server error", details: String(e?.message || e) }, 500);
   }
