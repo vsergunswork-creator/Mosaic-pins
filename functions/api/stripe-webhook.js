@@ -5,6 +5,9 @@
 // 2) Decrement stock in Airtable Products (only once per Stripe event id)
 // Idempotency: KV (STRIPE_EVENTS_KV) with "processing" and "stock_done"
 
+// ✅ NEW: invalidate products cache after stock update
+import { cacheDel } from "./_cache.js";
+
 export async function onRequestPost(ctx) {
   const { env, request } = ctx;
 
@@ -224,6 +227,9 @@ export async function onRequestPost(ctx) {
     // if Stripe event was already fully processed earlier, we must not decrement again
     const alreadyStockDone = prev === "stock_done";
     if (alreadyStockDone) {
+      // ✅ invalidate cache anyway (на всякий случай, если кэш “залип”)
+      try { await cacheDel(env, "cache:products:v2"); } catch (_) {}
+
       // just finish (order upsert already happened)
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, upserted: true, stock: "skipped_already_done" });
@@ -251,6 +257,9 @@ export async function onRequestPost(ctx) {
         await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: lockKey, token: lockToken });
       }
     }
+
+    // ✅ NEW: invalidate products cache so stock updates appear quickly
+    try { await cacheDel(env, "cache:products:v2"); } catch (_) {}
 
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
     return json({ received: true, upserted: true, stock: "decremented" });
@@ -543,7 +552,7 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
   });
 
   const data = await r2.json().catch(() => ({}));
-  if (!r2.ok) throw new Error(`Airtable update failed: ${r2.status} ${JSON.stringify(data)}`);
+  if (!r2.ok) throw new Error(`Airtable update failed: ${r.status} ${JSON.stringify(data)}`);
 }
 
 // ---------------- KV lock (best-effort) ----------------
