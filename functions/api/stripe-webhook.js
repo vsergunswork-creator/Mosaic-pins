@@ -5,9 +5,6 @@
 // 2) Decrement stock in Airtable Products (only once per Stripe event id)
 // Idempotency: KV (STRIPE_EVENTS_KV) with "processing" and "stock_done"
 
-// ✅ NEW: invalidate products cache after stock update
-import { cacheDel } from "./_cache.js";
-
 export async function onRequestPost(ctx) {
   const { env, request } = ctx;
 
@@ -86,6 +83,7 @@ export async function onRequestPost(ctx) {
     try {
       items = JSON.parse(itemsJson);
     } catch {
+      // ✅ important: remove processing marker to allow Stripe retry with fixed metadata
       await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
       return json({ error: "Bad metadata.items JSON" }, 400);
     }
@@ -198,7 +196,7 @@ export async function onRequestPost(ctx) {
 
       "Tracking Number": "",
 
-      "Created At": createdAtISO, // ISO 8601 (самый надёжный формат для Airtable Date)
+      "Created At": createdAtISO, // ISO 8601
       "Amount Total": amountTotal,
 
       "Stripe Session ID": stripeSessionId,
@@ -213,7 +211,6 @@ export async function onRequestPost(ctx) {
         fields: orderFields,
       });
     } else {
-      // update existing order (важно для resend / дописывания адреса)
       await airtableUpdateRecord({
         token: env.AIRTABLE_TOKEN,
         baseId: env.AIRTABLE_BASE_ID,
@@ -224,13 +221,8 @@ export async function onRequestPost(ctx) {
     }
 
     // ---------- decrement stock ONLY ONCE ----------
-    // if Stripe event was already fully processed earlier, we must not decrement again
     const alreadyStockDone = prev === "stock_done";
     if (alreadyStockDone) {
-      // ✅ invalidate cache anyway (на всякий случай, если кэш “залип”)
-      try { await cacheDel(env, "cache:products:v2"); } catch (_) {}
-
-      // just finish (order upsert already happened)
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, upserted: true, stock: "skipped_already_done" });
     }
@@ -245,6 +237,12 @@ export async function onRequestPost(ctx) {
         waitMs: 180,
       });
 
+      // ✅ CRITICAL: если lock не взяли — НЕ трогаем stock, снимаем processing → Stripe retry
+      if (!lockToken) {
+        await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
+        return json({ error: "Stock lock busy, please retry" }, 503);
+      }
+
       try {
         await decrementStockByRecordIdSafe({
           token: env.AIRTABLE_TOKEN,
@@ -257,9 +255,6 @@ export async function onRequestPost(ctx) {
         await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: lockKey, token: lockToken });
       }
     }
-
-    // ✅ NEW: invalidate products cache so stock updates appear quickly
-    try { await cacheDel(env, "cache:products:v2"); } catch (_) {}
 
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
     return json({ received: true, upserted: true, stock: "decremented" });
@@ -285,7 +280,11 @@ export async function onRequestGet(ctx) {
     // --- Security: header secret ---
     const REQUIRED = String(env.CRON_SECRET || "").trim();
     if (REQUIRED) {
-      const got = String(request.headers.get("x-cron-secret") || request.headers.get("X-CRON-SECRET") || "").trim();
+      const got = String(
+        request.headers.get("x-cron-secret") ||
+        request.headers.get("X-CRON-SECRET") ||
+        ""
+      ).trim();
       if (got !== REQUIRED) return json({ ok: false, error: "Unauthorized" }, 401);
     }
 
@@ -300,7 +299,7 @@ export async function onRequestGet(ctx) {
       env.AIRTABLE_ORDERS_TABLE ||
       "Orders";
 
-    // Airtable fields (как у Вас)
+    // Airtable fields
     const TRACKING_FIELD = String(env.AIRTABLE_TRACKING_FIELD || "Tracking Number");
     const SHIPPED_FIELD = String(env.AIRTABLE_SHIPPED_FIELD || "Shipped Email Sent");
 
@@ -308,9 +307,9 @@ export async function onRequestGet(ctx) {
     const STORE_NAME = String(env.STORE_NAME || "Mosaic Pins");
     const STORE_URL = String(env.STORE_URL || "https://mosaicpins.space");
 
-    const MAIL_FROM = String(env.MAIL_FROM || "").trim();                 // обязательно
-    const MAIL_REPLY_TO = String(env.MAIL_REPLY_TO || "").trim();         // optional
-    const MAIL_BCC = String(env.MAIL_BCC || "").trim();                   // Вам копия (bcc)
+    const MAIL_FROM = String(env.MAIL_FROM || "").trim();
+    const MAIL_REPLY_TO = String(env.MAIL_REPLY_TO || "").trim();
+    const MAIL_BCC = String(env.MAIL_BCC || "").trim();
 
     if (!MAIL_FROM) return json({ ok: false, error: "MAIL_FROM is not set" }, 500);
 
@@ -355,7 +354,6 @@ export async function onRequestGet(ctx) {
         continue;
       }
 
-      // Адрес из Orders (у Вас уже есть эти поля)
       const shippingAddress = String(f["Shipping Address"] || "").trim();
       const shipCity = String(f["Shipping City"] || "").trim();
       const shipPostal = String(f["Shipping Postal Code"] || "").trim();
@@ -387,7 +385,6 @@ export async function onRequestGet(ctx) {
         text,
       });
 
-      // Mark Airtable checkbox TRUE
       await airtablePatchRecord({
         token: env.AIRTABLE_TOKEN,
         baseId: env.AIRTABLE_BASE_ID,
@@ -396,7 +393,6 @@ export async function onRequestGet(ctx) {
         fields: { [SHIPPED_FIELD]: true },
       });
 
-      // Mark KV idempotency
       await env.STRIPE_EVENTS_KV.put(KV_KEY, "1", { expirationTtl: 30 * 24 * 60 * 60 });
 
       sent++;
@@ -495,7 +491,6 @@ async function airtablePatchRecord({ token, baseId, table, recordId, fields }) {
   return data;
 }
 
-// ✅ THIS helper was missing in many “pieces” and causes runtime/build errors without it
 async function airtableFetchAll({ token, baseId, table, filterByFormula, pageSize = 100, maxPagesGuard = 60 }) {
   const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
 
@@ -552,7 +547,7 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
   });
 
   const data = await r2.json().catch(() => ({}));
-  if (!r2.ok) throw new Error(`Airtable update failed: ${r.status} ${JSON.stringify(data)}`);
+  if (!r2.ok) throw new Error(`Airtable update failed: ${r2.status} ${JSON.stringify(data)}`);
 }
 
 // ---------------- KV lock (best-effort) ----------------
@@ -755,9 +750,10 @@ function safeEqual(a, b) {
   return res === 0;
 }
 
-function json(obj, status = 200) {
+// ✅ one single json helper (no duplicates)
+function json(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
   });
 }
