@@ -16,11 +16,13 @@ export async function onRequestGet({ env, request }) {
     const pin = (url.searchParams.get("pin") || "").trim();
     if (!pin) return json({ error: "Missing pin" }, 400);
 
-    const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
+    const pinField = String(env.AIRTABLE_PIN_FIELD || "PIN Code").trim();
 
-    // ✅ cache per pin
-    const CACHE_KEY = `cache:product:v1:${pin}`;
-    const FALLBACK_KEY = `cache:product:last_good:${pin}`;
+    // ✅ safer cache keys (include base/table/pinField to avoid cross-collisions)
+    const baseId = String(env.AIRTABLE_BASE_ID || "").trim();
+    const table = String(env.AIRTABLE_TABLE_NAME || "").trim();
+    const CACHE_KEY = `cache:product:v1:${baseId}:${table}:${pinField}:${pin}`;
+    const FALLBACK_KEY = `cache:product:last_good:${baseId}:${table}:${pinField}:${pin}`;
 
     // ✅ 1) serve cache
     const cached = await cacheGet(env, CACHE_KEY);
@@ -34,11 +36,10 @@ export async function onRequestGet({ env, request }) {
       });
     }
 
-    const formula = `{${pinField}}="${escapeForFormula(pin)}"`;
+    // ✅ only Active products
+    const formula = `AND({${pinField}}="${escapeForFormula(pin)}", {Active}=TRUE())`;
 
-    const apiUrl = new URL(
-      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_TABLE_NAME)}`
-    );
+    const apiUrl = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
     apiUrl.searchParams.set("maxRecords", "1");
     apiUrl.searchParams.set("filterByFormula", formula);
 
@@ -75,7 +76,7 @@ export async function onRequestGet({ env, request }) {
           },
         });
       }
-      return json({ error: "Airtable error", details: data }, 400);
+      return json({ error: "Airtable error", status: r.status, details: data }, 400);
     }
 
     const rec = data?.records?.[0];
@@ -97,7 +98,7 @@ export async function onRequestGet({ env, request }) {
       diameter: f["Diameter"] ?? null,
       color: f["Color"] ?? null,
       materials: Array.isArray(f["Materials"]) ? f["Materials"] : [],
-      stock: Number(f["Stock"] ?? 0),
+      stock: Math.max(0, Number(f["Stock"] ?? 0) || 0),
       price: {
         EUR: asNumberOrNull(f["Price_EUR"]),
         USD: asNumberOrNull(f["Price_USD"]),
@@ -119,12 +120,22 @@ export async function onRequestGet({ env, request }) {
       },
     });
   } catch (e) {
-    return json({ error: "Server error", details: String(e) }, 500);
+    return json({ error: "Server error", details: String(e?.message || e) }, 500);
   }
 }
 
 function asNumberOrNull(v) {
-  const n = Number(v);
+  if (v == null) return null;
+
+  // Airtable может отдать число или строку: "22", "22.00", "22,00", "1 234,50"
+  const s = String(v).trim();
+  if (!s) return null;
+
+  const normalized = s
+    .replace(/\s+/g, "") // убрать пробелы
+    .replace(",", ".");  // запятая -> точка
+
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 
