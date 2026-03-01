@@ -1,6 +1,7 @@
 // functions/api/products.js
 // GET /api/products
-// Returns: { products: [...] }
+// Returns: { products: [...] }  (from D1)
+// ✅ Uses KV cache via ./_cache.js
 
 import { cacheGet, cacheSet } from "./_cache.js";
 
@@ -9,17 +10,12 @@ const FALLBACK_TTL_SEC = 7 * 86400;  // ✅ keep last good for a week
 
 export async function onRequestGet({ env, request }) {
   try {
-    if (!env.AIRTABLE_TOKEN) return json({ error: "AIRTABLE_TOKEN is not set" }, 500);
-    if (!env.AIRTABLE_BASE_ID) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
-    if (!env.AIRTABLE_TABLE_NAME) return json({ error: "AIRTABLE_TABLE_NAME is not set" }, 500);
+    if (!env.DB) return json({ error: "D1 binding env.DB is not set" }, 500);
 
-    const baseId = String(env.AIRTABLE_BASE_ID || "").trim();
-    const table = String(env.AIRTABLE_TABLE_NAME || "").trim();
-    const pinField = String(env.AIRTABLE_PIN_FIELD || "PIN Code").trim();
-
-    // ✅ cache keys include base/table/pinField to avoid collisions between envs
-    const CACHE_KEY = `cache:products:v3:${baseId}:${table}:${pinField}`;
-    const FALLBACK_KEY = `cache:products:last_good:${baseId}:${table}:${pinField}`;
+    // ✅ cache keys include DB name if provided (optional)
+    const DB_NAME = String(env.D1_NAME || env.DB_NAME || "db").trim();
+    const CACHE_KEY = `cache:products:d1:v1:${DB_NAME}`;
+    const FALLBACK_KEY = `cache:products:last_good:d1:${DB_NAME}`;
 
     // ✅ 1) serve cache instantly
     const cached = await cacheGet(env, CACHE_KEY);
@@ -32,61 +28,60 @@ export async function onRequestGet({ env, request }) {
       });
     }
 
-    // ✅ only active products
-    const filterByFormula = "{Active}=TRUE()";
+    // ✅ 2) read from D1 (only active products)
+    // Assumed schema (as you created):
+    // products(pin TEXT UNIQUE, title TEXT, description TEXT, type TEXT, diameter REAL,
+    //          color TEXT, materials TEXT, images TEXT, stock INTEGER, price_eur REAL,
+    //          price_usd REAL, active INTEGER, updated_at DATETIME ...)
+    const sql = `
+      SELECT
+        pin,
+        title,
+        description,
+        type,
+        diameter,
+        color,
+        materials,
+        images,
+        stock,
+        price_eur,
+        price_usd,
+        active
+      FROM products
+      WHERE COALESCE(active, 1) = 1
+      ORDER BY pin ASC
+      LIMIT 1000
+    `;
 
-    const records = await airtableFetchAll({
-      token: env.AIRTABLE_TOKEN,
-      baseId,
-      table,
-      filterByFormula,
-      pageSize: 100,
-      maxPagesGuard: 60,
-      fields: [
-        pinField,
-        "Title",
-        "Description",
-        "Type",
-        "Diameter",
-        "Color",
-        "Materials",
-        "Stock",
-        "Price_EUR",
-        "Price_USD",
-        "Images",
-        "Active",
-      ],
-    });
+    const res = await env.DB.prepare(sql).all();
+    const rows = Array.isArray(res?.results) ? res.results : [];
 
-    const products = records
-      .map((rec) => {
-        const f = rec?.fields || {};
-        const pin = String(f[pinField] || "").trim();
+    const products = rows
+      .map((r) => {
+        const pin = String(r?.pin || "").trim();
         if (!pin) return null;
 
         return {
           pin,
-          title: String(f["Title"] || "Untitled"),
-          description: String(f["Description"] || ""),
-          type: f["Type"] ?? null,
-          diameter: f["Diameter"] ?? null,
-          color: f["Color"] ?? null,
-          materials: Array.isArray(f["Materials"]) ? f["Materials"] : [],
-          stock: Math.max(0, toInt(f["Stock"], 0)),
+          title: String(r?.title || "Untitled"),
+          description: String(r?.description || ""),
+          type: r?.type ?? null,
+          diameter: (r?.diameter == null) ? null : asNumberOrNull(r.diameter),
+          color: r?.color ?? null,
+          materials: parseJsonArray(r?.materials),
+          stock: Math.max(0, toInt(r?.stock, 0)),
           price: {
-            EUR: asNumberOrNull(f["Price_EUR"]),
-            USD: asNumberOrNull(f["Price_USD"]),
+            EUR: asNumberOrNull(r?.price_eur),
+            USD: asNumberOrNull(r?.price_usd),
           },
-          images: extractImageUrls(f["Images"]),
+          images: parseJsonArray(r?.images),
         };
       })
-      .filter(Boolean)
-      // ✅ stable deterministic order (avoid “jumping” list)
-      .sort((a, b) => String(a.pin).localeCompare(String(b.pin), "en"));
+      .filter(Boolean);
 
     const body = JSON.stringify({ products });
 
-    // ✅ 2) save cache + last_good
+    // ✅ 3) save cache + last_good
     await cacheSet(env, CACHE_KEY, body, TTL_SEC);
     await cacheSet(env, FALLBACK_KEY, body, FALLBACK_TTL_SEC);
 
@@ -97,14 +92,12 @@ export async function onRequestGet({ env, request }) {
       request,
     });
   } catch (e) {
-    // ✅ 3) if Airtable fails — return last_good
+    // ✅ 4) fallback to last_good on any failure
     try {
-      const baseId = String(env?.AIRTABLE_BASE_ID || "").trim();
-      const table = String(env?.AIRTABLE_TABLE_NAME || "").trim();
-      const pinField = String(env?.AIRTABLE_PIN_FIELD || "PIN Code").trim();
-      const FALLBACK_KEY = `cache:products:last_good:${baseId}:${table}:${pinField}`;
-
+      const DB_NAME = String(env?.D1_NAME || env?.DB_NAME || "db").trim();
+      const FALLBACK_KEY = `cache:products:last_good:d1:${DB_NAME}`;
       const last = await cacheGet(env, FALLBACK_KEY);
+
       if (last) {
         return withCachingHeaders(last, {
           xCache: "FALLBACK",
@@ -121,65 +114,35 @@ export async function onRequestGet({ env, request }) {
 
 // ---------------- Helpers ----------------
 
-async function airtableFetchAll({
-  token,
-  baseId,
-  table,
-  filterByFormula,
-  pageSize = 100,
-  maxPagesGuard = 60,
-  fields = [],
-}) {
-  const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
+function parseJsonArray(v) {
+  // D1 stores JSON as TEXT (e.g. '["a","b"]') or null
+  if (v == null) return [];
+  if (Array.isArray(v)) return v.filter(Boolean);
 
-  let all = [];
-  let offset = null;
+  const s = String(v).trim();
+  if (!s) return [];
 
-  for (let page = 0; page < maxPagesGuard; page++) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("pageSize", String(pageSize));
-    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
-    if (offset) url.searchParams.set("offset", offset);
-
-    for (const f of fields) url.searchParams.append("fields[]", f);
-
-    const r = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      // make error readable
-      throw new Error(`Airtable error (${r.status}): ${safeJson(data)}`);
-    }
-
-    const records = Array.isArray(data.records) ? data.records : [];
-    all = all.concat(records);
-
-    offset = data.offset || null;
-    if (!offset) break;
+  try {
+    const parsed = JSON.parse(s);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean);
+    return [];
+  } catch (_) {
+    // If accidentally stored as plain string url, return as single-item array
+    if (s.startsWith("http://") || s.startsWith("https://")) return [s];
+    return [];
   }
-
-  return all;
-}
-
-function extractImageUrls(v) {
-  if (!Array.isArray(v)) return [];
-  return v.map((x) => x?.url).filter(Boolean);
 }
 
 function asNumberOrNull(v) {
   if (v == null) return null;
 
-  // Airtable may return number or string like: "22", "22.00", "22,00", "1 234,50"
   const s = String(v).trim();
   if (!s) return null;
 
-  const normalized = s
-    .replace(/\s+/g, "") // remove spaces
-    .replace(",", ".");  // comma -> dot
-
+  // allow "22", "22.00", "22,00", "1 234,50"
+  const normalized = s.replace(/\s+/g, "").replace(",", ".");
   const n = Number(normalized);
+
   return Number.isFinite(n) ? n : null;
 }
 
@@ -196,16 +159,15 @@ function json(obj, status = 200, extraHeaders = {}) {
   });
 }
 
-function safeJson(v) {
-  try { return JSON.stringify(v); } catch (_) { return String(v); }
-}
-
 // ✅ “professional” caching headers (+ optional ETag)
 function withCachingHeaders(body, { xCache, sMaxage, swr, request }) {
   const headers = new Headers();
   headers.set("Content-Type", "application/json; charset=utf-8");
   headers.set("X-Cache", String(xCache || ""));
-  headers.set("Cache-Control", `public, max-age=0, s-maxage=${Number(sMaxage) || 0}, stale-while-revalidate=${Number(swr) || 0}`);
+  headers.set(
+    "Cache-Control",
+    `public, max-age=0, s-maxage=${Number(sMaxage) || 0}, stale-while-revalidate=${Number(swr) || 0}`
+  );
 
   // Optional ETag (helps browser/CDN revalidation)
   const etag = weakEtag(body);
@@ -226,7 +188,6 @@ function weakEtag(str) {
   for (let i = 0; i < str.length; i++) {
     h = ((h << 5) + h) ^ str.charCodeAt(i);
   }
-  // unsigned 32-bit
-  const u = h >>> 0;
+  const u = h >>> 0; // unsigned 32-bit
   return `W/"${u.toString(16)}"`;
 }
