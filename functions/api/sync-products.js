@@ -1,8 +1,9 @@
 // functions/api/sync-products.js
 // GET /api/sync-products
-// Sync all products from Airtable -> D1
+// Sync products from Airtable -> Cloudflare D1 (env.DB)
+// IMPORTANT: active = 1 ONLY if Airtable {Active} === true
 
-export async function onRequestGet({ env }) {
+export async function onRequestGet({ env, request }) {
   try {
     const AIRTABLE_TOKEN = String(env.AIRTABLE_TOKEN || "").trim();
     const BASE_ID = String(env.AIRTABLE_BASE_ID || "").trim();
@@ -22,12 +23,6 @@ export async function onRequestGet({ env }) {
       url.searchParams.set("pageSize", "100");
       if (offset) url.searchParams.set("offset", offset);
 
-      // (опционально) можно подтянуть только нужные поля:
-      // [
-      //  "PIN Code","Title","Description","Type","Diameter","Color","Materials",
-      //  "Stock","Price_EUR","Price_USD","Images","Active"
-      // ].forEach(f => url.searchParams.append("fields[]", f));
-
       const r = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` },
       });
@@ -42,27 +37,22 @@ export async function onRequestGet({ env }) {
       if (!offset) break;
     }
 
+    // --- Upsert into D1 ---
     let synced = 0;
     let skipped = 0;
 
-    // ✅ Если у Вас уже есть колонки type/diameter/color/materials — используйте этот INSERT.
-    // Если каких-то колонок нет — скажите, и я дам "упрощённый" вариант под Вашу схему.
     const stmt = env.DB.prepare(`
       INSERT OR REPLACE INTO products (
         pin,
         title,
         description,
-        type,
-        diameter,
-        color,
-        materials,
         images,
         stock,
         price_eur,
         price_usd,
         active
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const rec of allRecords) {
@@ -71,42 +61,28 @@ export async function onRequestGet({ env }) {
       const pin = String(f["PIN Code"] ?? "").trim();
       if (!pin) {
         skipped++;
-        continue;
+        continue; // cannot insert without primary key
       }
 
       const title = String(f["Title"] ?? pin);
       const description = String(f["Description"] ?? "");
 
-      const type = f["Type"] == null ? null : String(f["Type"]);
-      const diameter = toNumberOrNull(f["Diameter"]);
-      const color = f["Color"] == null ? null : String(f["Color"]);
+      // Airtable attachments array -> array of urls
+      const images = normalizeImages(f["Images"]);
 
-      // Materials: может быть multi-select array или string
-      const materialsRaw = f["Materials"];
-      const materials = normalizeStringArray(materialsRaw);
+      const stock = toInt(f["Stock"], 0);
+      const priceEur = toNumber(f["Price_EUR"], 0);
+      const priceUsd = toNumber(f["Price_USD"], 0);
 
-      // Images: attachments[] -> urls[]
-      const imagesRaw = f["Images"];
-      const images = normalizeImageUrls(imagesRaw);
-
-      const stock = toIntSafe(f["Stock"], 0);
-      const priceEur = toNumberSafe(f["Price_EUR"], 0);
-      const priceUsd = toNumberSafe(f["Price_USD"], 0);
-
-      // Active: если в Airtable есть {Active} (checkbox)
-      // Airtable отдаёт true/false или может отсутствовать.
-      const active = f["Active"] === false ? 0 : 1;
+      // ✅ FIX: active ONLY when Airtable Active === true
+      const active = f["Active"] === true ? 1 : 0;
 
       await stmt
         .bind(
           pin,
           title,
           description,
-          type,                              // null ok
-          diameter,                          // null ok
-          color,                             // null ok
-          JSON.stringify(materials),         // always string
-          JSON.stringify(images),            // always string
+          JSON.stringify(images),
           stock,
           priceEur,
           priceUsd,
@@ -131,49 +107,42 @@ export async function onRequestGet({ env }) {
   }
 }
 
-// ---------------- helpers ----------------
+// ---------------- Helpers ----------------
 
-function normalizeImageUrls(v) {
-  if (!Array.isArray(v)) return [];
-  return v
+function normalizeImages(imagesRaw) {
+  if (!Array.isArray(imagesRaw)) return [];
+  return imagesRaw
     .map((x) => {
       if (!x) return null;
-      if (typeof x === "string") return x;
-      if (typeof x === "object" && x.url) return String(x.url);
+      if (typeof x === "string") return x.trim() || null;
+      if (typeof x === "object" && x.url) return String(x.url).trim() || null;
       return null;
     })
     .filter(Boolean);
 }
 
-function normalizeStringArray(v) {
-  if (v == null) return [];
-  if (Array.isArray(v)) return v.map((x) => String(x)).filter(Boolean);
-  const s = String(v).trim();
-  return s ? [s] : [];
-}
-
-function toIntSafe(v, fallback = 0) {
+function toInt(v, fallback = 0) {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(0, Math.floor(n));
 }
 
-function toNumberSafe(v, fallback = 0) {
+function toNumber(v, fallback = 0) {
   if (v == null) return fallback;
+
+  // supports "22", "22.00", "22,00", "1 234,50"
   const s = String(v).trim();
   if (!s) return fallback;
-  const n = Number(s.replace(/\s+/g, "").replace(",", "."));
+
+  const normalized = s.replace(/\s+/g, "").replace(",", ".");
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : fallback;
 }
 
-function toNumberOrNull(v) {
-  if (v == null) return null;
-  const s = String(v).trim();
-  if (!s) return null;
-  const n = Number(s.replace(/\s+/g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : null;
-}
-
 function safeJson(v) {
-  try { return JSON.stringify(v); } catch { return String(v); }
+  try {
+    return JSON.stringify(v);
+  } catch (_) {
+    return String(v);
+  }
 }
