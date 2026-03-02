@@ -1,7 +1,7 @@
 // functions/api/sync-products.js
 // GET /api/sync-products
-// Sync products from Airtable -> Cloudflare D1 (env.DB)
-// IMPORTANT: active = 1 ONLY if Airtable {Active} === true
+// Sync Products: Airtable -> D1
+// ✅ writes active=1 only if Airtable {Active} is checked
 
 export async function onRequestGet({ env, request }) {
   try {
@@ -14,11 +14,20 @@ export async function onRequestGet({ env, request }) {
     if (!TABLE) throw new Error("AIRTABLE_TABLE_NAME missing");
     if (!env.DB) throw new Error("DB (D1 binding) missing");
 
-    // --- Airtable fetch (pagination) ---
+    // Optional protection (if you want): ?secret=...
+    // const SECRET = String(env.SYNC_SECRET || "").trim();
+    // if (SECRET) {
+    //   const url = new URL(request.url);
+    //   if (String(url.searchParams.get("secret") || "") !== SECRET) {
+    //     return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    //   }
+    // }
+
+    // ---------- LOAD FROM AIRTABLE (pagination) ----------
     const allRecords = [];
     let offset = null;
 
-    for (let page = 0; page < 50; page++) {
+    for (let page = 0; page < 20; page++) {
       const url = new URL(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`);
       url.searchParams.set("pageSize", "100");
       if (offset) url.searchParams.set("offset", offset);
@@ -28,7 +37,7 @@ export async function onRequestGet({ env, request }) {
       });
 
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(`Airtable error: ${r.status} ${safeJson(data)}`);
+      if (!r.ok) throw new Error(`Airtable error ${r.status}: ${safeJson(data)}`);
 
       const records = Array.isArray(data.records) ? data.records : [];
       allRecords.push(...records);
@@ -37,10 +46,7 @@ export async function onRequestGet({ env, request }) {
       if (!offset) break;
     }
 
-    // --- Upsert into D1 ---
-    let synced = 0;
-    let skipped = 0;
-
+    // ---------- INSERT/REPLACE INTO D1 ----------
     const stmt = env.DB.prepare(`
       INSERT OR REPLACE INTO products (
         pin,
@@ -55,26 +61,40 @@ export async function onRequestGet({ env, request }) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
+    let inserted = 0;
+    let skipped = 0;
+
     for (const rec of allRecords) {
       const f = rec?.fields || {};
 
       const pin = String(f["PIN Code"] ?? "").trim();
       if (!pin) {
         skipped++;
-        continue; // cannot insert without primary key
+        continue;
       }
 
       const title = String(f["Title"] ?? pin);
       const description = String(f["Description"] ?? "");
 
-      // Airtable attachments array -> array of urls
-      const images = normalizeImages(f["Images"]);
+      // Airtable Attachments: [{url, ...}, ...] OR sometimes strings
+      const imagesRaw = f["Images"];
+      let images = [];
+      if (Array.isArray(imagesRaw)) {
+        images = imagesRaw
+          .map((x) => {
+            if (!x) return null;
+            if (typeof x === "string") return x;
+            if (typeof x === "object" && x.url) return String(x.url);
+            return null;
+          })
+          .filter(Boolean);
+      }
 
       const stock = toInt(f["Stock"], 0);
       const priceEur = toNumber(f["Price_EUR"], 0);
       const priceUsd = toNumber(f["Price_USD"], 0);
 
-      // ✅ FIX: active ONLY when Airtable Active === true
+      // ✅ IMPORTANT: read Active checkbox from Airtable
       const active = f["Active"] === true ? 1 : 0;
 
       await stmt
@@ -90,52 +110,29 @@ export async function onRequestGet({ env, request }) {
         )
         .run();
 
-      synced++;
+      inserted++;
     }
 
     return Response.json({
       ok: true,
-      synced,
+      synced: inserted,
       skipped,
       total_from_airtable: allRecords.length,
     });
   } catch (e) {
-    return Response.json(
-      { ok: false, error: String(e?.message || e) },
-      { status: 500 }
-    );
+    return Response.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
 }
 
-// ---------------- Helpers ----------------
-
-function normalizeImages(imagesRaw) {
-  if (!Array.isArray(imagesRaw)) return [];
-  return imagesRaw
-    .map((x) => {
-      if (!x) return null;
-      if (typeof x === "string") return x.trim() || null;
-      if (typeof x === "object" && x.url) return String(x.url).trim() || null;
-      return null;
-    })
-    .filter(Boolean);
-}
-
+// ---------- helpers ----------
 function toInt(v, fallback = 0) {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
-  return Math.max(0, Math.floor(n));
+  return Math.floor(n);
 }
 
 function toNumber(v, fallback = 0) {
-  if (v == null) return fallback;
-
-  // supports "22", "22.00", "22,00", "1 234,50"
-  const s = String(v).trim();
-  if (!s) return fallback;
-
-  const normalized = s.replace(/\s+/g, "").replace(",", ".");
-  const n = Number(normalized);
+  const n = Number(String(v ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : fallback;
 }
 
