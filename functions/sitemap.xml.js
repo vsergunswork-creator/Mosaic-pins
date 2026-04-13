@@ -1,29 +1,10 @@
 // functions/sitemap.xml.js
+// D1 version
+// Generates sitemap from static pages + active products in D1
+
 export async function onRequestGet({ env, request }) {
   try {
-    // --- env checks ---
-    if (!env.AIRTABLE_TOKEN) return text("AIRTABLE_TOKEN is not set", 500);
-    if (!env.AIRTABLE_BASE_ID) return text("AIRTABLE_BASE_ID is not set", 500);
-    if (!env.AIRTABLE_TABLE_NAME) return text("AIRTABLE_TABLE_NAME is not set", 500);
-
-    const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
-    const table = env.AIRTABLE_TABLE_NAME;
-
-    // Только активные товары (если поля Active нет — можно удалить формулу)
-    const filterByFormula = "{Active}=TRUE()";
-
-    const records = await airtableFetchAll({
-      token: env.AIRTABLE_TOKEN,
-      baseId: env.AIRTABLE_BASE_ID,
-      table,
-      filterByFormula,
-      pageSize: 100,
-      maxPagesGuard: 60,
-    });
-
-    const pins = records
-      .map((rec) => String((rec.fields || {})[pinField] || "").trim())
-      .filter(Boolean);
+    if (!env.DB) return text("DB (D1 binding) is not set", 500);
 
     const url = new URL(request.url);
     const origin = url.origin;
@@ -38,27 +19,40 @@ export async function onRequestGet({ env, request }) {
       `${origin}/impressum.html`,
     ];
 
-    const productPages = pins.map((pin) => `${origin}/p/${encodeURIComponent(pin)}`);
+    const res = await env.DB.prepare(`
+      SELECT pin
+      FROM products
+      WHERE COALESCE(active, 1) = 1
+      ORDER BY pin ASC
+      LIMIT 5000
+    `).all();
+
+    const rows = Array.isArray(res?.results) ? res.results : [];
+
+    const productPages = rows
+      .map((row) => String(row?.pin || "").trim())
+      .filter(Boolean)
+      .map((pin) => `${origin}/p/${encodeURIComponent(pin)}`);
 
     const all = [...staticPages, ...productPages];
-
     const now = new Date().toISOString();
 
     const xml =
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
       `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-      all
-        .map((loc) => {
-          return (
-            `  <url>\n` +
-            `    <loc>${escapeXml(loc)}</loc>\n` +
-            `    <lastmod>${now}</lastmod>\n` +
-            `    <changefreq>weekly</changefreq>\n` +
-            `    <priority>${loc.endsWith("/") ? "1.0" : "0.7"}</priority>\n` +
-            `  </url>\n`
-          );
-        })
-        .join("") +
+      all.map((loc) => {
+        const isHome = loc === `${origin}/`;
+        const priority = isHome ? "1.0" : "0.7";
+
+        return (
+          `  <url>\n` +
+          `    <loc>${escapeXml(loc)}</loc>\n` +
+          `    <lastmod>${now}</lastmod>\n` +
+          `    <changefreq>weekly</changefreq>\n` +
+          `    <priority>${priority}</priority>\n` +
+          `  </url>\n`
+        );
+      }).join("") +
       `</urlset>\n`;
 
     return new Response(xml, {
@@ -73,35 +67,6 @@ export async function onRequestGet({ env, request }) {
 }
 
 // ---------- helpers ----------
-async function airtableFetchAll({ token, baseId, table, filterByFormula, pageSize = 100, maxPagesGuard = 60 }) {
-  const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
-
-  let all = [];
-  let offset = null;
-
-  for (let page = 0; page < maxPagesGuard; page++) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("pageSize", String(pageSize));
-    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
-    if (offset) url.searchParams.set("offset", offset);
-
-    const r = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(`Airtable error: ${JSON.stringify(data)}`);
-
-    const records = Array.isArray(data.records) ? data.records : [];
-    all = all.concat(records);
-
-    offset = data.offset || null;
-    if (!offset) break;
-  }
-
-  return all;
-}
-
 function escapeXml(s) {
   return String(s || "").replace(/[<>&'"]/g, (c) => {
     switch (c) {
@@ -116,5 +81,8 @@ function escapeXml(s) {
 }
 
 function text(msg, status = 200) {
-  return new Response(String(msg), { status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  return new Response(String(msg), {
+    status,
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
 }
