@@ -1,6 +1,9 @@
 // functions/api/sync-products.js
 // GET /api/sync-products
-// Sync Products: Airtable -> D1 + mirror images to R2
+// Sync Products: Airtable -> R2 -> D1
+// ✅ keeps Airtable image order
+// ✅ writes R2 public URLs into D1
+// ✅ writes active=1 only if Airtable {Active} is checked
 
 export async function onRequestGet({ env, request }) {
   try {
@@ -9,7 +12,9 @@ export async function onRequestGet({ env, request }) {
     const TABLE = String(env.AIRTABLE_TABLE_NAME || "").trim();
     const PIN_FIELD = String(env.AIRTABLE_PIN_FIELD || "PIN Code").trim();
 
-    const R2_PUBLIC_BASE_URL = String(env.R2_PUBLIC_BASE_URL || "").trim();
+    const R2_PUBLIC_BASE_URL = String(env.R2_PUBLIC_BASE_URL || "")
+      .trim()
+      .replace(/\/+$/, "");
 
     if (!AIRTABLE_TOKEN) throw new Error("AIRTABLE_TOKEN missing");
     if (!BASE_ID) throw new Error("AIRTABLE_BASE_ID missing");
@@ -18,6 +23,14 @@ export async function onRequestGet({ env, request }) {
     if (!env.PRODUCT_IMAGES) throw new Error("PRODUCT_IMAGES (R2 binding) missing");
     if (!R2_PUBLIC_BASE_URL) throw new Error("R2_PUBLIC_BASE_URL missing");
 
+    // Optional protection:
+    // const SECRET = String(env.SYNC_SECRET || "").trim();
+    // const url = new URL(request.url);
+    // if (SECRET && String(url.searchParams.get("secret") || "") !== SECRET) {
+    //   return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    // }
+
+    // ---------- LOAD FROM AIRTABLE ----------
     const allRecords = [];
     let offset = null;
 
@@ -40,6 +53,7 @@ export async function onRequestGet({ env, request }) {
       if (!offset) break;
     }
 
+    // ---------- UPSERT INTO D1 ----------
     const stmt = env.DB.prepare(`
       INSERT OR REPLACE INTO products (
         pin,
@@ -80,10 +94,12 @@ export async function onRequestGet({ env, request }) {
 
       for (let i = 0; i < imagesRaw.length; i++) {
         const item = imagesRaw[i];
+        if (!item) continue;
+
         const srcUrl =
           typeof item === "string"
             ? item
-            : (item && typeof item === "object" && item.url ? String(item.url) : "");
+            : (item && typeof item === "object" && item.url ? String(item.url).trim() : "");
 
         if (!srcUrl) continue;
 
@@ -91,16 +107,17 @@ export async function onRequestGet({ env, request }) {
         const objectKey = `products/${sanitizePin(pin)}/${String(i + 1).padStart(2, "0")}.${ext}`;
         const publicUrl = `${R2_PUBLIC_BASE_URL}/${objectKey}`;
 
-        const already = await env.PRODUCT_IMAGES.head(objectKey);
-        if (!already) {
+        const existing = await env.PRODUCT_IMAGES.head(objectKey);
+
+        if (!existing) {
           const imgResp = await fetch(srcUrl);
           if (!imgResp.ok) {
-            console.warn(`Image fetch failed for ${pin}: ${srcUrl} -> ${imgResp.status}`);
-            continue;
+            throw new Error(`Image download failed for ${pin}: ${imgResp.status}`);
           }
 
           const contentType =
-            imgResp.headers.get("content-type") || contentTypeByExt(ext);
+            imgResp.headers.get("content-type") ||
+            contentTypeByExt(ext);
 
           const arrBuf = await imgResp.arrayBuffer();
 
@@ -151,6 +168,8 @@ export async function onRequestGet({ env, request }) {
   }
 }
 
+// ---------- helpers ----------
+
 function sanitizePin(pin) {
   return String(pin || "").replace(/[^a-zA-Z0-9._-]/g, "_");
 }
@@ -162,17 +181,20 @@ function detectExtension(item, url) {
   if (filename.endsWith(".png")) return "png";
   if (filename.endsWith(".webp")) return "webp";
   if (filename.endsWith(".gif")) return "gif";
+  if (filename.endsWith(".avif")) return "avif";
 
   const cleanUrl = String(url || "").split("?")[0].toLowerCase();
   if (cleanUrl.endsWith(".jpg") || cleanUrl.endsWith(".jpeg")) return "jpg";
   if (cleanUrl.endsWith(".png")) return "png";
   if (cleanUrl.endsWith(".webp")) return "webp";
   if (cleanUrl.endsWith(".gif")) return "gif";
+  if (cleanUrl.endsWith(".avif")) return "avif";
 
   const type = String(item?.type || "").toLowerCase();
   if (type.includes("png")) return "png";
   if (type.includes("webp")) return "webp";
   if (type.includes("gif")) return "gif";
+  if (type.includes("avif")) return "avif";
 
   return "jpg";
 }
@@ -182,6 +204,7 @@ function contentTypeByExt(ext) {
     case "png": return "image/png";
     case "webp": return "image/webp";
     case "gif": return "image/gif";
+    case "avif": return "image/avif";
     default: return "image/jpeg";
   }
 }
