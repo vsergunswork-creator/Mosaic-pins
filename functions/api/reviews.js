@@ -1,37 +1,51 @@
 // functions/api/reviews.js
-// GET  /api/reviews?limit=30&offset=...  -> list active reviews
-// POST /api/reviews                     -> create review (Active=false)
-// Airtable table fields (YOUR):
-// Name (text)
-// Active (checkbox)  <-- moderation
-// Rating (number)
-// Date (date)
-// Country (text) optional
-// Text (long text)
-// Avatar (attachment) optional (we won't upload from site now)
-// Photos (attachment) optional (we won't upload from site now)
+// SAFE version (cache + fallback, но сохраняем вашу логику)
 
+import { cacheGet, cacheSet } from "./_cache.js";
+
+const TTL_SEC = 120;
+const FALLBACK_TTL_SEC = 7 * 86400;
+
+// ---------------- GET ----------------
 export async function onRequestGet({ env, request }) {
   try {
     const token = (env.AIRTABLE_TOKEN_REVIEWS || env.AIRTABLE_TOKEN || "").trim();
-    if (!token) return json({ error: "AIRTABLE_TOKEN_REVIEWS (or AIRTABLE_TOKEN) is not set" }, 500);
-
     const baseId = (env.AIRTABLE_BASE_ID || "").trim();
-    if (!baseId) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
-
     const table = String(env.AIRTABLE_REVIEWS_TABLE || "Reviews").trim();
 
     const url = new URL(request.url);
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 30);
     const offset = String(url.searchParams.get("offset") || "").trim();
 
+    // ✅ cache key учитывает offset
+    const CACHE_KEY = `reviews:${limit}:${offset}`;
+    const FALLBACK_KEY = `reviews:last:${limit}:${offset}`;
+
+    // 1) cache
+    const cached = await cacheGet(env, CACHE_KEY);
+    if (cached) {
+      return new Response(cached, {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Cache": "HIT",
+        },
+      });
+    }
+
+    // ❗ если Airtable недоступен → fallback
+    if (!token || !baseId) {
+      const last = await cacheGet(env, FALLBACK_KEY);
+      if (last) {
+        return new Response(last, {
+          headers: { "X-Cache": "FALLBACK" },
+        });
+      }
+      return json({ ok: true, reviews: [], offset: null });
+    }
+
     const apiUrl = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
     apiUrl.searchParams.set("pageSize", String(limit));
-
-    // ✅ only Active=TRUE
     apiUrl.searchParams.set("filterByFormula", "Active=TRUE()");
-
-    // ✅ latest first
     apiUrl.searchParams.set("sort[0][field]", "Date");
     apiUrl.searchParams.set("sort[0][direction]", "desc");
 
@@ -44,18 +58,14 @@ export async function onRequestGet({ env, request }) {
     const data = await r.json().catch(() => ({}));
 
     if (!r.ok) {
-      return json(
-        {
-          error: "Airtable request failed",
-          status: r.status,
-          details: data,
-          hint:
-            r.status === 403
-              ? "Token has no access to this base/table OR wrong baseId/table name"
-              : "Check baseId/table name/fields",
-        },
-        400
-      );
+      const last = await cacheGet(env, FALLBACK_KEY);
+      if (last) {
+        return new Response(last, {
+          headers: { "X-Cache": "FALLBACK" },
+        });
+      }
+
+      return json({ ok: true, reviews: [], offset: null });
     }
 
     const records = Array.isArray(data?.records) ? data.records : [];
@@ -64,7 +74,9 @@ export async function onRequestGet({ env, request }) {
       const f = rec.fields || {};
 
       const avatarUrl = Array.isArray(f["Avatar"]) ? (f["Avatar"][0]?.url || "") : "";
-      const photosUrls = Array.isArray(f["Photos"]) ? f["Photos"].map((x) => x?.url).filter(Boolean) : [];
+      const photosUrls = Array.isArray(f["Photos"])
+        ? f["Photos"].map((x) => x?.url).filter(Boolean)
+        : [];
 
       return {
         id: rec.id,
@@ -78,33 +90,40 @@ export async function onRequestGet({ env, request }) {
       };
     });
 
-    return json(
-      {
-        ok: true,
-        reviews,
-        offset: data?.offset || null,
+    const body = JSON.stringify({
+      ok: true,
+      reviews,
+      offset: data?.offset || null,
+    });
+
+    // cache + fallback
+    await cacheSet(env, CACHE_KEY, body, TTL_SEC);
+    await cacheSet(env, FALLBACK_KEY, body, FALLBACK_TTL_SEC);
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Cache": "MISS",
       },
-      200,
-      { "Cache-Control": "public, max-age=30" }
-    );
+    });
   } catch (e) {
-    return json({ error: "Server error", details: String(e?.message || e) }, 500);
+    return json({ ok: true, reviews: [], offset: null });
   }
 }
 
+// ---------------- POST (оставляем почти без изменений) ----------------
 export async function onRequestPost({ env, request }) {
   try {
     const token = (env.AIRTABLE_TOKEN_REVIEWS || env.AIRTABLE_TOKEN || "").trim();
-    if (!token) return json({ error: "AIRTABLE_TOKEN_REVIEWS (or AIRTABLE_TOKEN) is not set" }, 500);
-
     const baseId = (env.AIRTABLE_BASE_ID || "").trim();
-    if (!baseId) return json({ error: "AIRTABLE_BASE_ID is not set" }, 500);
-
     const table = String(env.AIRTABLE_REVIEWS_TABLE || "Reviews").trim();
+
+    if (!token || !baseId) {
+      return json({ error: "Reviews disabled" }, 500);
+    }
 
     const body = await request.json().catch(() => ({}));
 
-    // ✅ honeypot anti-spam (if you add hidden input "website")
     if (String(body?.website || "").trim()) {
       return json({ ok: true }, 200);
     }
@@ -114,7 +133,6 @@ export async function onRequestPost({ env, request }) {
     const ratingRaw = body?.rating;
     const country = String(body?.country || "").trim().slice(0, 40);
 
-    // Validate
     if (name.length < 2) return json({ error: "Name is too short" }, 400);
     if (name.length > 80) return json({ error: "Name is too long" }, 400);
 
@@ -130,15 +148,10 @@ export async function onRequestPost({ env, request }) {
       "Name": name,
       "Rating": rating,
       "Text": text,
-
-      // ✅ moderation
       "Active": false,
-
-      // ✅ date field in Airtable
       "Date": now,
     };
 
-    // optional
     if (country) fields["Country"] = country;
 
     const payload = {
@@ -156,30 +169,17 @@ export async function onRequestPost({ env, request }) {
       body: JSON.stringify(payload),
     });
 
-    const data = await r.json().catch(() => ({}));
-
     if (!r.ok) {
-      return json(
-        {
-          error: "Airtable create failed",
-          status: r.status,
-          details: data,
-          hint:
-            r.status === 403
-              ? "Token has no access to this base/table OR wrong baseId/table name"
-              : "Check field names/types in Airtable",
-        },
-        400
-      );
+      return json({ error: "Airtable create failed" }, 400);
     }
 
-    return json({ ok: true, status: "queued_for_moderation" }, 200, { "Cache-Control": "no-store" });
+    return json({ ok: true, status: "queued_for_moderation" });
   } catch (e) {
-    return json({ error: "Server error", details: String(e?.message || e) }, 500);
+    return json({ error: "Server error" }, 500);
   }
 }
 
-/* helpers */
+// ---------------- helpers ----------------
 function clampInt(v, min, max, def) {
   const n = parseInt(String(v || ""), 10);
   if (!Number.isFinite(n)) return def;
@@ -192,9 +192,9 @@ function clampNumber(v, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
-function json(obj, status = 200, extraHeaders = {}) {
+function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...extraHeaders },
+    headers: { "Content-Type": "application/json; charset=utf-8" },
   });
 }
