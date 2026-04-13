@@ -1,79 +1,57 @@
 // functions/api/feed.xml.js
-// GET /api/feed.xml
-// Google Merchant Center product feed (XML) for MosaicPins
-//
-// Airtable fields used (must exist):
-// Active (checkbox / boolean)
-// PIN Code (or env AIRTABLE_PIN_FIELD)
-// Title
-// Description
-// Images (attachment)
-// Stock
-// Price_USD
-//
-// Links use your short product URL: /p/PIN
+// D1 version (NO Airtable)
+// Google Merchant Center feed
 
 export async function onRequestGet({ env, request }) {
   try {
-    // --- Required env ---
-    if (!env.AIRTABLE_TOKEN) return text("AIRTABLE_TOKEN is not set", 500);
-    if (!env.AIRTABLE_BASE_ID) return text("AIRTABLE_BASE_ID is not set", 500);
-    if (!env.AIRTABLE_TABLE_NAME) return text("AIRTABLE_TABLE_NAME is not set", 500);
+    if (!env.DB) return text("DB is not set", 500);
 
-    const pinField = env.AIRTABLE_PIN_FIELD || "PIN Code";
-    const table = env.AIRTABLE_TABLE_NAME;
+    const baseUrl = getBaseUrl(request);
 
-    // ✅ Only Active = TRUE products
-    const filterByFormula = "{Active}=TRUE()";
+    const res = await env.DB.prepare(`
+      SELECT
+        pin,
+        title,
+        description,
+        images,
+        stock,
+        price_usd,
+        type,
+        diameter,
+        materials
+      FROM products
+      WHERE COALESCE(active, 1) = 1
+      ORDER BY pin ASC
+      LIMIT 5000
+    `).all();
 
-    const records = await airtableFetchAll({
-      token: env.AIRTABLE_TOKEN,
-      baseId: env.AIRTABLE_BASE_ID,
-      table,
-      filterByFormula,
-      pageSize: 100,
-      maxPagesGuard: 60,
-    });
+    const rows = Array.isArray(res?.results) ? res.results : [];
 
-    const baseUrl = getBaseUrl(request); // https://mosaicpins.space
-
-    // ✅ FORCE USD feed (for US-only Merchant Center)
-    const FEED_CURRENCY = "USD";
-    const PRICE_FIELD = "Price_USD";
-
-    const items = records
-      .map((rec) => {
-        const f = rec.fields || {};
-
-        const pin = String(f[pinField] || "").trim();
+    const items = rows
+      .map((r) => {
+        const pin = String(r.pin || "").trim();
         if (!pin) return null;
 
-        const title = String(f["Title"] || "Untitled").trim();
+        const title = String(r.title || "Untitled");
 
-        // ✅ Google requires price -> use USD only
-        const usd = asNumberOrNull(f[PRICE_FIELD]);
-        if (usd == null) return null;
+        const price = Number(r.price_usd);
+        if (!Number.isFinite(price)) return null;
 
-        const stock = toInt(f["Stock"], 0);
-        const availability = stock > 0 ? "in stock" : "out of stock";
-
-        const images = extractImageUrls(f["Images"]);
-        // ✅ Better to only include products with image
+        const images = parseJsonArray(r.images);
         if (!images.length) return null;
 
-        // ✅ Clean Airtable description for Google (no Markdown/HTML)
-        const description = cleanDescriptionForGoogle(f["Description"]);
+        const stock = Number(r.stock || 0);
+        const availability = stock > 0 ? "in stock" : "out of stock";
 
-        // Optional fields for better SEO inside Merchant
-        const type = f["Type"] ?? null;
-        const diameter = f["Diameter"] ?? null;
-        const materials = Array.isArray(f["Materials"]) ? f["Materials"] : [];
+        const description = cleanText(r.description);
 
         const extra = [
           `PIN: ${pin}`,
-          type ? `Type: ${type}` : null,
-          diameter != null ? `Diameter: ${diameter} mm` : null,
-          materials.length ? `Materials: ${materials.join(", ")}` : null,
+          r.type ? `Type: ${r.type}` : null,
+          r.diameter ? `Diameter: ${r.diameter} mm` : null,
+          Array.isArray(parseJsonArray(r.materials)) && parseJsonArray(r.materials).length
+            ? `Materials: ${parseJsonArray(r.materials).join(", ")}`
+            : null,
         ].filter(Boolean);
 
         const fullDesc = [description, extra.join(" • ")]
@@ -81,23 +59,16 @@ export async function onRequestGet({ env, request }) {
           .join("\n\n")
           .slice(0, 5000);
 
-        const link = `${baseUrl}/p/${encodeURIComponent(pin)}`;
-
-        // ✅ Use first image as main
-        const image_link = images[0];
-
         return {
           id: pin,
           title,
           description: fullDesc || title,
-          link,
-          image_link,
+          link: `${baseUrl}/p/${encodeURIComponent(pin)}`,
+          image_link: images[0],
           availability,
-          price: `${usd.toFixed(2)} ${FEED_CURRENCY}`, // ✅ USD only
+          price: `${price.toFixed(2)} USD`,
           brand: "Mosaic Pins",
           condition: "new",
-
-          // ✅ Fix Merchant Center warnings (always same)
           gender: "unisex",
           age_group: "adult",
           color: "Multicolor",
@@ -105,7 +76,7 @@ export async function onRequestGet({ env, request }) {
       })
       .filter(Boolean);
 
-    const xml = buildGoogleMerchantXml(items, baseUrl);
+    const xml = buildXml(items, baseUrl);
 
     return new Response(xml, {
       headers: {
@@ -114,155 +85,73 @@ export async function onRequestGet({ env, request }) {
       },
     });
   } catch (e) {
-    return text(`Server error: ${String(e)}`, 500);
+    return text("Feed error: " + String(e?.message || e), 500);
   }
 }
 
-function buildGoogleMerchantXml(items, baseUrl) {
-  const channelTitle = "Mosaic Pins";
-  const channelLink = `${baseUrl}/`;
-  const channelDesc = "Handcrafted mosaic pins for knife handles";
-
-  const entries = items
-    .map((it) => {
-      return `
-  <item>
-    <g:id>${xmlEscape(it.id)}</g:id>
-    <title>${xmlEscape(it.title)}</title>
-    <description>${xmlEscape(it.description)}</description>
-    <link>${xmlEscape(it.link)}</link>
-    <g:image_link>${xmlEscape(it.image_link)}</g:image_link>
-    <g:availability>${xmlEscape(it.availability)}</g:availability>
-    <g:price>${xmlEscape(it.price)}</g:price>
-    <g:brand>${xmlEscape(it.brand)}</g:brand>
-    <g:condition>${xmlEscape(it.condition)}</g:condition>
-
-    <g:gender>${xmlEscape(it.gender)}</g:gender>
-    <g:age_group>${xmlEscape(it.age_group)}</g:age_group>
-    <g:color>${xmlEscape(it.color)}</g:color>
-  </item>`;
-    })
-    .join("");
-
+// ---------- XML ----------
+function buildXml(items, baseUrl) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
-  xmlns:g="http://base.google.com/ns/1.0">
+xmlns:g="http://base.google.com/ns/1.0">
 <channel>
-  <title>${xmlEscape(channelTitle)}</title>
-  <link>${xmlEscape(channelLink)}</link>
-  <description>${xmlEscape(channelDesc)}</description>
-  ${entries}
+<title>Mosaic Pins</title>
+<link>${baseUrl}/</link>
+<description>Handcrafted mosaic pins</description>
+
+${items
+  .map(
+    (it) => `
+<item>
+<g:id>${xml(it.id)}</g:id>
+<title>${xml(it.title)}</title>
+<description>${xml(it.description)}</description>
+<link>${xml(it.link)}</link>
+<g:image_link>${xml(it.image_link)}</g:image_link>
+<g:availability>${xml(it.availability)}</g:availability>
+<g:price>${xml(it.price)}</g:price>
+<g:brand>${xml(it.brand)}</g:brand>
+<g:condition>${xml(it.condition)}</g:condition>
+<g:gender>${xml(it.gender)}</g:gender>
+<g:age_group>${xml(it.age_group)}</g:age_group>
+<g:color>${xml(it.color)}</g:color>
+</item>`
+  )
+  .join("")}
+
 </channel>
 </rss>`;
 }
 
-function xmlEscape(s) {
-  return String(s ?? "")
+// ---------- helpers ----------
+function parseJsonArray(v) {
+  if (!v) return [];
+  try {
+    const parsed = JSON.parse(String(v));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function cleanText(s) {
+  return String(s || "")
+    .replace(/\*\*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function xml(s) {
+  return String(s || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+    .replace(/>/g, "&gt;");
 }
 
-/* ---------------- Description cleanup ---------------- */
-/**
- * Google Merchant description is plain text.
- * We remove Markdown and make headings readable.
- */
-function cleanDescriptionForGoogle(text) {
-  let s = String(text || "").replace(/\r\n/g, "\n").trim();
-  if (!s) return "";
-
-  // Convert common "**FEATURES**" -> "FEATURES:"
-  s = s.replace(
-    /\*\*(FEATURES|OVERVIEW|DETAILS|SPECIFICATIONS|MATERIALS)\*\*/gi,
-    (_, t) => `${String(t).toUpperCase()}:`
-  );
-
-  // Remove remaining markdown bold **text**
-  s = s.replace(/\*\*(.+?)\*\*/g, "$1");
-
-  // Remove markdown italics *text* (optional)
-  s = s.replace(/(^|[^*])\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "$1$2");
-
-  // Turn bullets like "- item" / "• item" into "• item"
-  s = s
-    .split("\n")
-    .map((line) => {
-      const t = line.trim();
-      if (!t) return "";
-      if (t.startsWith("- ")) return `• ${t.slice(2).trim()}`;
-      if (t.startsWith("• ")) return `• ${t.slice(2).trim()}`;
-      return t;
-    })
-    .join("\n");
-
-  // Keep newlines but remove too many empty lines
-  s = s.replace(/\n{3,}/g, "\n\n").trim();
-
-  // Google limit safety
-  if (s.length > 5000) s = s.slice(0, 5000);
-
-  return s;
-}
-
-async function airtableFetchAll({
-  token,
-  baseId,
-  table,
-  filterByFormula,
-  pageSize = 100,
-  maxPagesGuard = 60,
-}) {
-  const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(
-    table
-  )}`;
-
-  let all = [];
-  let offset = null;
-
-  for (let page = 0; page < maxPagesGuard; page++) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("pageSize", String(pageSize));
-    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
-    if (offset) url.searchParams.set("offset", offset);
-
-    const r = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(`Airtable error: ${JSON.stringify(data)}`);
-
-    all = all.concat(Array.isArray(data.records) ? data.records : []);
-    offset = data.offset || null;
-    if (!offset) break;
-  }
-
-  return all;
-}
-
-function extractImageUrls(v) {
-  if (!Array.isArray(v)) return [];
-  return v.map((x) => x?.url).filter(Boolean);
-}
-
-function asNumberOrNull(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function toInt(v, fallback = 0) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.floor(n);
-}
-
-function text(body, status = 200) {
-  return new Response(String(body), {
+function text(msg, status = 200) {
+  return new Response(msg, {
     status,
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
+    headers: { "Content-Type": "text/plain" },
   });
 }
 
