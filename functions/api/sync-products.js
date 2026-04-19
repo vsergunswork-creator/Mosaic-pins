@@ -1,9 +1,7 @@
 // functions/api/sync-products.js
-// GET /api/sync-products
+// GET /api/sync-products?page=1&perPage=20&images=0|1
 // Sync Products: Airtable -> R2 -> D1
-// ✅ keeps Airtable image order
-// ✅ writes R2 public URLs into D1
-// ✅ writes active=1 only if Airtable {Active} is checked
+// Safe batched version to avoid Cloudflare subrequest limits
 
 export async function onRequestGet({ env, request }) {
   try {
@@ -23,35 +21,49 @@ export async function onRequestGet({ env, request }) {
     if (!env.PRODUCT_IMAGES) throw new Error("PRODUCT_IMAGES (R2 binding) missing");
     if (!R2_PUBLIC_BASE_URL) throw new Error("R2_PUBLIC_BASE_URL missing");
 
-    // Optional protection:
-    // const SECRET = String(env.SYNC_SECRET || "").trim();
-    // const url = new URL(request.url);
-    // if (SECRET && String(url.searchParams.get("secret") || "") !== SECRET) {
-    //   return Response.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    // }
+    const url = new URL(request.url);
+    const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+    const perPage = Math.min(50, Math.max(1, Number(url.searchParams.get("perPage") || 20)));
+    const withImages = String(url.searchParams.get("images") || "0") === "1";
 
-    // ---------- LOAD FROM AIRTABLE ----------
-    const allRecords = [];
+    // ---------- LOAD ONE AIRTABLE PAGE ----------
+    const airtableUrl = new URL(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`);
+    airtableUrl.searchParams.set("pageSize", String(perPage));
+
     let offset = null;
-
-    for (let page = 0; page < 20; page++) {
-      const url = new URL(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`);
-      url.searchParams.set("pageSize", "100");
-      if (offset) url.searchParams.set("offset", offset);
-
-      const r = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` },
+    if (page > 1) {
+      offset = await getOffsetForPage({
+        token: AIRTABLE_TOKEN,
+        baseId: BASE_ID,
+        table: TABLE,
+        targetPage: page,
+        pageSize: perPage,
       });
-
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(`Airtable error ${r.status}: ${safeJson(data)}`);
-
-      const records = Array.isArray(data.records) ? data.records : [];
-      allRecords.push(...records);
-
-      offset = data.offset || null;
-      if (!offset) break;
+      if (!offset) {
+        return Response.json({
+          ok: true,
+          synced: 0,
+          skipped: 0,
+          total_from_airtable: 0,
+          uploaded_images: 0,
+          reused_images: 0,
+          page,
+          perPage,
+          images: withImages,
+          note: "No more records for this page",
+        });
+      }
+      airtableUrl.searchParams.set("offset", offset);
     }
+
+    const r = await fetch(airtableUrl.toString(), {
+      headers: { Authorization: `Bearer ${AIRTABLE_TOKEN}` },
+    });
+
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Airtable error ${r.status}: ${safeJson(data)}`);
+
+    const allRecords = Array.isArray(data.records) ? data.records : [];
 
     // ---------- UPSERT INTO D1 ----------
     const stmt = env.DB.prepare(`
@@ -89,51 +101,60 @@ export async function onRequestGet({ env, request }) {
       const priceUsd = toNumber(f["Price_USD"], 0);
       const active = f["Active"] === true ? 1 : 0;
 
-      const imagesRaw = Array.isArray(f["Images"]) ? f["Images"] : [];
-      const finalImages = [];
+      let finalImages = [];
 
-      for (let i = 0; i < imagesRaw.length; i++) {
-        const item = imagesRaw[i];
-        if (!item) continue;
+      if (withImages) {
+        const imagesRaw = Array.isArray(f["Images"]) ? f["Images"] : [];
 
-        const srcUrl =
-          typeof item === "string"
-            ? item
-            : (item && typeof item === "object" && item.url ? String(item.url).trim() : "");
+        for (let i = 0; i < imagesRaw.length; i++) {
+          const item = imagesRaw[i];
+          if (!item) continue;
 
-        if (!srcUrl) continue;
+          const srcUrl =
+            typeof item === "string"
+              ? item
+              : (item && typeof item === "object" && item.url ? String(item.url).trim() : "");
 
-        const ext = detectExtension(item, srcUrl);
-        const objectKey = `products/${sanitizePin(pin)}/${String(i + 1).padStart(2, "0")}.${ext}`;
-        const publicUrl = `${R2_PUBLIC_BASE_URL}/${objectKey}`;
+          if (!srcUrl) continue;
 
-        const existing = await env.PRODUCT_IMAGES.head(objectKey);
+          const ext = detectExtension(item, srcUrl);
+          const objectKey = `products/${sanitizePin(pin)}/${String(i + 1).padStart(2, "0")}.${ext}`;
+          const publicUrl = `${R2_PUBLIC_BASE_URL}/${objectKey}`;
 
-        if (!existing) {
-          const imgResp = await fetch(srcUrl);
-          if (!imgResp.ok) {
-            throw new Error(`Image download failed for ${pin}: ${imgResp.status}`);
+          const existing = await env.PRODUCT_IMAGES.head(objectKey);
+
+          if (!existing) {
+            const imgResp = await fetch(srcUrl);
+            if (!imgResp.ok) {
+              throw new Error(`Image download failed for ${pin}: ${imgResp.status}`);
+            }
+
+            const contentType = imgResp.headers.get("content-type") || contentTypeByExt(ext);
+            const arrBuf = await imgResp.arrayBuffer();
+
+            await env.PRODUCT_IMAGES.put(objectKey, arrBuf, {
+              httpMetadata: {
+                contentType,
+                cacheControl: "public, max-age=31536000, immutable",
+              },
+            });
+
+            uploaded_images++;
+          } else {
+            reused_images++;
           }
 
-          const contentType =
-            imgResp.headers.get("content-type") ||
-            contentTypeByExt(ext);
-
-          const arrBuf = await imgResp.arrayBuffer();
-
-          await env.PRODUCT_IMAGES.put(objectKey, arrBuf, {
-            httpMetadata: {
-              contentType,
-              cacheControl: "public, max-age=31536000, immutable",
-            },
-          });
-
-          uploaded_images++;
-        } else {
-          reused_images++;
+          finalImages.push(publicUrl);
         }
+      } else {
+        // keep old images from D1 if they already exist
+        const existingRow = await env.DB.prepare(
+          `SELECT images FROM products WHERE pin = ? LIMIT 1`
+        ).bind(pin).first();
 
-        finalImages.push(publicUrl);
+        if (existingRow?.images) {
+          finalImages = parseJsonArray(existingRow.images);
+        }
       }
 
       await stmt
@@ -159,6 +180,10 @@ export async function onRequestGet({ env, request }) {
       total_from_airtable: allRecords.length,
       uploaded_images,
       reused_images,
+      page,
+      perPage,
+      images: withImages,
+      nextPageHint: data.offset ? page + 1 : null,
     });
   } catch (e) {
     return Response.json(
@@ -169,6 +194,38 @@ export async function onRequestGet({ env, request }) {
 }
 
 // ---------- helpers ----------
+
+async function getOffsetForPage({ token, baseId, table, targetPage, pageSize }) {
+  let offset = null;
+
+  for (let currentPage = 1; currentPage < targetPage; currentPage++) {
+    const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
+    url.searchParams.set("pageSize", String(pageSize));
+    if (offset) url.searchParams.set("offset", offset);
+
+    const r = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Airtable paging error ${r.status}: ${safeJson(data)}`);
+
+    offset = data.offset || null;
+    if (!offset) return null;
+  }
+
+  return offset;
+}
+
+function parseJsonArray(v) {
+  if (!v) return [];
+  try {
+    const parsed = JSON.parse(String(v));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
 
 function sanitizePin(pin) {
   return String(pin || "").replace(/[^a-zA-Z0-9._-]/g, "_");
