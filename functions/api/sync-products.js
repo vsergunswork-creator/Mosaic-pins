@@ -1,7 +1,8 @@
 // functions/api/sync-products.js
 // GET /api/sync-products?page=1&perPage=20&images=0|1
 // Sync Products: Airtable -> R2 -> D1
-// Safe batched version to avoid Cloudflare subrequest limits
+// Safe batched version
+// ✅ syncs diameter/type/color/materials too
 
 export async function onRequestGet({ env, request }) {
   try {
@@ -23,10 +24,9 @@ export async function onRequestGet({ env, request }) {
 
     const url = new URL(request.url);
     const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-    const perPage = Math.min(50, Math.max(1, Number(url.searchParams.get("perPage") || 20)));
+    const perPage = Math.min(20, Math.max(1, Number(url.searchParams.get("perPage") || 10)));
     const withImages = String(url.searchParams.get("images") || "0") === "1";
 
-    // ---------- LOAD ONE AIRTABLE PAGE ----------
     const airtableUrl = new URL(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE)}`);
     airtableUrl.searchParams.set("pageSize", String(perPage));
 
@@ -39,6 +39,7 @@ export async function onRequestGet({ env, request }) {
         targetPage: page,
         pageSize: perPage,
       });
+
       if (!offset) {
         return Response.json({
           ok: true,
@@ -46,13 +47,13 @@ export async function onRequestGet({ env, request }) {
           skipped: 0,
           total_from_airtable: 0,
           uploaded_images: 0,
-          reused_images: 0,
           page,
           perPage,
           images: withImages,
           note: "No more records for this page",
         });
       }
+
       airtableUrl.searchParams.set("offset", offset);
     }
 
@@ -63,29 +64,31 @@ export async function onRequestGet({ env, request }) {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(`Airtable error ${r.status}: ${safeJson(data)}`);
 
-    const allRecords = Array.isArray(data.records) ? data.records : [];
+    const records = Array.isArray(data.records) ? data.records : [];
 
-    // ---------- UPSERT INTO D1 ----------
     const stmt = env.DB.prepare(`
       INSERT OR REPLACE INTO products (
         pin,
         title,
         description,
+        type,
+        diameter,
+        color,
+        materials,
         images,
         stock,
         price_eur,
         price_usd,
         active
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     let inserted = 0;
     let skipped = 0;
     let uploaded_images = 0;
-    let reused_images = 0;
 
-    for (const rec of allRecords) {
+    for (const rec of records) {
       const f = rec?.fields || {};
 
       const pin = String(f[PIN_FIELD] ?? "").trim();
@@ -96,6 +99,12 @@ export async function onRequestGet({ env, request }) {
 
       const title = String(f["Title"] ?? pin);
       const description = String(f["Description"] ?? "");
+
+      const type = valueOrNull(f["Type"]);
+      const diameter = toNumberOrNull(f["Diameter"]);
+      const color = valueOrNull(f["Color"]);
+      const materials = normalizeMaterials(f["Materials"]);
+
       const stock = toInt(f["Stock"], 0);
       const priceEur = toNumber(f["Price_EUR"], 0);
       const priceUsd = toNumber(f["Price_USD"], 0);
@@ -113,7 +122,7 @@ export async function onRequestGet({ env, request }) {
           const srcUrl =
             typeof item === "string"
               ? item
-              : (item && typeof item === "object" && item.url ? String(item.url).trim() : "");
+              : (typeof item === "object" && item.url ? String(item.url).trim() : "");
 
           if (!srcUrl) continue;
 
@@ -121,36 +130,32 @@ export async function onRequestGet({ env, request }) {
           const objectKey = `products/${sanitizePin(pin)}/${String(i + 1).padStart(2, "0")}.${ext}`;
           const publicUrl = `${R2_PUBLIC_BASE_URL}/${objectKey}`;
 
-          const existing = await env.PRODUCT_IMAGES.head(objectKey);
-
-          if (!existing) {
-            const imgResp = await fetch(srcUrl);
-            if (!imgResp.ok) {
-              throw new Error(`Image download failed for ${pin}: ${imgResp.status}`);
-            }
-
-            const contentType = imgResp.headers.get("content-type") || contentTypeByExt(ext);
-            const arrBuf = await imgResp.arrayBuffer();
-
-            await env.PRODUCT_IMAGES.put(objectKey, arrBuf, {
-              httpMetadata: {
-                contentType,
-                cacheControl: "public, max-age=31536000, immutable",
-              },
-            });
-
-            uploaded_images++;
-          } else {
-            reused_images++;
+          const imgResp = await fetch(srcUrl);
+          if (!imgResp.ok) {
+            throw new Error(`Image download failed for ${pin}: ${imgResp.status}`);
           }
 
+          const contentType =
+            imgResp.headers.get("content-type") ||
+            contentTypeByExt(ext);
+
+          const arrBuf = await imgResp.arrayBuffer();
+
+          await env.PRODUCT_IMAGES.put(objectKey, arrBuf, {
+            httpMetadata: {
+              contentType,
+              cacheControl: "public, max-age=31536000, immutable",
+            },
+          });
+
+          uploaded_images++;
           finalImages.push(publicUrl);
         }
       } else {
-        // keep old images from D1 if they already exist
-        const existingRow = await env.DB.prepare(
-          `SELECT images FROM products WHERE pin = ? LIMIT 1`
-        ).bind(pin).first();
+        const existingRow = await env.DB
+          .prepare(`SELECT images FROM products WHERE pin = ? LIMIT 1`)
+          .bind(pin)
+          .first();
 
         if (existingRow?.images) {
           finalImages = parseJsonArray(existingRow.images);
@@ -162,6 +167,10 @@ export async function onRequestGet({ env, request }) {
           pin,
           title,
           description,
+          type,
+          diameter,
+          color,
+          JSON.stringify(materials),
           JSON.stringify(finalImages),
           stock,
           priceEur,
@@ -177,9 +186,8 @@ export async function onRequestGet({ env, request }) {
       ok: true,
       synced: inserted,
       skipped,
-      total_from_airtable: allRecords.length,
+      total_from_airtable: records.length,
       uploaded_images,
-      reused_images,
       page,
       perPage,
       images: withImages,
@@ -192,8 +200,6 @@ export async function onRequestGet({ env, request }) {
     );
   }
 }
-
-// ---------- helpers ----------
 
 async function getOffsetForPage({ token, baseId, table, targetPage, pageSize }) {
   let offset = null;
@@ -225,6 +231,24 @@ function parseJsonArray(v) {
   } catch (_) {
     return [];
   }
+}
+
+function normalizeMaterials(v) {
+  if (Array.isArray(v)) return v.filter(Boolean).map(String);
+  if (v == null || v === "") return [];
+  return [String(v)];
+}
+
+function valueOrNull(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s ? s : null;
+}
+
+function toNumberOrNull(v) {
+  if (v == null || v === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
 }
 
 function sanitizePin(pin) {
