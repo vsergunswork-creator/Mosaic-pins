@@ -1,8 +1,10 @@
 // functions/api/stripe-webhook.js
-// POST /api/stripe-webhook (ВАШЕ - НЕ ТРОГАЕМ по логике)
-// GET  /api/stripe-webhook?ship_check=1  (✅ NEW: cron-проверка Tracking Number -> shipped email)
+// POST /api/stripe-webhook
+// GET  /api/stripe-webhook?ship_check=1
+//
 // 1) UPSERT order in Airtable Orders (create or update by "Stripe Session ID")
 // 2) Decrement stock in Airtable Products (only once per Stripe event id)
+// 3) ✅ NEW: Decrement stock in D1 by pin (same event, same qty)
 // Idempotency: KV (STRIPE_EVENTS_KV) with "processing" and "stock_done"
 
 export async function onRequestPost(ctx) {
@@ -90,15 +92,32 @@ export async function onRequestPost(ctx) {
 
     // ---------- normalize items ----------
     // meta item format: { recordId, pin, qty }
-    const map = new Map(); // recordId -> qty
+    const map = new Map(); // recordId -> { qty, pin }
+
     for (const it of items) {
       const recordId = String(it?.recordId || "").trim();
+      const pin = String(it?.pin || "").trim();
       const qty = Math.floor(Number(it?.qty || 0));
+
       if (!recordId) continue;
       if (!Number.isFinite(qty) || qty <= 0) continue;
-      map.set(recordId, (map.get(recordId) || 0) + qty);
+
+      const prevItem = map.get(recordId);
+      if (prevItem) {
+        prevItem.qty += qty;
+        if (!prevItem.pin && pin) prevItem.pin = pin;
+        map.set(recordId, prevItem);
+      } else {
+        map.set(recordId, { qty, pin });
+      }
     }
-    const normalized = [...map.entries()].map(([recordId, qty]) => ({ recordId, qty }));
+
+    const normalized = [...map.entries()].map(([recordId, data]) => ({
+      recordId,
+      pin: String(data?.pin || "").trim(),
+      qty: Number(data?.qty || 0),
+    }));
+
     if (!normalized.length) {
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
       return json({ received: true, note: "No valid recordId/qty in items" });
@@ -244,6 +263,7 @@ export async function onRequestPost(ctx) {
       }
 
       try {
+        // 1) decrement stock in Airtable (existing logic)
         await decrementStockByRecordIdSafe({
           token: env.AIRTABLE_TOKEN,
           baseId: env.AIRTABLE_BASE_ID,
@@ -251,6 +271,15 @@ export async function onRequestPost(ctx) {
           recordId: it.recordId,
           qty: it.qty,
         });
+
+        // 2) ✅ decrement stock in D1 by pin (new logic)
+        if (it.pin && env.DB) {
+          await decrementStockInD1ByPin({
+            db: env.DB,
+            pin: it.pin,
+            qty: it.qty,
+          });
+        }
       } finally {
         await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: lockKey, token: lockToken });
       }
@@ -264,7 +293,7 @@ export async function onRequestPost(ctx) {
 }
 
 /* =========================================================================================
-   ✅ NEW: Cron endpoint to auto-send "shipped" emails when Tracking Number is filled in Airtable
+   ✅ Cron endpoint to auto-send "shipped" emails when Tracking Number is filled in Airtable
    URL: GET /api/stripe-webhook?ship_check=1
    SECURITY: header  X-CRON-SECRET: <CRON_SECRET>
 ========================================================================================= */
@@ -548,6 +577,27 @@ async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qt
 
   const data = await r2.json().catch(() => ({}));
   if (!r2.ok) throw new Error(`Airtable update failed: ${r2.status} ${JSON.stringify(data)}`);
+}
+
+// ---------------- ✅ NEW: D1 stock decrement ----------------
+
+async function decrementStockInD1ByPin({ db, pin, qty }) {
+  const safePin = String(pin || "").trim();
+  const q = Math.floor(Number(qty || 0));
+
+  if (!safePin) return;
+  if (!Number.isFinite(q) || q <= 0) return;
+
+  await db.prepare(`
+    UPDATE products
+    SET stock = CASE
+      WHEN stock - ? < 0 THEN 0
+      ELSE stock - ?
+    END
+    WHERE pin = ?
+  `)
+    .bind(q, q, safePin)
+    .run();
 }
 
 // ---------------- KV lock (best-effort) ----------------
