@@ -1,10 +1,13 @@
+import { decrementAirtableStock } from "./_airtable-products.js";
+import { runShippedSweep, sendPaidEmailForRecord } from "./_notifications.js";
+
 // functions/api/stripe-webhook.js
 // POST /api/stripe-webhook
 // GET  /api/stripe-webhook?ship_check=1
 //
 // 1) UPSERT order in Airtable Orders (create or update by "Stripe Session ID")
 // 2) Decrement stock in Airtable Products (only once per Stripe event id)
-// 3) ✅ NEW: Decrement stock in D1 by pin (same event, same qty)
+// 3) Airtable remains the only stock source of truth; product cache is invalidated automatically
 // Idempotency: KV (STRIPE_EVENTS_KV) with "processing" and "stock_done"
 
 export async function onRequestPost(ctx) {
@@ -75,19 +78,22 @@ export async function onRequestPost(ctx) {
     }
 
     const meta = session?.metadata || {};
-    const itemsJson = String(meta.items || "").trim();
+    // New sessions store the cart in KV; legacy sessions may still contain metadata.items.
+    let itemsJson = String(meta.items || "").trim();
+    const cartKey = String(meta.cartKey || "").trim();
+    if (!itemsJson && cartKey) itemsJson = String(await env.STRIPE_EVENTS_KV.get(cartKey) || "").trim();
     if (!itemsJson) {
-      await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
-      return json({ received: true, note: "No metadata.items" });
+      // Do not mark this event done: Stripe retry may succeed if KV had a temporary issue.
+      await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
+      return json({ error: "Checkout cart data is missing" }, 503);
     }
 
     let items;
     try {
       items = JSON.parse(itemsJson);
     } catch {
-      // ✅ important: remove processing marker to allow Stripe retry with fixed metadata
       await env.STRIPE_EVENTS_KV.delete(EVT_KEY);
-      return json({ error: "Bad metadata.items JSON" }, 400);
+      return json({ error: "Bad checkout cart JSON" }, 400);
     }
 
     // ---------- normalize items ----------
@@ -213,8 +219,6 @@ export async function onRequestPost(ctx) {
       "Customer Email": customerEmail,
       "Telefon": telefon,
 
-      "Tracking Number": "",
-
       "Created At": createdAtISO, // ISO 8601
       "Amount Total": amountTotal,
 
@@ -222,15 +226,16 @@ export async function onRequestPost(ctx) {
       "Payment Intent ID": paymentIntentId,
     };
 
+    let savedOrder;
     if (!existing?.id) {
-      await airtableCreateRecord({
+      savedOrder = await airtableCreateRecord({
         token: env.AIRTABLE_TOKEN,
         baseId: env.AIRTABLE_BASE_ID,
         table: ORDERS_TABLE,
-        fields: orderFields,
+        fields: { ...orderFields, "Tracking Number": "" },
       });
     } else {
-      await airtableUpdateRecord({
+      savedOrder = await airtableUpdateRecord({
         token: env.AIRTABLE_TOKEN,
         baseId: env.AIRTABLE_BASE_ID,
         table: ORDERS_TABLE,
@@ -239,14 +244,27 @@ export async function onRequestPost(ctx) {
       });
     }
 
+    // Customer confirmation is sent immediately when possible.
+    // The notification worker is the fallback if this attempt fails.
+    const queuePaidEmail = () => {
+      const job = sendPaidEmailForRecord(env, savedOrder).catch((e) =>
+        console.error("Immediate paid-email failed; cron will retry", e)
+      );
+      if (ctx.waitUntil) ctx.waitUntil(job);
+    };
+
     // ---------- decrement stock ONLY ONCE ----------
     const alreadyStockDone = prev === "stock_done";
     if (alreadyStockDone) {
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
-      return json({ received: true, upserted: true, stock: "skipped_already_done" });
+      queuePaidEmail();
+      return json({ received: true, upserted: true, stock: "skipped_already_done", email: "queued" });
     }
 
     for (const it of normalized) {
+      const ITEM_DONE_KEY = `stripe_stock_done:${eventId}:${it.recordId}`;
+      if (await env.STRIPE_EVENTS_KV.get(ITEM_DONE_KEY)) continue;
+
       const lockKey = `lock:${it.recordId}`;
       const lockToken = await acquireLock({
         kv: env.STRIPE_EVENTS_KV,
@@ -263,22 +281,11 @@ export async function onRequestPost(ctx) {
       }
 
       try {
-        // 1) decrement stock in Airtable (existing logic)
-        await decrementStockByRecordIdSafe({
-          token: env.AIRTABLE_TOKEN,
-          baseId: env.AIRTABLE_BASE_ID,
-          table: env.AIRTABLE_TABLE_NAME, // Products
-          recordId: it.recordId,
-          qty: it.qty,
-        });
-
-        // 2) ✅ decrement stock in D1 by pin (new logic)
-        if (it.pin && env.DB) {
-          await decrementStockInD1ByPin({
-            db: env.DB,
-            pin: it.pin,
-            qty: it.qty,
-          });
+        // Airtable is the only stock source of truth.
+        // Per-item marker prevents a retry from decrementing an item twice if another item failed later.
+        if (!(await env.STRIPE_EVENTS_KV.get(ITEM_DONE_KEY))) {
+          await decrementAirtableStock(env, it.recordId, it.qty);
+          await env.STRIPE_EVENTS_KV.put(ITEM_DONE_KEY, "1", { expirationTtl: 90 * 24 * 60 * 60 });
         }
       } finally {
         await releaseLock({ kv: env.STRIPE_EVENTS_KV, key: lockKey, token: lockToken });
@@ -286,149 +293,24 @@ export async function onRequestPost(ctx) {
     }
 
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
-    return json({ received: true, upserted: true, stock: "decremented" });
+    if (cartKey) await env.STRIPE_EVENTS_KV.delete(cartKey).catch(() => {});
+    queuePaidEmail();
+    return json({ received: true, upserted: true, stock: "decremented", email: "queued" });
   } catch (e) {
     return json({ error: "Webhook error", details: String(e?.message || e) }, 500);
   }
 }
 
-/* =========================================================================================
-   ✅ Cron endpoint to auto-send "shipped" emails when Tracking Number is filled in Airtable
-   URL: GET /api/stripe-webhook?ship_check=1
-   SECURITY: header  X-CRON-SECRET: <CRON_SECRET>
-========================================================================================= */
-export async function onRequestGet(ctx) {
-  const { env, request } = ctx;
-
+// Manual authenticated fallback for shipping notifications.
+export async function onRequestGet({ env, request }) {
+  const url = new URL(request.url);
+  if (url.searchParams.get("ship_check") !== "1") return json({ ok: true, note: "use ?ship_check=1" });
+  const required = String(env.CRON_SECRET || "").trim();
+  const got = String(request.headers.get("x-cron-secret") || url.searchParams.get("secret") || "").trim();
+  if (required && got !== required) return json({ ok: false, error: "Unauthorized" }, 401);
   try {
-    const url = new URL(request.url);
-    if (url.searchParams.get("ship_check") !== "1") {
-      return json({ ok: true, note: "use ?ship_check=1" }, 200);
-    }
-
-    // --- Security: header secret ---
-    const REQUIRED = String(env.CRON_SECRET || "").trim();
-    if (REQUIRED) {
-      const got = String(
-        request.headers.get("x-cron-secret") ||
-        request.headers.get("X-CRON-SECRET") ||
-        ""
-      ).trim();
-      if (got !== REQUIRED) return json({ ok: false, error: "Unauthorized" }, 401);
-    }
-
-    // --- Required env for ship-check ---
-    if (!env.STRIPE_EVENTS_KV) return json({ ok: false, error: "STRIPE_EVENTS_KV binding is not set" }, 500);
-
-    if (!env.AIRTABLE_TOKEN) return json({ ok: false, error: "AIRTABLE_TOKEN is not set" }, 500);
-    if (!env.AIRTABLE_BASE_ID) return json({ ok: false, error: "AIRTABLE_BASE_ID is not set" }, 500);
-
-    const ORDERS_TABLE =
-      env.AIRTABLE_ORDERS_TABLE_NAME ||
-      env.AIRTABLE_ORDERS_TABLE ||
-      "Orders";
-
-    // Airtable fields
-    const TRACKING_FIELD = String(env.AIRTABLE_TRACKING_FIELD || "Tracking Number");
-    const SHIPPED_FIELD = String(env.AIRTABLE_SHIPPED_FIELD || "Shipped Email Sent");
-
-    // Mail settings
-    const STORE_NAME = String(env.STORE_NAME || "Mosaic Pins");
-    const STORE_URL = String(env.STORE_URL || "https://mosaicpins.space");
-
-    const MAIL_FROM = String(env.MAIL_FROM || "").trim();
-    const MAIL_REPLY_TO = String(env.MAIL_REPLY_TO || "").trim();
-    const MAIL_BCC = String(env.MAIL_BCC || "").trim();
-
-    if (!MAIL_FROM) return json({ ok: false, error: "MAIL_FROM is not set" }, 500);
-
-    // Airtable formula: AND({Tracking Number}!="", NOT({Shipped Email Sent}))
-    const formula = `AND({${TRACKING_FIELD}}!="", NOT({${SHIPPED_FIELD}}))`;
-
-    const records = await airtableFetchAll({
-      token: env.AIRTABLE_TOKEN,
-      baseId: env.AIRTABLE_BASE_ID,
-      table: ORDERS_TABLE,
-      filterByFormula: formula,
-      pageSize: 50,
-      maxPagesGuard: 10,
-    });
-
-    let sent = 0;
-    let skipped = 0;
-    const details = [];
-
-    for (const rec of records) {
-      const recordId = rec?.id;
-      const f = rec?.fields || {};
-      if (!recordId) continue;
-
-      const tracking = String(f[TRACKING_FIELD] || "").trim();
-      const customerEmail = String(f["Customer Email"] || "").trim();
-      const customerName = String(f["Customer Name"] || "").trim();
-      const orderId = String(f["Order ID"] || f["Stripe Session ID"] || recordId).trim();
-
-      if (!tracking || !customerEmail) {
-        skipped++;
-        details.push({ recordId, orderId, skipped: true, reason: "missing_tracking_or_email" });
-        continue;
-      }
-
-      // KV idempotency (на случай двух кронов/ретраев)
-      const KV_KEY = `shipped_email_sent:${recordId}`;
-      const already = await env.STRIPE_EVENTS_KV.get(KV_KEY);
-      if (already) {
-        skipped++;
-        details.push({ recordId, orderId, skipped: true, reason: "kv_already_sent" });
-        continue;
-      }
-
-      const shippingAddress = String(f["Shipping Address"] || "").trim();
-      const shipCity = String(f["Shipping City"] || "").trim();
-      const shipPostal = String(f["Shipping Postal Code"] || "").trim();
-      const shipState = String(f["Shipping State/Region"] || "").trim();
-      const shipCountry = String(f["Shipping Country"] || "").trim();
-
-      const subject = `${STORE_NAME}: Your order has been shipped 🚚`;
-
-      const { html, text } = buildShippedEmail({
-        storeName: STORE_NAME,
-        storeUrl: STORE_URL,
-        customerName,
-        orderId,
-        trackingNumber: tracking,
-        shippingAddress,
-        shipCity,
-        shipPostal,
-        shipState,
-        shipCountry,
-      });
-
-      await sendEmailMailchannels({
-        from: MAIL_FROM,
-        to: customerEmail,
-        replyTo: MAIL_REPLY_TO || undefined,
-        bcc: MAIL_BCC || undefined,
-        subject,
-        html,
-        text,
-      });
-
-      await airtablePatchRecord({
-        token: env.AIRTABLE_TOKEN,
-        baseId: env.AIRTABLE_BASE_ID,
-        table: ORDERS_TABLE,
-        recordId,
-        fields: { [SHIPPED_FIELD]: true },
-      });
-
-      await env.STRIPE_EVENTS_KV.put(KV_KEY, "1", { expirationTtl: 30 * 24 * 60 * 60 });
-
-      sent++;
-      details.push({ recordId, orderId, sent: true });
-    }
-
-    return json({ ok: true, found: records.length, sent, skipped, details }, 200);
+    const shipped = await runShippedSweep(env, { maxRecords: 25 });
+    return json({ ok: true, shipped });
   } catch (e) {
     return json({ ok: false, error: String(e?.message || e) }, 500);
   }
@@ -503,102 +385,7 @@ async function airtableFindOrderByStripeSessionId({ token, baseId, table, stripe
   return rec ? { id: rec.id, fields: rec.fields || {} } : null;
 }
 
-async function airtablePatchRecord({ token, baseId, table, recordId, fields }) {
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
-
-  const r = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ fields }),
-  });
-
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Airtable patch failed: ${r.status} ${JSON.stringify(data)}`);
-  return data;
-}
-
-async function airtableFetchAll({ token, baseId, table, filterByFormula, pageSize = 100, maxPagesGuard = 60 }) {
-  const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
-
-  let all = [];
-  let offset = null;
-
-  for (let page = 0; page < maxPagesGuard; page++) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("pageSize", String(pageSize));
-    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
-    if (offset) url.searchParams.set("offset", offset);
-
-    const r = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(`Airtable error: ${JSON.stringify(data)}`);
-
-    const records = Array.isArray(data.records) ? data.records : [];
-    all = all.concat(records);
-
-    offset = data.offset || null;
-    if (!offset) break;
-  }
-
-  return all;
-}
-
-// ---------------- Airtable stock decrement ----------------
-
-async function decrementStockByRecordIdSafe({ token, baseId, table, recordId, qty }) {
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`;
-
-  const r1 = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  const rec = await r1.json().catch(() => ({}));
-  if (!r1.ok) throw new Error(`Airtable get failed: ${r1.status} ${JSON.stringify(rec)}`);
-
-  const current = Number(rec?.fields?.Stock ?? 0);
-  const safeCurrent = Number.isFinite(current) ? current : 0;
-
-  const q = Math.floor(Number(qty || 0));
-  const safeQty = Number.isFinite(q) ? q : 0;
-
-  const next = Math.max(0, safeCurrent - safeQty);
-
-  const r2 = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ fields: { Stock: next } }),
-  });
-
-  const data = await r2.json().catch(() => ({}));
-  if (!r2.ok) throw new Error(`Airtable update failed: ${r2.status} ${JSON.stringify(data)}`);
-}
-
-// ---------------- ✅ NEW: D1 stock decrement ----------------
-
-async function decrementStockInD1ByPin({ db, pin, qty }) {
-  const safePin = String(pin || "").trim();
-  const q = Math.floor(Number(qty || 0));
-
-  if (!safePin) return;
-  if (!Number.isFinite(q) || q <= 0) return;
-
-  await db.prepare(`
-    UPDATE products
-    SET stock = CASE
-      WHEN stock - ? < 0 THEN 0
-      ELSE stock - ?
-    END
-    WHERE pin = ?
-  `)
-    .bind(q, q, safePin)
-    .run();
-}
+// Stock updates are handled by _airtable-products.js.
 
 // ---------------- KV lock (best-effort) ----------------
 
@@ -631,118 +418,6 @@ async function releaseLock({ kv, key, token }) {
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
-}
-
-// ---------------- ✅ MailChannels send + shipped template ----------------
-
-async function sendEmailMailchannels({ from, to, subject, html, text, replyTo, bcc }) {
-  const payload = {
-    personalizations: [
-      {
-        to: [{ email: to }],
-        ...(bcc ? { bcc: [{ email: bcc }] } : {}),
-      },
-    ],
-    from: { email: from },
-    subject,
-    content: [
-      { type: "text/plain", value: text || "" },
-      { type: "text/html", value: html || "" },
-    ],
-    ...(replyTo ? { reply_to: { email: replyTo } } : {}),
-  };
-
-  const r = await fetch("https://api.mailchannels.net/tx/v1/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const respText = await r.text().catch(() => "");
-  if (!r.ok) throw new Error(`Mail send failed: ${r.status} ${respText}`);
-}
-
-function buildShippedEmail({
-  storeName,
-  storeUrl,
-  customerName,
-  orderId,
-  trackingNumber,
-  shippingAddress,
-  shipCity,
-  shipPostal,
-  shipState,
-  shipCountry,
-}) {
-  const hello = customerName ? `Hello ${customerName}!` : "Hello!";
-
-  const addressBlock = formatAddress({
-    shippingAddress,
-    shipCity,
-    shipPostal,
-    shipState,
-    shipCountry,
-  });
-
-  const text =
-`${hello}
-
-Good news — your order has been shipped 🚚
-
-Order ID: ${orderId}
-Tracking Number: ${trackingNumber}
-
-Shipping address:
-${addressBlock || "-"}
-
-If you have any questions, just reply to this email.
-
-${storeUrl || storeName}
-`;
-
-  const html =
-`<div style="font-family:Arial,sans-serif;line-height:1.45;color:#111">
-  <h2 style="margin:0 0 12px">${escapeHtml(storeName)} — Order shipped 🚚</h2>
-  <p style="margin:0 0 10px">${escapeHtml(hello)}</p>
-
-  <p style="margin:0 0 12px">Good news — your order has been shipped.</p>
-
-  <div style="padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#fafafa;margin:12px 0">
-    <div><b>Order ID:</b> ${escapeHtml(orderId)}</div>
-    <div style="margin-top:6px"><b>Tracking Number:</b> ${escapeHtml(trackingNumber)}</div>
-  </div>
-
-  <p style="margin:12px 0 6px"><b>Shipping address:</b></p>
-  <div style="white-space:pre-line;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;background:#fff">${escapeHtml(addressBlock || "-")}</div>
-
-  <p style="margin:14px 0 8px">If you have any questions, just reply to this email.</p>
-
-  ${storeUrl ? `<p style="margin:0"><a href="${escapeHtml(storeUrl)}">${escapeHtml(storeUrl)}</a></p>` : ""}
-</div>`;
-
-  return { html, text };
-}
-
-function formatAddress({ shippingAddress, shipCity, shipPostal, shipState, shipCountry }) {
-  const lines = [];
-  if (shippingAddress) lines.push(String(shippingAddress).trim());
-
-  const cityLine = [shipPostal, shipCity].filter(Boolean).join(" ");
-  const regionLine = [shipState, shipCountry].filter(Boolean).join(" ");
-
-  if (cityLine) lines.push(cityLine);
-  if (regionLine) lines.push(regionLine);
-
-  return lines.filter(Boolean).join("\n").trim();
-}
-
-function escapeHtml(s) {
-  return String(s || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }
 
 // ---------------- Stripe signature verify ----------------

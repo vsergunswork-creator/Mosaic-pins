@@ -1,9 +1,4 @@
-# --- SEO files ---
+# Cloudflare Pages serves *.html files at clean extensionless URLs automatically.
+# API and dynamic product routes are handled by Pages Functions via _routes.json.
 /robots.txt     /robots.txt     200
 /sitemap.xml    /sitemap.xml    200
-
-# --- API ---
-/api/*          /api/:splat     200
-
-# --- SPA fallback (always LAST) ---
-/*              /index.html     200

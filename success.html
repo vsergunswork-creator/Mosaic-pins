@@ -9,14 +9,7 @@
   <h1 style="margin:0 0 10px;">✅ Payment successful</h1>
   <p style="color:#a8b3c7; margin:0 0 18px;">Updating your cart…</p>
 
-  <script>
-    // ✅ очищаем корзину
-    try { localStorage.setItem("mp_cart", "[]"); } catch(e) {}
-
-    // ✅ возвращаем на главную с флагом, чтобы index.html показал toast + обновил stock
-    setTimeout(() => {
-      location.replace("/?success=1");
-    }, 400);
-  </script>
+  <script src="/assets/js/success.js"></script>
+  <script src="/assets/js/site-common.js"></script>
 </body>
 </html>

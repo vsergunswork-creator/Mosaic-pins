@@ -1,7 +1,9 @@
+import { findProductRecordsByPins, normalizeAirtableProduct } from "./_airtable-products.js";
+
 // functions/api/checkout.js
 // POST /api/checkout
 // body: { currency: "EUR"|"USD", shippingCountry: "DE"|"US"|..., items: [{ pin: "G7N21g", qty: 1 }, ...] }
-// ✅ D1 version (NO Airtable)
+// Airtable source-of-truth version (checkout always validates fresh stock/prices)
 
 export function onRequestOptions(ctx) {
   const { request } = ctx;
@@ -33,15 +35,14 @@ export async function onRequestPost(ctx) {
       );
     }
 
-    if (!env.DB) {
-      return json({ ok: false, error: "DB binding is not set (D1)" }, 500, headers);
-    }
-
     const STRIPE_SECRET_KEY = String(env.STRIPE_SECRET_KEY || "").trim();
     const SITE_URL = String(env.SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
 
     if (!STRIPE_SECRET_KEY) {
       return json({ ok: false, error: "STRIPE_SECRET_KEY is not set" }, 500, headers);
+    }
+    if (!env.STRIPE_EVENTS_KV) {
+      return json({ ok: false, error: "STRIPE_EVENTS_KV binding is not set" }, 500, headers);
     }
 
     // --- normalize cart ---
@@ -68,36 +69,21 @@ export async function onRequestPost(ctx) {
 
     const pins = [...cartMap.keys()];
 
-    // --- load products from D1 ---
-    const placeholders = pins.map(() => "?").join(",");
-
-    const sql = `
-      SELECT
-        pin,
-        title,
-        stock,
-        price_eur,
-        price_usd,
-        active
-      FROM products
-      WHERE pin IN (${placeholders})
-    `;
-
-    const res = await env.DB.prepare(sql).bind(...pins).all();
-    const rows = Array.isArray(res?.results) ? res.results : [];
-
+    // --- load current products directly from Airtable ---
+    // Checkout intentionally bypasses catalog cache so price/stock can never be stale.
+    const airtableRecords = await findProductRecordsByPins(env, pins);
     const byPin = new Map();
-    for (const row of rows) {
-      const pin = String(row?.pin || "").trim();
-      if (!pin) continue;
-
-      byPin.set(pin, {
-        pin,
-        title: String(row?.title || pin),
-        stock: toInt(row?.stock, 0),
-        active: Number(row?.active ?? 0) === 1,
-        priceEUR: asNumberOrNull(row?.price_eur),
-        priceUSD: asNumberOrNull(row?.price_usd),
+    for (const rec of airtableRecords) {
+      const p = await normalizeAirtableProduct(env, rec);
+      if (!p) continue;
+      byPin.set(p.pin, {
+        recordId: p.recordId,
+        pin: p.pin,
+        title: p.title,
+        stock: Number(p.stock || 0),
+        active: p.active === true,
+        priceEUR: p.price?.EUR,
+        priceUSD: p.price?.USD,
       });
     }
 
@@ -146,22 +132,18 @@ export async function onRequestPost(ctx) {
       });
 
       metaItems.push({
+        recordId: p.recordId,
         pin: p.pin,
         qty,
       });
     }
 
+    // Stripe metadata values are intentionally small. Store the validated cart in KV and
+    // put only a short lookup key into the Checkout Session. This removes the old cart-size limit.
     const itemsStr = JSON.stringify(metaItems);
-    if (itemsStr.length > 450) {
-      return json(
-        {
-          ok: false,
-          error: "Cart is too large for checkout metadata. Reduce items.",
-        },
-        413,
-        headers
-      );
-    }
+    const checkoutId = crypto.randomUUID();
+    const cartKey = `checkout_cart:${checkoutId}`;
+    await env.STRIPE_EVENTS_KV.put(cartKey, itemsStr, { expirationTtl: 7 * 24 * 60 * 60 });
 
     // =========================
     // Shipping zones
@@ -219,16 +201,17 @@ export async function onRequestPost(ctx) {
 
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
-      idempotencyKey: `mp_${hashText(`${currency}|${shippingCountry}|${itemsStr}`)}`,
+      idempotencyKey: `mp_${checkoutId}`,
       payload: {
         mode: "payment",
         line_items,
-        success_url: `${SITE_URL}/success.html`,
-        cancel_url: `${SITE_URL}/canceled.html`,
+        success_url: `${SITE_URL}/success`,
+        cancel_url: `${SITE_URL}/cancel`,
         client_reference_id: `mp-${Date.now()}`,
         metadata: {
           currency,
-          items: itemsStr,
+          checkoutId,
+          cartKey,
           shippingCountry,
           shippingZone: zone,
         },

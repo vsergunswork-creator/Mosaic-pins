@@ -4,315 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Shipping • Mosaic Pins</title>
-  <style>
-    :root{
-      --bg:#0b0d11;
-      --text:#e9eef7;
-      --muted:#a8b3c7;
-      --line:rgba(255,255,255,.08);
-      --shadow: 0 12px 30px rgba(0,0,0,.45);
-      --r:18px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      background: var(--bg);
-      color:var(--text);
-      overflow:auto;
-      position:relative;
-      isolation:isolate;
-    }
-
-    body::before{
-      content:"";
-      position:fixed;
-      inset:-20vh -20vw;
-      z-index:-1;
-      pointer-events:none;
-      background:
-        radial-gradient(1100px 700px at 35% -10%, rgba(50,220,150,.25), transparent 55%),
-        radial-gradient(900px 600px at 75% 10%, rgba(120,90,255,.22), transparent 55%),
-        var(--bg);
-      filter: blur(18px) saturate(1.05);
-      transform: translateZ(0);
-      will-change: transform;
-    }
-
-    /* scrollbars */
-    *{scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) rgba(0,0,0,.25);}
-    *::-webkit-scrollbar{width:10px;height:10px}
-    *::-webkit-scrollbar-track{background:rgba(0,0,0,.25); border-radius:999px}
-    *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:999px; border:2px solid rgba(0,0,0,.25)}
-    *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
-
-    /* ===== Layout like Privacy/Impressum ===== */
-    .app{
-      display:grid;
-      grid-template-columns: 280px 1fr;
-      min-height:100vh;
-      gap:16px;
-      padding:16px;
-    }
-
-    .sidebar{
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border:1px solid var(--line);
-      border-radius: var(--r);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      min-height:0;
-    }
-
-    .sb-top{
-      padding:18px 18px 10px;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-    }
-    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
-    .dot{width:10px;height:10px;border-radius:50%; background:linear-gradient(135deg,#22c55e,#60a5fa);}
-    .pill{
-      padding:8px 10px; border-radius:999px;
-      background:rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      color:var(--muted);
-      font-size:12px;
-      white-space:nowrap;
-    }
-
-    .sb-nav{padding:6px; display:grid; gap:6px;}
-    .nav-item{
-      display:flex; align-items:center; gap:10px;
-      padding:10px 12px;
-      border-radius:12px;
-      color:var(--muted);
-      text-decoration:none;
-      border:1px solid transparent;
-      background: rgba(255,255,255,.00);
-    }
-    .nav-item:hover{background:rgba(255,255,255,.05); color:var(--text);}
-    .nav-item.active{
-      background:rgba(34,197,94,.12);
-      border-color: rgba(34,197,94,.22);
-      color:var(--text);
-    }
-
-    .main{
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      border:1px solid var(--line);
-      border-radius: var(--r);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      min-width:0;
-    }
-
-    .topbar{
-      padding: calc(16px + env(safe-area-inset-top)) 18px 16px;
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      border-bottom:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(34,197,94,.14), rgba(0,0,0,0));
-    }
-    .h-title{font-weight:900; font-size:18px; margin:0;}
-    .sub{color:var(--muted); font-size:12px; margin-top:4px}
-
-    .content{
-      padding:18px;
-      overflow:auto;
-      min-height:0;
-    }
-
-    /* Button same as legal pages */
-    .btn{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:8px;
-      border:none; cursor:pointer;
-      padding:10px 12px;
-      border-radius:12px;
-      background:linear-gradient(135deg,#22c55e,#16a34a);
-      color:#07110b;
-      font-weight:900;
-      box-shadow: 0 10px 18px rgba(34,197,94,.18);
-      transition: filter .15s ease, transform .15s ease;
-      text-decoration:none;
-      white-space:nowrap;
-    }
-    .btn:hover{filter:brightness(1.05); transform: translateY(-1px)}
-
-    h1{
-      margin: 0 0 10px;
-      font-size: 22px;
-      font-weight: 950;
-      letter-spacing:.2px;
-    }
-    .subtext{
-      margin: 0 0 18px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    .cards{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-      margin-top: 10px;
-    }
-    @media (max-width:760px){
-      .cards{grid-template-columns:1fr}
-    }
-
-    .card{
-      border:1px solid var(--line);
-      border-radius: 16px;
-      background: rgba(0,0,0,.22);
-      padding: 14px 14px;
-    }
-    .card h2{
-      margin:0 0 8px;
-      font-size: 14px;
-      font-weight: 950;
-    }
-    .card p, .card li{
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.55;
-    }
-    .card ul{margin:10px 0 0 18px; padding:0;}
-
-    .pill2{
-      display:inline-block;
-      margin-top:10px;
-      padding:8px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      color: var(--text);
-      font-weight:900;
-      font-size: 12px;
-    }
-
-    .note{
-      margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: 16px;
-      border:1px solid rgba(34,197,94,.22);
-      background: rgba(34,197,94,.10);
-      color: var(--text);
-    }
-    .note small{color: var(--muted); display:block; margin-top:6px}
-
-    /* ✅ shipping prices */
-    .priceRow{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:12px;
-      margin-top:10px;
-      padding-top:10px;
-      border-top:1px solid rgba(255,255,255,.08);
-    }
-    .priceLeft{min-width:0;}
-    .priceTitle{
-      font-weight:950;
-      font-size:13px;
-      margin:0;
-      letter-spacing:.2px;
-      color:var(--text);
-    }
-    .priceSub{
-      margin-top:4px;
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.35;
-    }
-    .priceTag{
-      flex:0 0 auto;
-      padding:8px 10px;
-      border-radius:999px;
-      border:1px solid rgba(34,197,94,.25);
-      background: rgba(34,197,94,.14);
-      color: var(--text);
-      font-weight:950;
-      font-size:12px;
-      white-space:nowrap;
-    }
-
-    /* ✅ Mobile: topbar button full width + NO bottom nav spacing */
-    @media (max-width:980px){
-      .app{grid-template-columns:1fr}
-      .sidebar{display:none}
-      .content{
-        padding:14px;
-        padding-bottom: calc(14px + env(safe-area-inset-bottom));
-      }
-
-      .topbar{
-        flex-direction:column;
-        align-items:stretch;
-        gap:12px;
-      }
-      .btn.backBtn{
-        width:100%;
-      }
-    }
-
-    /* ===== Footer (same across pages) ===== */
-    .footer{
-      margin-top:auto;
-      border-top:1px solid var(--line);
-      background: rgba(0,0,0,.25);
-      padding:14px 18px;
-    }
-    .footerRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-    .footerBrand{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      color:var(--muted);
-      font-size:12px;
-      white-space:nowrap;
-    }
-    .footerLinks{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-    .footerLinks a{
-      text-decoration:none;
-      color:var(--muted);
-      font-size:12px;
-      padding:8px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      transition: background .15s ease, transform .15s ease;
-      white-space:nowrap;
-    }
-    .footerLinks a:hover{
-      background:rgba(255,255,255,.08);
-      transform: translateY(-1px);
-      color:var(--text);
-    }
-    @media (max-width:980px){
-      .footer{padding:12px 14px;}
-      .footerRow{justify-content:center;}
-      .footerLinks{justify-content:center;}
-    }
-  </style>
+  <link rel="stylesheet" href="/assets/css/shipping.css">
 </head>
 <body>
   <div class="app">
@@ -323,11 +15,11 @@
       </div>
 
       <nav class="sb-nav">
-        <a class="nav-item" href="/index.html">Shop</a>
-        <a class="nav-item" href="/about.html">About</a>
-        <a class="nav-item active" href="/shipping.html">Shipping</a>
-        <a class="nav-item" href="/returns.html">Returns</a>
-        <a class="nav-item" href="/reviews.html">Reviews</a>
+        <a class="nav-item" href="/">Shop</a>
+        <a class="nav-item" href="/about">About</a>
+        <a class="nav-item active" href="/shipping">Shipping</a>
+        <a class="nav-item" href="/returns">Returns</a>
+        <a class="nav-item" href="/reviews">Reviews</a>
       </nav>
     </aside>
 
@@ -338,7 +30,7 @@
           <div class="sub">Worldwide tracked shipping • Processing & delivery info</div>
         </div>
 
-        <a class="btn backBtn" href="/index.html">← Back to Shop</a>
+        <a class="btn backBtn" href="/">← Back to Shop</a>
       </div>
 
       <div class="content">
@@ -433,13 +125,13 @@
           </div>
 
           <div class="footerLinks">
-            <a href="/index.html">Shop</a>
-            <a href="/about.html">About</a>
-            <a href="/shipping.html">Shipping</a>
-            <a href="/returns.html">Returns</a>
-            <a href="/reviews.html">Reviews</a>
-            <a href="/privacy.html">Privacy Policy</a>
-            <a href="/impressum.html">Impressum</a>
+            <a href="/">Shop</a>
+            <a href="/about">About</a>
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns</a>
+            <a href="/reviews">Reviews</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/impressum">Impressum</a>
             <a href="mailto:mosaicpinsspace@gmail.com">Support</a>
           </div>
         </div>
@@ -447,103 +139,7 @@
     </main>
   </div>
 
-  <script>
-    // ✅ year in footer
-    (function(){
-      const y = document.getElementById("year");
-      if (y) y.textContent = String(new Date().getFullYear());
-    })();
-
-    // ✅ if user came from Stripe success/canceled — redirect to main
-    (function(){
-      const u = new URL(window.location.href);
-      const ok = u.searchParams.get("success")==="1";
-      const cn = u.searchParams.get("canceled")==="1";
-      if(ok || cn){
-        window.location.replace("/index.html?" + (ok ? "success=1" : "canceled=1"));
-      }
-    })();
-
-    // ✅ AUTO PRICES: based on saved mp_currency OR mp_ship_country
-    // ✅ DEFAULT MUST BE AMERICA => US + USD (if user never selected anything)
-    (function(){
-      const MP_CUR_KEY  = "mp_currency";
-      const MP_SHIP_KEY = "mp_ship_country";
-
-      // ✅ DEFAULTS (America)
-      const DEFAULT_CUR  = "USD";
-      const DEFAULT_SHIP = "US";
-
-      const SHIPPING = {
-        EUR: { DE: 6.00, EU: 14.50, USCA: 27.00 },
-        USD: { DE: 8.00, EU: 16.00, USCA: 29.00 },
-      };
-
-      function normalizeShip(v){
-        v = String(v || "").toUpperCase();
-        if (["DE","EU","US","CA"].includes(v)) return v;
-        return DEFAULT_SHIP;
-      }
-
-      function normalizeCur(v){
-        v = String(v || "").toUpperCase();
-        if (v === "EUR" || v === "USD") return v;
-        return DEFAULT_CUR;
-      }
-
-      // ✅ NEW RULE:
-      // 1) If mp_currency exists -> use it
-      // 2) else if mp_ship_country exists -> choose based on ship (US/CA => USD, else EUR)
-      // 3) else -> default America USD
-      function getCurrency(){
-        const curSaved = normalizeCur(localStorage.getItem(MP_CUR_KEY));
-        const curRaw = String(localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
-
-        if (curRaw === "EUR" || curRaw === "USD") return curSaved;
-
-        const shipRaw = localStorage.getItem(MP_SHIP_KEY);
-        if (shipRaw){
-          const ship = normalizeShip(shipRaw);
-          if (ship === "US" || ship === "CA") return "USD";
-          return "EUR";
-        }
-
-        return DEFAULT_CUR;
-      }
-
-      // ✅ write defaults into localStorage if empty (keeps all pages in sync)
-      function ensureDefaults(){
-        const shipRaw = String(localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
-        if (!shipRaw){
-          try{ localStorage.setItem(MP_SHIP_KEY, DEFAULT_SHIP); }catch(_){}
-        }
-
-        const curRaw = String(localStorage.getItem(MP_CUR_KEY) || "").toUpperCase();
-        if (!curRaw){
-          try{ localStorage.setItem(MP_CUR_KEY, DEFAULT_CUR); }catch(_){}
-        }
-      }
-
-      function fmt(cur, v){
-        if (!Number.isFinite(v)) return "—";
-        return cur === "EUR" ? `${v.toFixed(2)} €` : `$${v.toFixed(2)}`;
-      }
-
-      ensureDefaults();
-
-      const cur = getCurrency();
-      const p = SHIPPING[cur] || SHIPPING.USD;
-
-      const pDE = document.getElementById("pDE");
-      const pEU = document.getElementById("pEU");
-      const pUSCA = document.getElementById("pUSCA");
-      const hint = document.getElementById("priceHint");
-
-      if (pDE) pDE.textContent = fmt(cur, p.DE);
-      if (pEU) pEU.textContent = fmt(cur, p.EU);
-      if (pUSCA) pUSCA.textContent = fmt(cur, p.USCA);
-      if (hint) hint.textContent = `Prices shown in ${cur}`;
-    })();
-  </script>
+  <script src="/assets/js/shipping.js"></script>
+  <script src="/assets/js/site-common.js"></script>
 </body>
 </html>
