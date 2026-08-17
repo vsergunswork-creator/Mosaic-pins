@@ -3236,32 +3236,8 @@ async function loadProduct(){
   const qtyInput =
     el("qty");
 
-  const oneWrap =
-    el("ppOneWrap");
-
-  const oneNote =
-    el("ppOneNote");
-
-  if (oneWrap){
-
-    oneWrap.style.display =
-      stock > 0
-        ? "flex"
-        : "none";
-  }
-
-  if (oneNote){
-
-    oneNote.textContent =
-      stock > 0
-        ? "PayPal is loading…"
-        : "";
-
-    oneNote.style.display =
-      stock > 0
-        ? "block"
-        : "none";
-  }
+  const paypalDirectBtn =
+    el("paypalDirectBtn");
 
   if (stock > 0){
 
@@ -3278,6 +3254,10 @@ async function loadProduct(){
     addBtn.disabled =
       false;
 
+    if (paypalDirectBtn){
+      paypalDirectBtn.disabled = false;
+    }
+
   }else{
 
     badge.textContent =
@@ -3292,6 +3272,10 @@ async function loadProduct(){
 
     addBtn.disabled =
       true;
+
+    if (paypalDirectBtn){
+      paypalDirectBtn.disabled = true;
+    }
   }
 
   qtyInput.value = "1";
@@ -3374,20 +3358,35 @@ async function loadProduct(){
   };
 
   /*
-   * DIRECT PAYPAL BUTTON
-   *
-   * Important:
-   * this also gets called again after
-   * EUR/USD currency switching.
+   * Product-page PayPal button intentionally opens the cart first.
+   * Shipping country and the server-side DHL rate are confirmed there
+   * before the real PayPal SDK button can be used.
    */
+  if (paypalDirectBtn){
+    paypalDirectBtn.onclick = () => {
+      const quantity =
+        clampQty(
+          qtyInput.value,
+          stock
+        );
 
-  ppOneRenderedForKey = "";
+      if (stock <= 0){
+        return;
+      }
 
-  setTimeout(
-    () =>
-      maybeInitPayPalOne(),
-    0
-  );
+      addToCart(
+        p,
+        quantity
+      );
+
+      openCart();
+
+      toast(
+        "PayPal",
+        "Confirm your shipping country, then continue with PayPal."
+      );
+    };
+  }
 
   setupParallax();
 }

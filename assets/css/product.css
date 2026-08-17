@@ -698,3 +698,29 @@
 #buyBtn{
   border-radius:4px;
 }
+
+
+/* Product-page PayPal entry button: opens Cart before real PayPal checkout */
+.paypalDirectBtn{
+  border:none;
+  cursor:pointer;
+  padding:12px 14px;
+  border-radius:4px;
+  background:#ffc439;
+  color:#111;
+  font-weight:950;
+  transition:filter .15s ease, transform .15s ease;
+  display:block;
+  width:100%;
+  min-height:44px;
+}
+.paypalDirectBtn:hover{
+  filter:brightness(1.03);
+  transform:translateY(-1px);
+}
+.paypalDirectBtn:disabled{
+  cursor:not-allowed;
+  background:rgba(255,255,255,.10);
+  color:rgba(255,255,255,.55);
+  transform:none;
+}
