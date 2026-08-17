@@ -115,19 +115,13 @@
     }
 
     // hard rule: US/CA => USD, DE/EU => EUR
-    function enforceCurrencyByShipping(){
-      const ship = String(elShipCountry?.value || "US").toUpperCase();
-      const must = (ship === "US" || ship === "CA") ? "USD" : "EUR";
-      if (getCurrency() !== must) setCurrency(must);
-    }
+    function enforceCurrencyByShipping(){ return getCurrency(); }
 
     function setShipValue(v){
-      v = String(v || "US").toUpperCase();
-      if (!["DE","EU","US","CA"].includes(v)) v = "US";
+      v = String(v || "").trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(v)) return;
       if (elShipCountry) elShipCountry.value = v;
       try{ localStorage.setItem(MP_SHIP_KEY, v); }catch(_){}
-      enforceCurrencyByShipping();
-      setCurrency(getCurrency());
     }
 
     function userHasSetShipping(){
@@ -149,7 +143,7 @@
         if (age > maxAge) return null;
 
         const ship = String(obj.ship || "").toUpperCase();
-        if (!["DE","EU","US","CA"].includes(ship)) return null;
+        if (!/^[A-Z]{2}$/.test(ship)) return null;
 
         return ship;
       }catch(_){ return null; }
@@ -168,22 +162,18 @@
         const cc = String(j.country_code || "").toUpperCase();
         if (!cc) return null;
 
-        if (cc === "DE") return "DE";
-        if (cc === "US") return "US";
-        if (cc === "CA") return "CA";
-        if (isEUCountry(cc)) return "EU";
-        return "US";
+        if (/^[A-Z]{2}$/.test(cc)) return cc;
+        return null;
       }catch(_){ return null; }
     }
 
     // restore persisted selects
     (function restoreSettings(){
       try{
-        if (!localStorage.getItem(MP_SHIP_KEY)) localStorage.setItem(MP_SHIP_KEY, "US");
-        if (!localStorage.getItem(MP_CUR_KEY))  localStorage.setItem(MP_CUR_KEY, "USD");
+                if (!localStorage.getItem(MP_CUR_KEY))  localStorage.setItem(MP_CUR_KEY, "USD");
 
-        const savedShip = (localStorage.getItem(MP_SHIP_KEY) || "US").toUpperCase();
-        if (savedShip && ["DE","EU","US","CA"].includes(savedShip) && elShipCountry){
+        const savedShip = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
+        if (savedShip && /^[A-Z]{2}$/.test(savedShip) && elShipCountry){
           elShipCountry.value = savedShip;
         }
 
@@ -215,11 +205,8 @@
 
     // UI selection -> ISO2 for API
     function getShippingCountryISO2(){
-      const v = String(elShipCountry?.value || "US").toUpperCase();
-      if (v === "US") return "US";
-      if (v === "CA") return "CA";
-      if (v === "EU") return "FR"; // EU bucket
-      return "DE";
+      const v = String(elShipCountry?.value || "").trim().toUpperCase();
+      return /^[A-Z]{2}$/.test(v) ? v : "";
     }
 
     if (elCurrency){
@@ -238,12 +225,12 @@
     if (elShipCountry){
       elShipCountry.addEventListener("change", () => {
         try{
-          localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "US").toUpperCase());
+          localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "").toUpperCase());
           localStorage.setItem(MP_USER_SET_KEY, "1");
         }catch(_){}
         enforceCurrencyByShipping();
         setCurrency(getCurrency());
-        cacheSetShip(String(elShipCountry.value || "US").toUpperCase());
+        cacheSetShip(String(elShipCountry.value || "").toUpperCase());
 
         // shipping может сменить валюту → PayPal переинициализируем
         resetPayPalHard();
@@ -314,7 +301,7 @@
     function cartSnapshotKey(){
       const cart = readCart();
       const cur = getCurrency();
-      const ship = String(elShipCountry?.value || "US").toUpperCase();
+      const ship = String(elShipCountry?.value || "").toUpperCase();
       const itemsKey = cart.map(it => `${String(it.pin)}:${Number(it.qty)||1}`).sort().join("|");
       return `${cur}|${ship}|${itemsKey}`;
     }
@@ -489,9 +476,14 @@
           enforceCurrencyByShipping();
           setCurrency(getCurrency());
 
+          const shippingCountry = getShippingCountryISO2();
+          if (!shippingCountry || !window.MPShipping?.isReady?.()) {
+            throw new Error("Please select a shipping country and wait for the DHL rate.");
+          }
+
           const payload = {
             currency: getCurrency(),
-            shippingCountry: getShippingCountryISO2(),
+            shippingCountry,
             items: cartNow.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
           };
 
@@ -643,7 +635,10 @@ function removeFromCart(pin){
 
       if (!cart.length){
         elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
+        document.getElementById("cartSubtotal") && (document.getElementById("cartSubtotal").textContent = "—");
+        document.getElementById("cartShipping") && (document.getElementById("cartShipping").textContent = "—");
         elCartTotal.textContent = "—";
+        window.MPShipping?.refresh(0, getCurrency());
 
         clearPayPalButtons();
         ppRenderedForKey = "";
@@ -699,7 +694,9 @@ function removeFromCart(pin){
       });
 
       const sum = cartTotal();
-      elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
+      const subEl = document.getElementById("cartSubtotal");
+      if (subEl) subEl.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `$${sum.toFixed(2)}`;
+      window.MPShipping?.refresh(sum, cur);
 
       // init/render PayPal when cart visible
       maybeInitPayPal();
@@ -717,11 +714,17 @@ function removeFromCart(pin){
       enforceCurrencyByShipping();
       setCurrency(getCurrency());
 
-      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "US").toUpperCase()); }catch(_){}
+      try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry.value || "").toUpperCase()); }catch(_){}
+
+      const shippingCountry = getShippingCountryISO2();
+      if (!shippingCountry || !window.MPShipping?.isReady?.()) {
+        toast("Shipping", "Please select a shipping country and wait for the DHL rate.");
+        return;
+      }
 
       const payload = {
         currency: getCurrency(),
-        shippingCountry: getShippingCountryISO2(),
+        shippingCountry,
         items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
       };
 

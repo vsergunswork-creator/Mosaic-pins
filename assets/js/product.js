@@ -31,7 +31,7 @@
   const MP_CUR_KEY  = "mp_currency";
   const MP_SHIP_KEY = "mp_ship_country";
 
-  const DEFAULT_SHIP = "US";
+  const DEFAULT_SHIP = "";
   const DEFAULT_CUR  = "USD";
 
   const el = (id) => document.getElementById(id);
@@ -147,18 +147,11 @@
     if (elCurrency) elCurrency.value = cur;
   }
 
-  function enforceCurrencyByShipping(){
-    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
-    const must = mustCurrencyByShip(ship);
-    if (getCurrency() !== must) setCurrency(must);
-  }
+  function enforceCurrencyByShipping(){ return getCurrency(); }
 
   function getShippingCountryISO2(){
-    const v = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
-    if (v === "US") return "US";
-    if (v === "CA") return "CA";
-    if (v === "EU") return "FR";
-    return "DE";
+    const v = String(elShipCountry?.value || "").trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(v) ? v : "";
   }
 
   (function restoreSettings(){
@@ -166,11 +159,8 @@
       const shipSaved = (localStorage.getItem(MP_SHIP_KEY) || "").toUpperCase();
       const curSaved  = (localStorage.getItem(MP_CUR_KEY)  || "").toUpperCase();
 
-      if (shipSaved && ["DE","EU","US","CA"].includes(shipSaved) && elShipCountry){
+      if (shipSaved && /^[A-Z]{2}$/.test(shipSaved) && elShipCountry){
         elShipCountry.value = shipSaved;
-      } else if (elShipCountry){
-        elShipCountry.value = DEFAULT_SHIP;
-        localStorage.setItem(MP_SHIP_KEY, DEFAULT_SHIP);
       }
 
       if (curSaved && (curSaved === "EUR" || curSaved === "USD") && elCurrency){
@@ -456,7 +446,10 @@ if (elPpNote){
 
     if (!cart.length){
       elCartBody.innerHTML = `<div class="cartEmpty">Your cart is empty.</div>`;
+      document.getElementById("cartSubtotal") && (document.getElementById("cartSubtotal").textContent = "—");
+      document.getElementById("cartShipping") && (document.getElementById("cartShipping").textContent = "—");
       elCartTotal.textContent = "—";
+      window.MPShipping?.refresh(0, cur);
       clearPayPalCartButtons();
       ppCartRenderedForKey = "";
       return;
@@ -510,7 +503,9 @@ if (elPpNote){
     });
 
     const sum = cartTotal();
-    elCartTotal.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `${sum.toFixed(2)} $`;
+    const subEl = document.getElementById("cartSubtotal");
+    if (subEl) subEl.textContent = (cur==="EUR") ? `${sum.toFixed(2)} €` : `$${sum.toFixed(2)}`;
+    window.MPShipping?.refresh(sum, cur);
 
     setTimeout(() => {
       maybeInitPayPalCart();
@@ -528,12 +523,18 @@ if (elPpNote){
     const cart = readCart();
     if (!cart.length){ toast("Checkout", "Cart is empty"); return; }
 
-    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase()); }catch(_){}
+    try{ localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "").toUpperCase()); }catch(_){}
     enforceCurrencyByShipping();
+
+    const shippingCountry = getShippingCountryISO2();
+    if (!shippingCountry || !window.MPShipping?.isReady?.()) {
+      toast("Shipping", "Please select a shipping country and wait for the DHL rate.");
+      return;
+    }
 
     const payload = {
       currency: getCurrency(),
-      shippingCountry: getShippingCountryISO2(),
+      shippingCountry,
       items: cart.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
     };
 
@@ -571,7 +572,7 @@ if (elPpNote){
   function cartSnapshotKey(){
     const cart = readCart();
     const cur  = getCurrency();
-    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
+    const ship = String(elShipCountry?.value || "").toUpperCase();
     const itemsKey = cart.map(it => `${String(it.pin)}:${Number(it.qty)||1}`).sort().join("|");
     return `${cur}|${ship}|${itemsKey}`;
   }
@@ -662,9 +663,14 @@ if (elPpNote){
           enforceCurrencyByShipping();
           setCurrency(getCurrency());
 
+          const shippingCountry = getShippingCountryISO2();
+          if (!shippingCountry || !window.MPShipping?.isReady?.()) {
+            throw new Error("Please select a shipping country and wait for the DHL rate.");
+          }
+
           const payload = {
             currency: getCurrency(),
-            shippingCountry: getShippingCountryISO2(),
+            shippingCountry,
             items: cartNow.map(it => ({ pin: String(it.pin), qty: Number(it.qty) || 1 })),
           };
 
@@ -790,7 +796,7 @@ if (elPpNote){
     const p = currentProduct;
     if (!p) return "";
     const cur  = getCurrency();
-    const ship = String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase();
+    const ship = String(elShipCountry?.value || "").toUpperCase();
     const qty  = Number(el("qty")?.value || 1) || 1;
     return `${cur}|${ship}|${String(p.pin)}|${qty}`;
   }
@@ -1214,7 +1220,7 @@ if (elPpNote){
   async function buyNowOneItemStripe(p, qty){
     enforceCurrencyByShipping();
     try{
-      localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || DEFAULT_SHIP).toUpperCase());
+      localStorage.setItem(MP_SHIP_KEY, String(elShipCountry?.value || "").toUpperCase());
     }catch(_){}
 
     const payload = {
@@ -1338,27 +1344,17 @@ if (elPpNote){
       addToCart(p, quantity);
     };
 
-    buyBtn.onclick = async () => {
+    buyBtn.onclick = () => {
       const quantity = clampQty(qtyInput.value, stock);
       if (stock <= 0) return;
-
-      buyBtn.disabled = true;
-      const oldText = buyBtn.textContent;
-      buyBtn.textContent = "Redirecting…";
-
-      try{
-        await buyNowOneItemStripe(p, quantity);
-      }catch(e){
-        toast("Checkout", String(e?.message || e));
-        buyBtn.disabled = false;
-        buyBtn.textContent = oldText;
-      }
+      addToCart(p, quantity);
+      openCart();
+      toast("Checkout", "Choose your shipping country in the cart.");
     };
 
-    setTimeout(() => {
-      ppOneRenderedForKey = "";
-      maybeInitPayPalOne();
-    }, 120);
+    // Direct product PayPal is intentionally disabled.
+    // Shipping is calculated only inside the cart so the destination can be verified server-side.
+
 
     setupParallax();
   }

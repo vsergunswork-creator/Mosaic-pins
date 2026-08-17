@@ -44,13 +44,6 @@
             <option value="EUR">EUR €</option>
             <option value="USD">USD $</option>
           </select>
-
-          <select class="shipCountry" id="shipCountry" title="Shipping country">
-            <option value="DE">Germany (DE)</option>
-            <option value="EU">Europe (EU)</option>
-            <option value="US">United States (US)</option>
-            <option value="CA">Canada (CA)</option>
-          </select>
         </div>
       </div>
 
@@ -99,11 +92,6 @@
 
                 <button class="btn2" id="addBtn" type="button">Add to cart</button>
 
-                <div class="ppOneWrap btn2" id="ppOneWrap" aria-label="PayPal for this item">
-                  <div id="paypal-one-container"></div>
-                </div>
-                <p class="ppOneNote" id="ppOneNote">PayPal is loading…</p>
-
                 <button class="btn" id="buyBtn" type="button">Buy now</button>
               </div>
             </div>
@@ -124,9 +112,27 @@
     <div class="cartBody" id="cartBody"></div>
 
     <div class="cartFoot">
-      <div class="cartSumRow">
-        <div>Total</div>
-        <div id="cartTotal">—</div>
+      <div class="cartShippingPanel">
+        <label class="cartShippingLabel" for="shipCountry">Shipping country</label>
+        <select class="cartShippingSelect" id="shipCountry" aria-label="Shipping country">
+          <option value="">Loading DHL countries…</option>
+        </select>
+        <div class="shippingService" id="shippingService">Choose a destination to calculate DHL tracked shipping.</div>
+      </div>
+
+      <div class="cartSumRows">
+        <div class="cartSumRow">
+          <div>Subtotal</div>
+          <div id="cartSubtotal">—</div>
+        </div>
+        <div class="cartSumRow">
+          <div>Shipping</div>
+          <div id="cartShipping">—</div>
+        </div>
+        <div class="cartSumRow cartGrandTotal">
+          <div>Total</div>
+          <div id="cartTotal">—</div>
+        </div>
       </div>
 
       <div class="cartActions">
@@ -154,6 +160,7 @@
 
   <!-- ✅ PayPal globals -->
 
+  <script src="/assets/js/shipping-ui.js"></script>
   <script src="/assets/js/product.js"></script>
   <script src="/assets/js/site-common.js"></script>
 </body>

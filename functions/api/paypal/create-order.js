@@ -2,6 +2,7 @@
 // Airtable source-of-truth. Fresh price/stock validation on every order creation.
 
 import { findProductRecordsByPins, normalizeAirtableProduct } from "../_airtable-products.js";
+import { getDhlTracked2kgQuote } from "../_dhl-shipping.js";
 
 export function onRequestOptions({ request }) {
   return new Response(null, { status: 204, headers: corsHeaders(request) });
@@ -61,9 +62,11 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    const zone = detectZone(shippingCountry);
-    if (zone === "UNSUPPORTED") return json({ ok: false, error: `Shipping is not available to ${shippingCountry}.` }, 400, headers);
-    const shippingCents = Math.round(SHIPPING_PRICES[currency][zone] * 100);
+    const shippingQuote = await getDhlTracked2kgQuote(env, shippingCountry, currency);
+    const shippingCents = Math.round(Number(shippingQuote.price) * 100);
+    if (!Number.isFinite(shippingCents) || shippingCents <= 0) {
+      return json({ ok: false, error: "DHL shipping quote is unavailable." }, 503, headers);
+    }
     const totalCents = itemTotalCents + shippingCents;
 
     const apiBase = mode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
@@ -106,9 +109,6 @@ export async function onRequestPost({ request, env }) {
   }
 }
 
-const EUROPE_COUNTRIES = ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","NO","IS","LI","GB","CH","AL","BA","ME","MK","RS","MD","UA"];
-const SHIPPING_PRICES = { EUR: { DE: 0.0, EU: 14.5, USCA: 27.0 }, USD: { DE: 0.0, EU: 16.0, USCA: 29.0 } };
-function detectZone(cc) { if (cc === "DE") return "DE"; if (["US","CA"].includes(cc)) return "USCA"; if (EUROPE_COUNTRIES.includes(cc)) return "EU"; return "UNSUPPORTED"; }
 function requirePayPalMode(env) { const m = String(env.PAYPAL_MODE || "").toLowerCase().trim(); if (!['live','sandbox'].includes(m)) throw new Error('PAYPAL_MODE must be explicitly set to live or sandbox'); return m; }
 function normCurrency(v) { const c = String(v || "USD").toUpperCase(); return c === "EUR" ? "EUR" : "USD"; }
 function cents(n) { return (Number(n) / 100).toFixed(2); }

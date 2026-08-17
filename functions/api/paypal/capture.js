@@ -104,6 +104,40 @@ export async function onRequestPost(ctx) {
 
     let orderData;
 
+    // Security: verify the real PayPal shipping country BEFORE capture.
+    // The country selected in our cart is stored in purchase_units[0].custom_id.
+    // If the payer switches to an address in another country inside PayPal,
+    // we refuse capture so a cheaper DHL rate cannot be used for a different country.
+    const preRes = await fetch(
+      `${apiBase}/v2/checkout/orders/${encodeURIComponent(orderID)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const preOrder = await preRes.json().catch(() => ({}));
+    if (!preRes.ok) {
+      return json(
+        { ok: false, error: "Unable to verify PayPal shipping country", details: preOrder },
+        400,
+        headers
+      );
+    }
+
+    const selectedCountry = String(preOrder?.purchase_units?.[0]?.custom_id || "").trim().toUpperCase();
+    const paypalCountry = String(preOrder?.purchase_units?.[0]?.shipping?.address?.country_code || "").trim().toUpperCase();
+
+    if (selectedCountry && paypalCountry && selectedCountry !== paypalCountry) {
+      return json(
+        {
+          ok: false,
+          error: `PayPal shipping country (${paypalCountry}) does not match the cart country (${selectedCountry}). Please select ${paypalCountry} in the cart and try again.`,
+          code: "SHIPPING_COUNTRY_MISMATCH",
+          selectedCountry,
+          paypalCountry,
+        },
+        409,
+        headers
+      );
+    }
+
     const capRes = await fetch(
       `${apiBase}/v2/checkout/orders/${encodeURIComponent(
         orderID

@@ -1,4 +1,5 @@
 import { findProductRecordsByPins, normalizeAirtableProduct } from "./_airtable-products.js";
+import { getDhlTracked2kgQuote } from "./_dhl-shipping.js";
 
 // functions/api/checkout.js
 // POST /api/checkout
@@ -146,58 +147,17 @@ export async function onRequestPost(ctx) {
     await env.STRIPE_EVENTS_KV.put(cartKey, itemsStr, { expirationTtl: 7 * 24 * 60 * 60 });
 
     // =========================
-    // Shipping zones
+    // DHL tracked shipping (2 kg)
     // =========================
-    const EUROPE_COUNTRIES = [
-      "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
-      "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
-      "NO","IS","LI","GB","CH",
-      "AL","BA","ME","MK","RS","MD","UA",
-    ];
-
-    const USCA_COUNTRIES = ["US", "CA"];
-
-    function detectZone(cc) {
-      if (cc === "DE") return "DE";
-      if (USCA_COUNTRIES.includes(cc)) return "USCA";
-      if (EUROPE_COUNTRIES.includes(cc)) return "EU";
-      return "UNSUPPORTED";
+    const shippingQuote = await getDhlTracked2kgQuote(env, shippingCountry, currency);
+    const shippingAmount = Number(shippingQuote.price);
+    if (!Number.isFinite(shippingAmount) || shippingAmount <= 0) {
+      return json({ ok: false, error: "DHL shipping quote is unavailable." }, 503, headers);
     }
 
-    const zone = detectZone(shippingCountry);
-    if (zone === "UNSUPPORTED") {
-      return json(
-        { ok: false, error: `Shipping is not available to ${shippingCountry}.` },
-        400,
-        headers
-      );
-    }
-
-    let allowedCountries = [];
-    if (zone === "DE") allowedCountries = ["DE"];
-    else if (zone === "EU") allowedCountries = EUROPE_COUNTRIES;
-    else allowedCountries = USCA_COUNTRIES;
-
-    const SHIPPING_PRICES = {
-      EUR: { DE: 0.0, EU: 14.5, USCA: 27.0 },
-      USD: { DE: 0.0, EU: 16.0, USCA: 29.0 },
-    };
-
-    const shippingAmount = SHIPPING_PRICES?.[currency]?.[zone];
-    if (!Number.isFinite(shippingAmount)) {
-      return json(
-        { ok: false, error: `Shipping price missing for ${zone} in ${currency}.` },
-        500,
-        headers
-      );
-    }
-
-    const shippingName =
-      zone === "DE"
-        ? "Germany shipping (tracked)"
-        : zone === "EU"
-          ? "Europe shipping (tracked)"
-          : "USA / Canada shipping (tracked)";
+    // Security: Stripe only allows the exact country used for the server-side DHL quote.
+    const allowedCountries = [shippingCountry];
+    const shippingName = `${shippingQuote.service} • tracked`;
 
     const session = await stripeCreateCheckoutSession({
       secretKey: STRIPE_SECRET_KEY,
@@ -213,7 +173,9 @@ export async function onRequestPost(ctx) {
           checkoutId,
           cartKey,
           shippingCountry,
-          shippingZone: zone,
+          shippingService: shippingQuote.service,
+          shippingProductNumber: shippingQuote.productNumber || "",
+          shippingBaseEUR: String(shippingQuote.basePriceEUR),
         },
         shipping_address_collection: { allowed_countries: allowedCountries },
         phone_number_collection: { enabled: true },
