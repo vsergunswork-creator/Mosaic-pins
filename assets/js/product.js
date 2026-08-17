@@ -602,35 +602,12 @@ if (elCurrency){
     "change",
     () => {
 
-      setCurrency(
-        elCurrency.value
-      );
+      // Save the selected currency first.
+      setCurrency(elCurrency.value);
 
-      enforceCurrencyByShipping();
-
-      /*
-       * PayPal SDK is currency-specific.
-       *
-       * IMPORTANT FIX:
-       * after EUR/USD change we reload the SDK
-       * and explicitly recreate the direct
-       * product PayPal button.
-       */
-
-      resetPayPalHard();
-
-      renderCart();
-      refreshPriceUI();
-      updateCartBadge();
-
-      ppOneRenderedForKey = "";
-
-      setTimeout(
-        () => {
-          maybeInitPayPalOne();
-        },
-        0
-      );
+      // PayPal SDK is currency-specific. Reload this same product page
+      // so PayPal starts cleanly in the newly selected EUR/USD currency.
+      window.location.reload();
     }
   );
 }
