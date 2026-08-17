@@ -3,7 +3,7 @@
 
 import { cacheGet, cacheSet } from "./_cache.js";
 
-const TTL_SEC = 120;
+const TTL_SEC = 60;
 const FALLBACK_TTL_SEC = 7 * 86400;
 
 // ---------------- GET ----------------
@@ -27,6 +27,7 @@ export async function onRequestGet({ env, request }) {
       return new Response(cached, {
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "no-store",
           "X-Cache": "HIT",
         },
       });
@@ -37,7 +38,7 @@ export async function onRequestGet({ env, request }) {
       const last = await cacheGet(env, FALLBACK_KEY);
       if (last) {
         return new Response(last, {
-          headers: { "X-Cache": "FALLBACK" },
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Cache": "FALLBACK" },
         });
       }
       return json({ ok: true, reviews: [], offset: null });
@@ -61,7 +62,7 @@ export async function onRequestGet({ env, request }) {
       const last = await cacheGet(env, FALLBACK_KEY);
       if (last) {
         return new Response(last, {
-          headers: { "X-Cache": "FALLBACK" },
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Cache": "FALLBACK" },
         });
       }
 
@@ -103,6 +104,7 @@ export async function onRequestGet({ env, request }) {
     return new Response(body, {
       headers: {
         "Content-Type": "application/json",
+        "Cache-Control": "no-store",
         "X-Cache": "MISS",
       },
     });
@@ -195,6 +197,6 @@ function clampNumber(v, min, max) {
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
 }

@@ -945,9 +945,6 @@
   })();
 
   // init
-  loadAbout();
-
-  // init (как было у Вас)
   updateCartBadge();
   renderCart();
   loadAbout();

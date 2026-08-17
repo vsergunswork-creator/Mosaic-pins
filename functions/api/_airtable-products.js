@@ -4,7 +4,7 @@
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
 
 export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v3";
-export const PRODUCTS_CACHE_TTL = 180; // automatic refresh within 3 minutes
+export const PRODUCTS_CACHE_TTL = 60; // keep catalog fresh while avoiding per-visit Airtable reads
 export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v3";
 export const PRODUCTS_FALLBACK_TTL = 7 * 86400;
 
@@ -27,10 +27,14 @@ export async function getProductsCatalog(env, { bypassCache = false } = {}) {
   }
 
   try {
+    // Reuse the last healthy catalog as a lightweight manifest of images already
+    // mirrored to R2. This avoids an R2 HEAD for every image on every 60s refresh.
+    const knownR2Urls = await getKnownR2Urls(env);
+
     const records = await listAllProductRecords(env);
     const products = [];
     for (const rec of records) {
-      const p = await normalizeAirtableProduct(env, rec);
+      const p = await normalizeAirtableProduct(env, rec, { knownR2Urls });
       if (p) products.push(p);
     }
     products.sort((a, b) => String(a.pin).localeCompare(String(b.pin)));
@@ -113,14 +117,14 @@ export async function listAllProductRecords(env) {
   return records;
 }
 
-export async function normalizeAirtableProduct(env, rec) {
+export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null } = {}) {
   const f = rec?.fields || {};
   const PIN_FIELD = String(env.AIRTABLE_PIN_FIELD || "PIN Code").trim();
   const pin = String(f[PIN_FIELD] ?? "").trim();
   if (!pin) return null;
 
   const active = f["Active"] === true;
-  const images = await durableImages(env, pin, f["Images"]);
+  const images = await durableImages(env, pin, f["Images"], knownR2Urls);
 
   return {
     recordId: String(rec.id || ""),
@@ -173,7 +177,7 @@ export async function invalidateProductCache(env) {
   // Keep last_good as emergency fallback. It will be overwritten on next healthy catalog refresh.
 }
 
-async function durableImages(env, pin, rawImages) {
+async function durableImages(env, pin, rawImages, knownR2Urls = null) {
   const list = Array.isArray(rawImages) ? rawImages : [];
   const out = [];
   const publicBase = String(env.R2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
@@ -196,6 +200,13 @@ async function durableImages(env, pin, rawImages) {
     const publicUrl = `${publicBase}/${key}`;
 
     try {
+      // If the previous healthy catalog already used this exact R2 URL, the
+      // object was previously verified/mirrored. Skip the expensive HEAD call.
+      if (knownR2Urls?.has(publicUrl)) {
+        out.push(publicUrl);
+        continue;
+      }
+
       const exists = await r2.head(key);
       if (!exists) {
         const imageResp = await fetch(src);
@@ -207,6 +218,7 @@ async function durableImages(env, pin, rawImages) {
           },
         });
       }
+      knownR2Urls?.add(publicUrl);
       out.push(publicUrl);
     } catch (_) {
       // Never make the whole shop unavailable because one image mirror failed.
@@ -214,6 +226,23 @@ async function durableImages(env, pin, rawImages) {
     }
   }
   return out;
+}
+
+async function getKnownR2Urls(env) {
+  const set = new Set();
+  try {
+    const raw = await cacheGet(env, PRODUCTS_FALLBACK_KEY);
+    if (!raw) return set;
+    const previous = JSON.parse(raw);
+    if (!Array.isArray(previous)) return set;
+    for (const product of previous) {
+      for (const url of (Array.isArray(product?.images) ? product.images : [])) {
+        const s = String(url || "").trim();
+        if (s) set.add(s);
+      }
+    }
+  } catch (_) {}
+  return set;
 }
 
 function normalizeMaterials(v) {

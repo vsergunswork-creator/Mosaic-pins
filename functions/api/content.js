@@ -3,7 +3,7 @@
 
 import { cacheGet, cacheSet } from "./_cache.js";
 
-const TTL = 300;
+const TTL = 60;
 
 export async function onRequestGet({ env, request }) {
   try {
@@ -19,7 +19,7 @@ export async function onRequestGet({ env, request }) {
     const cached = await cacheGet(env, cacheKey);
     if (cached) return new Response(cached,{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store",'X-Cache':'HIT'}});
 
-    const formula = `{Key}='${escapeFormula(key)}'`;
+    const formula = `AND({Key}='${escapeFormula(key)}',{Active}=TRUE())`;
     const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
     url.searchParams.set('filterByFormula',formula);
     url.searchParams.set('maxRecords','1');
@@ -28,7 +28,7 @@ export async function onRequestGet({ env, request }) {
     if(!r.ok) throw new Error(`Airtable content failed: ${r.status} ${JSON.stringify(data)}`);
     const rec = data?.records?.[0];
     const f = rec?.fields || {};
-    if(!rec || f['Active'] !== true) return json({ok:false,error:'Content not found'},404);
+    if(!rec) return json({ok:false,error:'Content not found'},404);
 
     const heroImage = await durableImage(env,key,'hero',Array.isArray(f['Hero Image'])?f['Hero Image'][0]:null);
     const galleryRaw = Array.isArray(f['Gallery'])?f['Gallery']:[];
