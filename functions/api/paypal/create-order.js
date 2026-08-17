@@ -107,7 +107,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 const EUROPE_COUNTRIES = ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","NO","IS","LI","GB","CH","AL","BA","ME","MK","RS","MD","UA"];
-const SHIPPING_PRICES = { EUR: { DE: 6.0, EU: 14.5, USCA: 27.0 }, USD: { DE: 8.0, EU: 16.0, USCA: 29.0 } };
+const SHIPPING_PRICES = { EUR: { DE: 0.0, EU: 14.5, USCA: 27.0 }, USD: { DE: 0.0, EU: 16.0, USCA: 29.0 } };
 function detectZone(cc) { if (cc === "DE") return "DE"; if (["US","CA"].includes(cc)) return "USCA"; if (EUROPE_COUNTRIES.includes(cc)) return "EU"; return "UNSUPPORTED"; }
 function requirePayPalMode(env) { const m = String(env.PAYPAL_MODE || "").toLowerCase().trim(); if (!['live','sandbox'].includes(m)) throw new Error('PAYPAL_MODE must be explicitly set to live or sandbox'); return m; }
 function normCurrency(v) { const c = String(v || "USD").toUpperCase(); return c === "EUR" ? "EUR" : "USD"; }
