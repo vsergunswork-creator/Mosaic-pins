@@ -179,8 +179,8 @@ export async function onRequestPost(ctx) {
     else allowedCountries = USCA_COUNTRIES;
 
     const SHIPPING_PRICES = {
-      EUR: { DE: 6.0, EU: 14.5, USCA: 27.0 },
-      USD: { DE: 8.0, EU: 16.0, USCA: 29.0 },
+      EUR: { DE: 0.0, EU: 14.5, USCA: 27.0 },
+      USD: { DE: 0.0, EU: 16.0, USCA: 29.0 },
     };
 
     const shippingAmount = SHIPPING_PRICES?.[currency]?.[zone];
