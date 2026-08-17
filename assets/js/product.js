@@ -1352,9 +1352,10 @@ if (elPpNote){
       toast("Checkout", "Choose your shipping country in the cart.");
     };
 
-    // Direct product PayPal is intentionally disabled.
-    // Shipping is calculated only inside the cart so the destination can be verified server-side.
-
+    // Restore the direct PayPal button on the product card.
+    // The server still calculates/verifies shipping from the selected ISO country.
+    ppOneRenderedForKey = "";
+    setTimeout(() => maybeInitPayPalOne(), 0);
 
     setupParallax();
   }

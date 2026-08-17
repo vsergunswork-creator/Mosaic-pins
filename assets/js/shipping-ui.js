@@ -26,6 +26,20 @@
     return /^[A-Z]{2}$/.test(v) ? v : "";
   }
 
+  function subtotalFromCartDom() {
+    const cartBody = document.getElementById("cartBody");
+    if (!cartBody || !cartBody.querySelector(".cartItem")) return 0;
+    const raw = String(elSubtotal?.textContent || "").replace(/[^0-9,.-]/g, "").replace(",", ".");
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function keepRealCartSubtotal(subtotal) {
+    const requested = Number(subtotal) || 0;
+    const domSubtotal = subtotalFromCartDom();
+    return domSubtotal > 0 ? domSubtotal : requested;
+  }
+
   function setPaymentReady(ready) {
     const hasItems = lastSubtotal > 0;
     if (elCheckout) elCheckout.disabled = !(hasItems && ready);
@@ -44,7 +58,7 @@
   }
 
   async function refresh(subtotal = lastSubtotal, currency = lastCurrency) {
-    lastSubtotal = Number(subtotal) || 0;
+    lastSubtotal = keepRealCartSubtotal(subtotal);
     lastCurrency = String(currency || "EUR").toUpperCase() === "USD" ? "USD" : "EUR";
 
     if (elSubtotal) elSubtotal.textContent = lastSubtotal > 0 ? money(lastSubtotal, lastCurrency) : "—";
@@ -134,7 +148,8 @@
       setPaymentReady(false);
     }
 
-    await refresh();
+    await refresh(keepRealCartSubtotal(lastSubtotal), lastCurrency);
+    setTimeout(() => refresh(keepRealCartSubtotal(lastSubtotal), lastCurrency), 0);
   }
 
   elCountry.addEventListener("change", () => {
@@ -151,6 +166,17 @@
     return String(s || "").replace(/[&<>"']/g, m => ({
       "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
     }[m]));
+  }
+
+  const cartBody = document.getElementById("cartBody");
+  if (cartBody && typeof MutationObserver !== "undefined") {
+    const observer = new MutationObserver(() => {
+      const domSubtotal = subtotalFromCartDom();
+      if (domSubtotal > 0 && Math.abs(domSubtotal - lastSubtotal) > 0.0001) {
+        refresh(domSubtotal, lastCurrency);
+      }
+    });
+    observer.observe(cartBody, { childList: true, subtree: true });
   }
 
   window.MPShipping = {
