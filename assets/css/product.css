@@ -692,3 +692,9 @@
   border-top:1px solid var(--line);
   font-size:15px;
 }
+
+/* Product page purchase buttons: match PayPal rectangular shape */
+#addBtn,
+#buyBtn{
+  border-radius:4px;
+}
