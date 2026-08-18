@@ -196,16 +196,18 @@
         width:14px;height:14px;flex:0 0 14px;opacity:.78;transition:transform .16s ease
       }
       .mp-desktop-select.open .mp-desktop-select-chevron{transform:rotate(180deg)}
+      /* Desktop menus are portalled to <body>. This prevents clipping by page cards/topbars
+         that use overflow:hidden. Mobile controls are untouched. */
       .mp-desktop-select-menu{
-        position:absolute;right:0;top:calc(100% + 7px);z-index:10050;min-width:100%;padding:5px;
+        position:fixed;left:0;top:0;z-index:2147483000;min-width:70px;padding:5px;
         border:1px solid rgba(255,255,255,.11);border-radius:10px;
         background:rgba(12,18,25,.98);box-shadow:0 18px 50px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.035);
         backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-        opacity:0;visibility:hidden;transform:translateY(-4px) scale(.98);transform-origin:top right;
+        opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-4px) scale(.98);transform-origin:top right;
         transition:opacity .14s ease,visibility .14s ease,transform .14s ease
       }
-      .mp-desktop-select.open .mp-desktop-select-menu{
-        opacity:1;visibility:visible;transform:translateY(0) scale(1)
+      .mp-desktop-select-menu.open{
+        opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1)
       }
       .mp-desktop-select-option{
         width:100%;height:34px;border:0;border-radius:7px;padding:0 10px;text-align:left;
@@ -222,8 +224,8 @@
         .mp-desktop-select.lang .mp-desktop-select-btn{min-width:68px}
         .mp-desktop-select.currency .mp-desktop-select-btn{min-width:88px}
 
-        /* Desktop only: remove the extra group shell so language/currency
-           look like single clean buttons instead of double containers. */
+        /* Desktop only: remove the extra outer group shell.
+           EN and EUR/USD stay as matching single buttons. */
         .mp-locale-controls{
           padding:0!important;
           border:0!important;
@@ -469,6 +471,39 @@
     const menu = document.createElement("div");
     menu.className = "mp-desktop-select-menu";
     menu.setAttribute("role", "listbox");
+    menu.setAttribute("translate", "no");
+
+    const positionMenu = () => {
+      if (!menu.classList.contains("open")) return;
+      const rect = button.getBoundingClientRect();
+      const gap = 7;
+      const viewportGap = 8;
+      const width = Math.max(rect.width, kind === "currency" ? 88 : 70);
+
+      menu.style.minWidth = `${Math.round(width)}px`;
+      menu.style.width = `${Math.round(width)}px`;
+
+      // Measure after width is set. If there is not enough room below, open upward.
+      const menuHeight = menu.offsetHeight || 44;
+      let top = rect.bottom + gap;
+      if (top + menuHeight > window.innerHeight - viewportGap && rect.top - gap - menuHeight >= viewportGap) {
+        top = rect.top - gap - menuHeight;
+        menu.style.transformOrigin = "bottom right";
+      } else {
+        menu.style.transformOrigin = "top right";
+      }
+
+      let left = rect.right - width;
+      left = Math.max(viewportGap, Math.min(left, window.innerWidth - width - viewportGap));
+      menu.style.left = `${Math.round(left)}px`;
+      menu.style.top = `${Math.round(top)}px`;
+    };
+
+    const close = () => {
+      wrap.classList.remove("open");
+      menu.classList.remove("open");
+      button.setAttribute("aria-expanded", "false");
+    };
 
     const sync = () => {
       const selected = select.options[select.selectedIndex];
@@ -485,14 +520,14 @@
       opt.dataset.value = option.value;
       opt.textContent = option.textContent.trim();
       opt.setAttribute("role", "option");
-      opt.addEventListener("click", () => {
+      opt.addEventListener("click", (e) => {
+        e.stopPropagation();
         if (select.value !== option.value) {
           select.value = option.value;
           select.dispatchEvent(new Event("change", { bubbles:true }));
         }
         sync();
-        wrap.classList.remove("open");
-        button.setAttribute("aria-expanded", "false");
+        close();
       });
       menu.appendChild(opt);
     });
@@ -500,15 +535,35 @@
     button.addEventListener("click", (e) => {
       e.stopPropagation();
       document.querySelectorAll(".mp-desktop-select.open").forEach(other => {
-        if (other !== wrap) other.classList.remove("open");
+        if (other !== wrap) {
+          other.classList.remove("open");
+          other.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
+        }
       });
-      const open = wrap.classList.toggle("open");
+      document.querySelectorAll(".mp-desktop-select-menu.open").forEach(otherMenu => {
+        if (otherMenu !== menu) otherMenu.classList.remove("open");
+      });
+
+      const open = !wrap.classList.contains("open");
+      wrap.classList.toggle("open", open);
+      menu.classList.toggle("open", open);
       button.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) {
+        // Position after the menu becomes measurable.
+        positionMenu();
+        requestAnimationFrame(positionMenu);
+      }
     });
 
     select.addEventListener("change", sync);
     select.insertAdjacentElement("afterend", wrap);
-    wrap.append(button, menu);
+    wrap.append(button);
+    // Portal the actual popup to body so overflow:hidden on topbars/cards cannot crop it.
+    document.body.appendChild(menu);
+
+    wrap._mpMenu = menu;
+    wrap._mpClose = close;
+    wrap._mpPosition = positionMenu;
     sync();
   }
 
@@ -516,19 +571,31 @@
   function wireDesktopSelectClose(){
     if (mpDesktopCloseWired) return;
     mpDesktopCloseWired = true;
-    document.addEventListener("click", () => {
+
+    const closeAll = () => {
       document.querySelectorAll(".mp-desktop-select.open").forEach(wrap => {
-        wrap.classList.remove("open");
-        wrap.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
+        if (typeof wrap._mpClose === "function") wrap._mpClose();
+        else {
+          wrap.classList.remove("open");
+          wrap.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
+        }
       });
-    });
+      document.querySelectorAll(".mp-desktop-select-menu.open").forEach(menu => menu.classList.remove("open"));
+    };
+
+    document.addEventListener("click", closeAll);
     document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      document.querySelectorAll(".mp-desktop-select.open").forEach(wrap => {
-        wrap.classList.remove("open");
-        wrap.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
-      });
+      if (e.key === "Escape") closeAll();
     });
+
+    // Keep an open desktop popup attached to its button while the page moves.
+    const repositionOpen = () => {
+      document.querySelectorAll(".mp-desktop-select.open").forEach(wrap => {
+        if (typeof wrap._mpPosition === "function") wrap._mpPosition();
+      });
+    };
+    window.addEventListener("resize", repositionOpen, { passive:true });
+    window.addEventListener("scroll", repositionOpen, { passive:true, capture:true });
   }
 
   function setupControls(){
