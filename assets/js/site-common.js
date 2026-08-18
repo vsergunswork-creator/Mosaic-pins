@@ -292,6 +292,123 @@
         }
         .mp-top-actions>.mp-locale-controls{order:2!important;flex:0 0 auto!important}
       }
+
+      /* FINAL unified controls for every page EXCEPT Shop/index.
+         Keep the page background/layout intact; only normalize action controls. */
+      @media(max-width:980px){
+        body:not(.mp-page-shop) .mp-locale-controls{
+          gap:8px!important;padding:0!important;border:0!important;border-radius:0!important;
+          background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;
+          -webkit-backdrop-filter:none!important
+        }
+
+        body:not(.mp-page-shop) .mp-locale-control,
+        body:not(.mp-page-shop) .mp-locale-controls .currency{
+          height:48px!important;min-height:48px!important;
+          border:1px solid rgba(255,255,255,.10)!important;
+          border-radius:12px!important;
+          background-color:rgba(255,255,255,.045)!important;
+          color:var(--text,#eef2f7)!important;
+          padding-left:16px!important;padding-right:38px!important;
+          font-size:14px!important;font-weight:850!important;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.025)!important
+        }
+
+        body:not(.mp-page-shop) .mp-locale-control:focus,
+        body:not(.mp-page-shop) .mp-locale-controls .currency:focus{
+          border-color:rgba(34,197,94,.48)!important;
+          background-color:rgba(34,197,94,.07)!important;
+          box-shadow:0 0 0 2px rgba(34,197,94,.055)!important
+        }
+
+        /* Product / About / Reviews: Cart + language + currency in one clean row. */
+        body.mp-page-product .topRight,
+        body.mp-page-about .top-right,
+        body.mp-page-reviews .top-right{
+          width:100%!important;display:flex!important;align-items:center!important;
+          gap:8px!important;flex-wrap:nowrap!important;grid-template-columns:none!important
+        }
+        body.mp-page-product .topRight>.cartBtn,
+        body.mp-page-about .top-right>.cartBtn,
+        body.mp-page-reviews .top-right>.cartBtn{
+          flex:0 1 auto!important;width:auto!important;min-width:0!important;
+          height:48px!important;min-height:48px!important;
+          padding:0 14px!important;border-radius:999px!important;
+          display:inline-flex!important;align-items:center!important;justify-content:center!important;
+          background:rgba(0,0,0,.28)!important;border:1px solid var(--line)!important;
+          box-shadow:none!important;white-space:nowrap!important
+        }
+        body.mp-page-product .topRight>.mp-locale-controls,
+        body.mp-page-about .top-right>.mp-locale-controls,
+        body.mp-page-reviews .top-right>.mp-locale-controls{
+          flex:0 0 auto!important;display:flex!important;align-items:center!important;gap:8px!important
+        }
+        body.mp-page-product .topRight>.mp-locale-controls .mp-language-control,
+        body.mp-page-about .top-right>.mp-locale-controls .mp-language-control,
+        body.mp-page-reviews .top-right>.mp-locale-controls .mp-language-control{
+          width:110px!important;min-width:110px!important
+        }
+        body.mp-page-product .topRight>.mp-locale-controls .currency,
+        body.mp-page-about .top-right>.mp-locale-controls .currency,
+        body.mp-page-reviews .top-right>.mp-locale-controls .currency{
+          width:128px!important;min-width:128px!important
+        }
+
+        /* Information/legal pages: compact dark Back button + language control. */
+        body.mp-page-shipping .mp-top-actions,
+        body.mp-page-returns .mp-top-actions,
+        body.mp-page-privacy .mp-top-actions,
+        body.mp-page-impressum .mp-top-actions{
+          width:100%!important;display:flex!important;align-items:center!important;
+          justify-content:flex-start!important;gap:8px!important;flex-wrap:nowrap!important
+        }
+        body.mp-page-shipping .mp-top-actions>.backBtn,
+        body.mp-page-returns .mp-top-actions>.backBtn,
+        body.mp-page-privacy .mp-top-actions>.backBtn,
+        body.mp-page-impressum .mp-top-actions>.backBtn{
+          flex:1 1 auto!important;width:auto!important;height:48px!important;min-height:48px!important;
+          margin:0!important;padding:0 16px!important;border-radius:12px!important;
+          display:flex!important;align-items:center!important;justify-content:center!important;
+          background:rgba(0,0,0,.28)!important;border:1px solid var(--line)!important;
+          color:var(--text,#eef2f7)!important;box-shadow:none!important;font-weight:900!important
+        }
+        body.mp-page-shipping .mp-top-actions>.mp-locale-controls,
+        body.mp-page-returns .mp-top-actions>.mp-locale-controls,
+        body.mp-page-privacy .mp-top-actions>.mp-locale-controls,
+        body.mp-page-impressum .mp-top-actions>.mp-locale-controls{
+          flex:0 0 auto!important
+        }
+        body.mp-page-shipping .mp-top-actions .mp-language-control,
+        body.mp-page-returns .mp-top-actions .mp-language-control,
+        body.mp-page-privacy .mp-top-actions .mp-language-control,
+        body.mp-page-impressum .mp-top-actions .mp-language-control{
+          width:110px!important;min-width:110px!important
+        }
+      }
+
+      @media(max-width:520px){
+        body.mp-page-product .topRight>.cartBtn,
+        body.mp-page-about .top-right>.cartBtn,
+        body.mp-page-reviews .top-right>.cartBtn{
+          flex:1 1 auto!important;padding:0 10px!important
+        }
+        body.mp-page-product .topRight>.mp-locale-controls .mp-language-control,
+        body.mp-page-about .top-right>.mp-locale-controls .mp-language-control,
+        body.mp-page-reviews .top-right>.mp-locale-controls .mp-language-control{
+          width:78px!important;min-width:78px!important
+        }
+        body.mp-page-product .topRight>.mp-locale-controls .currency,
+        body.mp-page-about .top-right>.mp-locale-controls .currency,
+        body.mp-page-reviews .top-right>.mp-locale-controls .currency{
+          width:104px!important;min-width:104px!important
+        }
+        body.mp-page-shipping .mp-top-actions .mp-language-control,
+        body.mp-page-returns .mp-top-actions .mp-language-control,
+        body.mp-page-privacy .mp-top-actions .mp-language-control,
+        body.mp-page-impressum .mp-top-actions .mp-language-control{
+          width:84px!important;min-width:84px!important
+        }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -539,7 +656,15 @@
   {
     const path = location.pathname.replace(/\.html$/, "") || "/";
     if (path === "/" || path === "/index") document.body.classList.add("mp-page-shop");
-    if (path === "/product" || path.startsWith("/p/")) document.body.classList.add("mp-page-product");
+    else if (path === "/product" || path.startsWith("/p/")) document.body.classList.add("mp-page-product");
+    else if (path === "/about") document.body.classList.add("mp-page-about");
+    else if (path === "/reviews") document.body.classList.add("mp-page-reviews");
+    else if (path === "/shipping") document.body.classList.add("mp-page-shipping");
+    else if (path === "/returns") document.body.classList.add("mp-page-returns");
+    else if (path === "/privacy") document.body.classList.add("mp-page-privacy");
+    else if (path === "/impressum") document.body.classList.add("mp-page-impressum");
+    else if (path === "/success") document.body.classList.add("mp-page-success");
+    else if (path === "/cancel") document.body.classList.add("mp-page-cancel");
   }
 
   setupControls();
