@@ -118,6 +118,61 @@
         .mp-locale-controls .currency{min-width:78px}
       }
 
+
+      /* Shop + Product only: polished compact mobile header controls. */
+      @media(max-width:980px){
+        body.mp-page-shop .topbar,
+        body.mp-page-product .topbar{padding-bottom:10px!important}
+
+        body.mp-page-shop .top-right{
+          width:100%!important;display:grid!important;
+          grid-template-columns:auto 1fr auto!important;
+          align-items:center!important;gap:7px!important
+        }
+        body.mp-page-shop .top-right>.filtersBtn{
+          grid-column:1!important;width:auto!important;min-width:44px!important;height:40px!important;
+          padding:0 11px!important;border-radius:9px!important;white-space:nowrap!important
+        }
+        body.mp-page-shop .top-right>.cartBtn{
+          grid-column:2!important;width:100%!important;height:40px!important;min-height:40px!important;
+          padding:0 10px!important;border-radius:9px!important;white-space:nowrap!important
+        }
+        body.mp-page-shop .top-right>.toggle{
+          grid-column:1 / 3!important;grid-row:2!important;width:100%!important;height:38px!important;
+          min-height:38px!important;margin:0!important;padding:0 11px!important;border-radius:9px!important;
+          display:flex!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important
+        }
+        body.mp-page-shop .top-right>.mp-locale-controls{
+          grid-column:3!important;grid-row:1 / 3!important;align-self:stretch!important;
+          display:grid!important;grid-template-columns:1fr!important;gap:5px!important;padding:3px!important
+        }
+        body.mp-page-shop .top-right>.mp-locale-controls .mp-locale-control,
+        body.mp-page-shop .top-right>.mp-locale-controls .currency{
+          height:35px!important;min-width:78px!important
+        }
+
+        body.mp-page-product .topRight{
+          width:100%!important;display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:nowrap!important
+        }
+        body.mp-page-product .topRight>.cartBtn{
+          flex:1 1 auto!important;width:auto!important;height:42px!important;min-height:42px!important;
+          justify-content:center!important;padding:0 12px!important;border-radius:9px!important
+        }
+        body.mp-page-product .topRight>.mp-locale-controls{flex:0 0 auto!important}
+        body.mp-page-product .topRight>.mp-locale-controls .mp-locale-control,
+        body.mp-page-product .topRight>.mp-locale-controls .currency{height:36px!important}
+      }
+      @media(max-width:520px){
+        body.mp-page-shop .top-right{gap:6px!important}
+        body.mp-page-shop .top-right>.filtersBtn{font-size:0!important;width:42px!important;padding:0!important}
+        body.mp-page-shop .top-right>.filtersBtn::before{content:"☰";font-size:16px!important}
+        body.mp-page-shop .top-right>.filtersBtn .filtersBadge{font-size:10px!important;margin-left:3px!important}
+        body.mp-page-shop .top-right>.mp-locale-controls .mp-locale-control,
+        body.mp-page-shop .top-right>.mp-locale-controls .currency{min-width:76px!important;font-size:11px!important}
+        body.mp-page-product .topRight>.mp-locale-controls .mp-locale-control{min-width:62px!important}
+        body.mp-page-product .topRight>.mp-locale-controls .currency{min-width:78px!important}
+      }
+
       /* Legal/info pages: compact back button and language selector share one row. */
       @media(max-width:980px){
         .mp-top-actions{
@@ -285,6 +340,12 @@
       const target = new URL(a.href, location.origin).pathname.replace(/\.html$/, "") || "/";
       a.classList.toggle("active", target === path || (path.startsWith("/p/") && target === "/") || (path === "/product" && target === "/"));
     }
+  }
+
+  {
+    const path = location.pathname.replace(/\.html$/, "") || "/";
+    if (path === "/" || path === "/index") document.body.classList.add("mp-page-shop");
+    if (path === "/product" || path.startsWith("/p/")) document.body.classList.add("mp-page-product");
   }
 
   setupControls();
