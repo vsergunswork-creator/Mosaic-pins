@@ -224,6 +224,52 @@
       }
 
 
+      /* DESKTOP V8: one clean control shell everywhere + dropdown portal above page containers.
+         IMPORTANT: desktop only. Mobile rules below are intentionally untouched. */
+      @media(min-width:981px){
+        .mp-locale-controls{
+          padding:0!important;
+          border:0!important;
+          border-radius:0!important;
+          background:transparent!important;
+          box-shadow:none!important;
+          backdrop-filter:none!important;
+          -webkit-backdrop-filter:none!important;
+          overflow:visible!important;
+        }
+        .topbar,.top-right,.topRight,.mp-top-actions{overflow:visible!important}
+        .mp-desktop-select{position:relative!important;overflow:visible!important}
+        .mp-desktop-select-btn{
+          height:36px!important;
+          border:1px solid rgba(255,255,255,.10)!important;
+          border-radius:9px!important;
+          background:rgba(255,255,255,.045)!important;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.025)!important;
+        }
+        .mp-desktop-select.lang .mp-desktop-select-btn{min-width:68px!important}
+        .mp-desktop-select.currency .mp-desktop-select-btn{min-width:88px!important}
+        .mp-desktop-select.open .mp-desktop-select-btn,
+        .mp-desktop-select-btn:hover{
+          border-color:rgba(34,197,94,.52)!important;
+          background:rgba(34,197,94,.085)!important;
+          box-shadow:0 0 0 2px rgba(34,197,94,.055)!important;
+        }
+        .mp-desktop-select-menu.mp-desktop-select-menu-portal{
+          position:fixed!important;
+          z-index:2147483000!important;
+          margin:0!important;
+          max-height:min(320px,calc(100vh - 16px))!important;
+          overflow:auto!important;
+          opacity:0!important;visibility:hidden!important;
+          transform:translateY(-4px) scale(.98)!important;
+          transition:opacity .14s ease,visibility .14s ease,transform .14s ease!important;
+        }
+        .mp-desktop-select-menu.mp-desktop-select-menu-portal.mp-portal-open{
+          opacity:1!important;visibility:visible!important;
+          transform:translateY(0) scale(1)!important;
+        }
+      }
+
       /* FINAL mobile Shop layout: preserve the approved positions exactly. */
       @media(max-width:980px){
         body.mp-page-shop .top-right{
@@ -466,6 +512,40 @@
       });
     };
 
+    const positionPortalMenu = () => {
+      if (window.innerWidth <= 980 || !wrap.classList.contains("open")) return;
+      const r = button.getBoundingClientRect();
+      const viewportPad = 8;
+      const width = Math.max(Math.ceil(r.width), kind === "currency" ? 96 : 84);
+      menu.style.width = `${width}px`;
+      menu.style.minWidth = `${width}px`;
+      let left = Math.round(r.right - width);
+      left = Math.max(viewportPad, Math.min(left, window.innerWidth - width - viewportPad));
+      menu.style.left = `${left}px`;
+      menu.style.right = "auto";
+      menu.style.top = `${Math.round(r.bottom + 7)}px`;
+      menu.style.bottom = "auto";
+      menu.style.transformOrigin = "top right";
+
+      // After it is visible we know its real height. Open upward if needed.
+      const mh = menu.getBoundingClientRect().height;
+      if (r.bottom + 7 + mh > window.innerHeight - viewportPad && r.top - 7 - mh >= viewportPad) {
+        menu.style.top = `${Math.round(r.top - 7 - mh)}px`;
+        menu.style.transformOrigin = "bottom right";
+      }
+    };
+
+    const close = () => {
+      wrap.classList.remove("open");
+      button.setAttribute("aria-expanded", "false");
+      menu.classList.remove("mp-portal-open");
+      if (menu.parentNode !== wrap) wrap.appendChild(menu);
+      menu.classList.remove("mp-desktop-select-menu-portal");
+      menu.removeAttribute("style");
+    };
+    wrap._mpClose = close;
+    wrap._mpPosition = positionPortalMenu;
+
     [...select.options].forEach(option => {
       const opt = document.createElement("button");
       opt.type = "button";
@@ -473,25 +553,38 @@
       opt.dataset.value = option.value;
       opt.textContent = option.textContent.trim();
       opt.setAttribute("role", "option");
-      opt.addEventListener("click", () => {
+      opt.addEventListener("click", (e) => {
+        e.stopPropagation();
         if (select.value !== option.value) {
           select.value = option.value;
           select.dispatchEvent(new Event("change", { bubbles:true }));
         }
         sync();
-        wrap.classList.remove("open");
-        button.setAttribute("aria-expanded", "false");
+        close();
       });
       menu.appendChild(opt);
     });
 
     button.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (window.innerWidth <= 980) return;
+
       document.querySelectorAll(".mp-desktop-select.open").forEach(other => {
-        if (other !== wrap) other.classList.remove("open");
+        if (other !== wrap && typeof other._mpClose === "function") other._mpClose();
       });
-      const open = wrap.classList.toggle("open");
-      button.setAttribute("aria-expanded", open ? "true" : "false");
+
+      if (wrap.classList.contains("open")) {
+        close();
+        return;
+      }
+
+      wrap.classList.add("open");
+      button.setAttribute("aria-expanded", "true");
+      menu.classList.add("mp-desktop-select-menu-portal");
+      document.body.appendChild(menu);
+      menu.classList.add("mp-portal-open");
+      positionPortalMenu();
+      requestAnimationFrame(positionPortalMenu);
     });
 
     select.addEventListener("change", sync);
@@ -504,19 +597,22 @@
   function wireDesktopSelectClose(){
     if (mpDesktopCloseWired) return;
     mpDesktopCloseWired = true;
-    document.addEventListener("click", () => {
+
+    const closeAll = () => {
       document.querySelectorAll(".mp-desktop-select.open").forEach(wrap => {
-        wrap.classList.remove("open");
-        wrap.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
+        if (typeof wrap._mpClose === "function") wrap._mpClose();
       });
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
+    };
+    const repositionAll = () => {
       document.querySelectorAll(".mp-desktop-select.open").forEach(wrap => {
-        wrap.classList.remove("open");
-        wrap.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
+        if (typeof wrap._mpPosition === "function") wrap._mpPosition();
       });
-    });
+    };
+
+    document.addEventListener("click", closeAll);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(); });
+    window.addEventListener("resize", repositionAll, { passive:true });
+    window.addEventListener("scroll", repositionAll, { passive:true, capture:true });
   }
 
   function setupControls(){
