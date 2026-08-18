@@ -64,42 +64,73 @@
     style.id = "mp-locale-style";
     style.textContent = `
       .mp-locale-controls{
-        display:flex;align-items:center;gap:6px;flex:0 0 auto;
-        padding:4px;border:1px solid rgba(255,255,255,.10);border-radius:12px;
-        background:rgba(8,13,19,.56);box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 8px 24px rgba(0,0,0,.10);
+        display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;
+        padding:3px;border:1px solid rgba(255,255,255,.10);border-radius:11px;
+        background:rgba(8,13,19,.58);box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 7px 20px rgba(0,0,0,.12);
         backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)
       }
       .mp-locale-control,
       .mp-locale-controls .currency{
-        box-sizing:border-box;height:34px;min-width:70px;margin:0!important;
-        border:1px solid transparent!important;border-radius:8px!important;
-        background:rgba(255,255,255,.045)!important;color:var(--text,#eef2f7)!important;
-        padding:0 25px 0 10px!important;font:800 11px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif!important;
-        letter-spacing:.18px!important;outline:none!important;cursor:pointer!important;
-        box-shadow:none!important;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease,transform .15s ease!important;
-        appearance:auto!important;color-scheme:dark
+        box-sizing:border-box;height:36px;min-width:70px;margin:0!important;
+        border:1px solid rgba(255,255,255,.07)!important;border-radius:8px!important;
+        background-color:rgba(255,255,255,.045)!important;color:var(--text,#eef2f7)!important;
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23aeb8c5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")!important;
+        background-repeat:no-repeat!important;background-position:right 9px center!important;background-size:14px 14px!important;
+        padding:0 30px 0 11px!important;font:800 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif!important;
+        letter-spacing:.12px!important;outline:none!important;cursor:pointer!important;
+        box-shadow:none!important;transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease!important;
+        -webkit-appearance:none!important;appearance:none!important;color-scheme:dark
       }
       .mp-language-control{min-width:68px}
+      .mp-locale-controls .currency{min-width:88px}
       .mp-locale-control:hover,.mp-locale-control:focus,
       .mp-locale-controls .currency:hover,.mp-locale-controls .currency:focus{
-        border-color:rgba(34,197,94,.48)!important;background:rgba(34,197,94,.085)!important;
+        border-color:rgba(34,197,94,.52)!important;background-color:rgba(34,197,94,.085)!important;
         box-shadow:0 0 0 2px rgba(34,197,94,.055)!important
       }
       .mp-top-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:0 0 auto}
       .mp-top-actions>.btn,.mp-top-actions>.backBtn{margin:0}
-      .mp-floating-language{
-        position:fixed;right:14px;top:14px;z-index:9999;
-        box-shadow:0 10px 30px rgba(0,0,0,.22)
-      }
-      @media(max-width:900px){
+      .mp-floating-language{position:fixed;right:14px;top:14px;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,.22)}
+
+      /* About / Reviews / other cart pages: keep Cart + language + currency on one clean row. */
+      @media(max-width:980px){
         .topbar{gap:10px}
-        .mp-top-actions{gap:6px}
-        .mp-locale-controls{gap:4px;padding:3px;border-radius:10px}
-        .mp-locale-control,.mp-locale-controls .currency{height:32px;min-width:63px;padding-left:8px!important;padding-right:20px!important;font-size:10px!important}
+        .top-right{
+          width:100%!important;display:flex!important;align-items:center!important;
+          grid-template-columns:none!important;gap:8px!important;flex-wrap:nowrap!important
+        }
+        .top-right>.cartBtn{
+          width:auto!important;min-width:0!important;flex:1 1 auto!important;
+          justify-content:center!important;min-height:42px!important;height:42px!important;
+          padding:0 13px!important;border-radius:10px!important
+        }
+        .top-right>.mp-locale-controls{flex:0 0 auto!important}
+        .mp-locale-controls{gap:5px;padding:3px;border-radius:10px}
+        .mp-locale-control,.mp-locale-controls .currency{
+          height:36px;min-width:66px;padding-left:10px!important;padding-right:27px!important;font-size:11px!important
+        }
+        .mp-locale-controls .currency{min-width:82px}
       }
-      @media(max-width:700px){
-        .mp-top-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}
-        .mp-floating-language{right:9px;top:9px}
+      @media(max-width:520px){
+        .top-right{grid-template-columns:none!important}
+        .top-right>.cartBtn{font-size:14px!important}
+        .mp-locale-control{min-width:62px}
+        .mp-locale-controls .currency{min-width:78px}
+      }
+
+      /* Legal/info pages: compact back button and language selector share one row. */
+      @media(max-width:980px){
+        .mp-top-actions{
+          width:100%!important;display:flex!important;align-items:center!important;
+          justify-content:space-between!important;gap:8px!important;flex-wrap:nowrap!important
+        }
+        .mp-top-actions>.backBtn,
+        .mp-top-actions>.btn.backBtn{
+          order:1!important;width:auto!important;flex:1 1 auto!important;
+          min-height:42px!important;height:42px!important;padding:0 14px!important;
+          border-radius:10px!important;box-shadow:0 8px 18px rgba(34,197,94,.14)!important
+        }
+        .mp-top-actions>.mp-locale-controls{order:2!important;flex:0 0 auto!important}
       }
     `;
     document.head.appendChild(style);
