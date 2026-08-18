@@ -118,59 +118,54 @@
         .mp-locale-controls .currency{min-width:78px}
       }
 
+      /* Shop: keep the existing mobile filter-button position, but hide the numeric badge. */
+      #openFilters #filtersBadge{display:none!important}
 
-      /* Shop + Product only: polished compact mobile header controls. */
-      @media(max-width:980px){
-        body.mp-page-shop .topbar,
-        body.mp-page-product .topbar{padding-bottom:10px!important}
-
-        body.mp-page-shop .top-right{
-          width:100%!important;display:grid!important;
-          grid-template-columns:auto 1fr auto!important;
-          align-items:center!important;gap:7px!important
-        }
-        body.mp-page-shop .top-right>.filtersBtn{
-          grid-column:1!important;width:auto!important;min-width:44px!important;height:40px!important;
-          padding:0 11px!important;border-radius:9px!important;white-space:nowrap!important
-        }
-        body.mp-page-shop .top-right>.cartBtn{
-          grid-column:2!important;width:100%!important;height:40px!important;min-height:40px!important;
-          padding:0 10px!important;border-radius:9px!important;white-space:nowrap!important
-        }
-        body.mp-page-shop .top-right>.toggle{
-          grid-column:1 / 3!important;grid-row:2!important;width:100%!important;height:38px!important;
-          min-height:38px!important;margin:0!important;padding:0 11px!important;border-radius:9px!important;
-          display:flex!important;align-items:center!important;justify-content:center!important;white-space:nowrap!important
-        }
-        body.mp-page-shop .top-right>.mp-locale-controls{
-          grid-column:3!important;grid-row:1 / 3!important;align-self:stretch!important;
-          display:grid!important;grid-template-columns:1fr!important;gap:5px!important;padding:3px!important
-        }
-        body.mp-page-shop .top-right>.mp-locale-controls .mp-locale-control,
-        body.mp-page-shop .top-right>.mp-locale-controls .currency{
-          height:35px!important;min-width:78px!important
-        }
-
-        body.mp-page-product .topRight{
-          width:100%!important;display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:nowrap!important
-        }
-        body.mp-page-product .topRight>.cartBtn{
-          flex:1 1 auto!important;width:auto!important;height:42px!important;min-height:42px!important;
-          justify-content:center!important;padding:0 12px!important;border-radius:9px!important
-        }
-        body.mp-page-product .topRight>.mp-locale-controls{flex:0 0 auto!important}
-        body.mp-page-product .topRight>.mp-locale-controls .mp-locale-control,
-        body.mp-page-product .topRight>.mp-locale-controls .currency{height:36px!important}
+      /* Desktop locale controls: custom dropdowns avoid the native Windows/Chrome popup look. */
+      .mp-desktop-select{display:none;position:relative}
+      .mp-desktop-select-btn{
+        height:36px;min-width:70px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+        border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:0 10px 0 11px;
+        background:rgba(255,255,255,.045);color:var(--text,#eef2f7);
+        font:800 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:.12px;
+        cursor:pointer;outline:none;box-shadow:none;
+        transition:border-color .15s ease,background .15s ease,box-shadow .15s ease,transform .15s ease
       }
-      @media(max-width:520px){
-        body.mp-page-shop .top-right{gap:6px!important}
-        body.mp-page-shop .top-right>.filtersBtn{font-size:0!important;width:42px!important;padding:0!important}
-        body.mp-page-shop .top-right>.filtersBtn::before{content:"☰";font-size:16px!important}
-        body.mp-page-shop .top-right>.filtersBtn .filtersBadge{font-size:10px!important;margin-left:3px!important}
-        body.mp-page-shop .top-right>.mp-locale-controls .mp-locale-control,
-        body.mp-page-shop .top-right>.mp-locale-controls .currency{min-width:76px!important;font-size:11px!important}
-        body.mp-page-product .topRight>.mp-locale-controls .mp-locale-control{min-width:62px!important}
-        body.mp-page-product .topRight>.mp-locale-controls .currency{min-width:78px!important}
+      .mp-desktop-select-btn:hover,
+      .mp-desktop-select.open .mp-desktop-select-btn{
+        border-color:rgba(34,197,94,.52);background:rgba(34,197,94,.085);
+        box-shadow:0 0 0 2px rgba(34,197,94,.055)
+      }
+      .mp-desktop-select-btn:active{transform:translateY(1px)}
+      .mp-desktop-select-chevron{
+        width:14px;height:14px;flex:0 0 14px;opacity:.78;transition:transform .16s ease
+      }
+      .mp-desktop-select.open .mp-desktop-select-chevron{transform:rotate(180deg)}
+      .mp-desktop-select-menu{
+        position:absolute;right:0;top:calc(100% + 7px);z-index:10050;min-width:100%;padding:5px;
+        border:1px solid rgba(255,255,255,.11);border-radius:10px;
+        background:rgba(12,18,25,.98);box-shadow:0 18px 50px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.035);
+        backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+        opacity:0;visibility:hidden;transform:translateY(-4px) scale(.98);transform-origin:top right;
+        transition:opacity .14s ease,visibility .14s ease,transform .14s ease
+      }
+      .mp-desktop-select.open .mp-desktop-select-menu{
+        opacity:1;visibility:visible;transform:translateY(0) scale(1)
+      }
+      .mp-desktop-select-option{
+        width:100%;height:34px;border:0;border-radius:7px;padding:0 10px;text-align:left;
+        display:flex;align-items:center;justify-content:space-between;gap:12px;
+        background:transparent;color:var(--text,#eef2f7);font:750 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+        cursor:pointer;white-space:nowrap;transition:background .12s ease,color .12s ease
+      }
+      .mp-desktop-select-option:hover{background:rgba(255,255,255,.065)}
+      .mp-desktop-select-option.active{background:rgba(34,197,94,.12);color:#86efac}
+      .mp-desktop-select-option.active::after{content:"✓";font-weight:900;color:#22c55e}
+      @media(min-width:981px){
+        .mp-locale-controls>select.mp-native-locale{display:none!important}
+        .mp-desktop-select{display:block}
+        .mp-desktop-select.lang .mp-desktop-select-btn{min-width:68px}
+        .mp-desktop-select.currency .mp-desktop-select-btn{min-width:88px}
       }
 
       /* Legal/info pages: compact back button and language selector share one row. */
@@ -211,6 +206,92 @@
     return language;
   }
 
+  function enhanceDesktopSelect(select, kind){
+    if (!select || select.dataset.mpDesktopEnhanced === "1") return;
+    select.dataset.mpDesktopEnhanced = "1";
+    select.classList.add("mp-native-locale");
+
+    const wrap = document.createElement("div");
+    wrap.className = `mp-desktop-select ${kind || ""}`;
+    wrap.setAttribute("translate", "no");
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mp-desktop-select-btn";
+    button.setAttribute("aria-haspopup", "listbox");
+    button.setAttribute("aria-expanded", "false");
+
+    const label = document.createElement("span");
+    const chevron = document.createElement("span");
+    chevron.className = "mp-desktop-select-chevron";
+    chevron.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
+    button.append(label, chevron);
+
+    const menu = document.createElement("div");
+    menu.className = "mp-desktop-select-menu";
+    menu.setAttribute("role", "listbox");
+
+    const sync = () => {
+      const selected = select.options[select.selectedIndex];
+      label.textContent = selected ? selected.textContent.trim() : "";
+      [...menu.querySelectorAll(".mp-desktop-select-option")].forEach(opt => {
+        opt.classList.toggle("active", opt.dataset.value === select.value);
+      });
+    };
+
+    [...select.options].forEach(option => {
+      const opt = document.createElement("button");
+      opt.type = "button";
+      opt.className = "mp-desktop-select-option";
+      opt.dataset.value = option.value;
+      opt.textContent = option.textContent.trim();
+      opt.setAttribute("role", "option");
+      opt.addEventListener("click", () => {
+        if (select.value !== option.value) {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles:true }));
+        }
+        sync();
+        wrap.classList.remove("open");
+        button.setAttribute("aria-expanded", "false");
+      });
+      menu.appendChild(opt);
+    });
+
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".mp-desktop-select.open").forEach(other => {
+        if (other !== wrap) other.classList.remove("open");
+      });
+      const open = wrap.classList.toggle("open");
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+
+    select.addEventListener("change", sync);
+    select.insertAdjacentElement("afterend", wrap);
+    wrap.append(button, menu);
+    sync();
+  }
+
+  let mpDesktopCloseWired = false;
+  function wireDesktopSelectClose(){
+    if (mpDesktopCloseWired) return;
+    mpDesktopCloseWired = true;
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".mp-desktop-select.open").forEach(wrap => {
+        wrap.classList.remove("open");
+        wrap.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
+      });
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.querySelectorAll(".mp-desktop-select.open").forEach(wrap => {
+        wrap.classList.remove("open");
+        wrap.querySelector(".mp-desktop-select-btn")?.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
+
   function setupControls(){
     injectStyles();
     if (document.getElementById("language")) return;
@@ -221,12 +302,15 @@
     localeGroup.className = "mp-locale-controls";
     localeGroup.setAttribute("translate", "no");
     localeGroup.appendChild(language);
+    enhanceDesktopSelect(language, "lang");
+    wireDesktopSelectClose();
 
     if (currency && currency.parentNode) {
       currency.setAttribute("translate", "no");
       currency.setAttribute("aria-label", "Currency");
       currency.parentNode.insertBefore(localeGroup, currency);
       localeGroup.appendChild(currency);
+      enhanceDesktopSelect(currency, "currency");
       return;
     }
 
@@ -340,12 +424,6 @@
       const target = new URL(a.href, location.origin).pathname.replace(/\.html$/, "") || "/";
       a.classList.toggle("active", target === path || (path.startsWith("/p/") && target === "/") || (path === "/product" && target === "/"));
     }
-  }
-
-  {
-    const path = location.pathname.replace(/\.html$/, "") || "/";
-    if (path === "/" || path === "/index") document.body.classList.add("mp-page-shop");
-    if (path === "/product" || path.startsWith("/p/")) document.body.classList.add("mp-page-product");
   }
 
   setupControls();
