@@ -219,8 +219,8 @@
       @media(min-width:981px){
         .mp-locale-controls>select.mp-native-locale{display:none!important}
         .mp-desktop-select{display:block}
-        .mp-desktop-select.lang .mp-desktop-select-btn{min-width:68px}
-        .mp-desktop-select.currency .mp-desktop-select-btn{min-width:88px}
+        .mp-desktop-select.mp-kind-lang .mp-desktop-select-btn{min-width:68px}
+        .mp-desktop-select.mp-kind-currency .mp-desktop-select-btn{min-width:88px}
         .mp-locale-controls{
           padding:0!important;border:0!important;border-radius:0!important;
           background:transparent!important;box-shadow:none!important;
@@ -444,7 +444,7 @@
     select.classList.add("mp-native-locale");
 
     const wrap = document.createElement("div");
-    wrap.className = `mp-desktop-select ${kind || ""}`;
+    wrap.className = `mp-desktop-select mp-kind-${kind || "default"}`;
     wrap.setAttribute("translate", "no");
 
     const button = document.createElement("button");
