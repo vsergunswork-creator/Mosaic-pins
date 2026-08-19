@@ -55,7 +55,6 @@ export async function onRequestGet({ env, request }) {
       `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`
     );
     airtableUrl.searchParams.set("pageSize", "100");
-    airtableUrl.searchParams.set("filterByFormula", "{Source}='Etsy'");
 
     const ar = await fetch(airtableUrl.toString(), {
       headers: { Authorization: `Bearer ${airtableToken}` },
@@ -70,7 +69,10 @@ export async function onRequestGet({ env, request }) {
       }, ar.status);
     }
 
-    const airtableRecords = Array.isArray(ad?.records) ? ad.records : [];
+    const allAirtableRecords = Array.isArray(ad?.records) ? ad.records : [];
+    const airtableRecords = allAirtableRecords.filter((rec) =>
+      String(rec?.fields?.["Source"] || "").trim().toLowerCase() === "etsy"
+    );
 
     // Build queues, not a Set: several Etsy purchases contain multiple reviews
     // with identical text/rating/date. Consuming one record at a time prevents
