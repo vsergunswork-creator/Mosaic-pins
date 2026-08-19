@@ -1,6 +1,7 @@
 // functions/api/etsy-reviews-test.js
-// Read-only diagnostic: resolve an Etsy shop and fetch a small sample of reviews.
-// Does NOT write to Airtable or Etsy.
+// Read-only diagnostic: resolve an Etsy shop, fetch ALL reviews via pagination,
+// and report which reviews contain an official Etsy review image.
+// Does NOT write to Airtable, R2, or Etsy.
 
 export async function onRequestGet({ env, request }) {
   try {
@@ -32,12 +33,7 @@ export async function onRequestGet({ env, request }) {
       const sr = await fetch(shopUrl.toString(), { headers });
       const sd = await sr.json().catch(() => ({}));
       if (!sr.ok) {
-        return json({
-          ok: false,
-          stage: "shop_lookup",
-          etsyStatus: sr.status,
-          etsyError: safeEtsyError(sd),
-        }, sr.status);
+        return json({ ok: false, stage: "shop_lookup", etsyStatus: sr.status, etsyError: safeEtsyError(sd) }, sr.status);
       }
 
       const candidates = Array.isArray(sd?.results) ? sd.results : [];
@@ -50,24 +46,32 @@ export async function onRequestGet({ env, request }) {
       if (!shopId) return json({ ok: false, stage: "shop_lookup", error: "Etsy response had no shop_id" }, 502);
     }
 
-    const reviewsUrl = new URL(`https://openapi.etsy.com/v3/application/shops/${encodeURIComponent(shopId)}/reviews`);
-    reviewsUrl.searchParams.set("limit", "10");
-    reviewsUrl.searchParams.set("offset", "0");
+    const limit = 100;
+    let offset = 0;
+    let reportedCount = null;
+    const all = [];
 
-    const rr = await fetch(reviewsUrl.toString(), { headers });
-    const rd = await rr.json().catch(() => ({}));
-    if (!rr.ok) {
-      return json({
-        ok: false,
-        stage: "reviews",
-        shopId,
-        etsyStatus: rr.status,
-        etsyError: safeEtsyError(rd),
-      }, rr.status);
+    // Etsy currently reports only 31 reviews for this shop, but paginate defensively.
+    for (let page = 0; page < 20; page++) {
+      const reviewsUrl = new URL(`https://openapi.etsy.com/v3/application/shops/${encodeURIComponent(shopId)}/reviews`);
+      reviewsUrl.searchParams.set("limit", String(limit));
+      reviewsUrl.searchParams.set("offset", String(offset));
+
+      const rr = await fetch(reviewsUrl.toString(), { headers });
+      const rd = await rr.json().catch(() => ({}));
+      if (!rr.ok) {
+        return json({ ok: false, stage: "reviews", shopId, offset, etsyStatus: rr.status, etsyError: safeEtsyError(rd) }, rr.status);
+      }
+
+      if (reportedCount == null && Number.isFinite(Number(rd?.count))) reportedCount = Number(rd.count);
+      const batch = Array.isArray(rd?.results) ? rd.results : [];
+      all.push(...batch);
+
+      if (!batch.length || batch.length < limit || (reportedCount != null && all.length >= reportedCount)) break;
+      offset += batch.length;
     }
 
-    const results = Array.isArray(rd?.results) ? rd.results : [];
-    const sample = results.map((r) => ({
+    const normalized = all.map((r) => ({
       reviewId: r?.review_id ?? null,
       transactionId: r?.transaction_id ?? null,
       listingId: r?.listing_id ?? null,
@@ -76,16 +80,34 @@ export async function onRequestGet({ env, request }) {
       language: r?.language ?? "",
       createdTimestamp: r?.created_timestamp ?? null,
       updatedTimestamp: r?.updated_timestamp ?? null,
-      imageUrlFullxfull: r?.image_url_fullxfull ?? "",
+      imageUrlFullxfull: String(r?.image_url_fullxfull || "").trim(),
     }));
+
+    const withImages = normalized.filter((r) => r.imageUrlFullxfull);
 
     return json({
       ok: true,
-      mode: "read-only",
+      mode: "read-only-all-reviews-image-scan",
       shop: shop ? { shopId: shop?.shop_id ?? Number(shopId), shopName: shop?.shop_name || requestedShopName } : { shopId: Number(shopId) },
-      countReportedByEtsy: rd?.count ?? null,
-      sampleCount: sample.length,
-      reviews: sample,
+      countReportedByEtsy: reportedCount,
+      fetchedCount: normalized.length,
+      reviewsWithImages: withImages.length,
+      reviewsWithoutImages: normalized.length - withImages.length,
+      images: withImages.map((r) => ({
+        transactionId: r.transactionId,
+        listingId: r.listingId,
+        rating: r.rating,
+        createdTimestamp: r.createdTimestamp,
+        imageUrlFullxfull: r.imageUrlFullxfull,
+        reviewPreview: r.review.slice(0, 160),
+      })),
+      // Compact identity scan helps us plan de-duplication without dumping all review text.
+      reviewKeys: normalized.map((r) => ({
+        reviewId: r.reviewId,
+        transactionId: r.transactionId,
+        listingId: r.listingId,
+        hasImage: Boolean(r.imageUrlFullxfull),
+      })),
     });
   } catch (e) {
     return json({ ok: false, error: "Server error", detail: String(e?.message || e || "") }, 500);
@@ -100,9 +122,6 @@ function safeEtsyError(data) {
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj, null, 2), {
     status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-    },
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
 }
