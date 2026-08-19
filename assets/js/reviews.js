@@ -810,7 +810,8 @@
     const date = document.createElement("div");
     date.className = "rDate";
     const country = (r.country ? ` • ${r.country}` : "");
-    date.textContent = `${fmtDate(r.createdAt || r.date || "")}${country}`;
+    const source = String(r.source || "").trim().toLowerCase() === "etsy" ? " • Etsy" : "";
+    date.textContent = `${fmtDate(r.createdAt || r.date || "")}${country}${source}`;
 
     left.appendChild(name);
     left.appendChild(date);
