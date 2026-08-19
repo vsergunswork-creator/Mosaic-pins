@@ -138,8 +138,15 @@ export async function onRequestPost({ env, request }) {
         text: form.get("text"),
         rating: form.get("rating"),
         country: form.get("country"),
+        photoCount: form.get("photoCount"),
       };
-      photos = form.getAll("photos").filter((x) => x && typeof x.arrayBuffer === "function" && x.size > 0);
+      photos = [];
+      for (const [key, value] of form.entries()) {
+        if (key !== "photos") continue;
+        if (value && typeof value.arrayBuffer === "function" && Number(value.size || 0) > 0) {
+          photos.push(value);
+        }
+      }
     } else {
       body = await request.json().catch(() => ({}));
     }
@@ -158,6 +165,13 @@ export async function onRequestPost({ env, request }) {
 
     const rating = clampNumber(ratingRaw, 1, 5);
     if (!Number.isFinite(rating)) return json({ error: "Rating must be 1..5" }, 400);
+
+    const expectedPhotoCount = clampInt(body?.photoCount, 0, 4, 0);
+    if (expectedPhotoCount > 0 && photos.length !== expectedPhotoCount) {
+      return json({
+        error: `Photo upload transport failed — selected ${expectedPhotoCount}, received ${photos.length}. Please try again.`
+      }, 400);
+    }
 
     if (photos.length > 4) return json({ error: "Up to 4 photos are allowed" }, 400);
 
@@ -222,7 +236,12 @@ export async function onRequestPost({ env, request }) {
       }, r.status >= 400 && r.status < 600 ? r.status : 400);
     }
 
-    return json({ ok: true, status: "published", photos: photoUrls.length });
+    return json({
+      ok: true,
+      status: "published",
+      photos: photoUrls.length,
+      photosReceived: photos.length,
+    });
   } catch (e) {
     await cleanupUploads(env, uploadedKeys);
     return json({ error: "Server error" }, 500);

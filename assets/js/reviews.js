@@ -973,7 +973,9 @@
     payload.append("rating", String(rating));
     payload.append("text", (elText.value || "").trim());
     payload.append("source", "site");
-    Array.from(elPhotos?.files || []).forEach(file => payload.append("photos", file, file.name));
+    const selectedPhotos = Array.from(elPhotos?.files || []);
+    payload.append("photoCount", String(selectedPhotos.length));
+    selectedPhotos.forEach(file => payload.append("photos", file, file.name));
 
     if (elSend){
       elSend.disabled = true;
