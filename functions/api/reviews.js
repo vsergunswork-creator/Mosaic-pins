@@ -86,6 +86,9 @@ export async function onRequestGet({ env, request }) {
         text: String(f["Text"] || ""),
         country: String(f["Country"] || ""),
         date: String(f["Date"] || ""),
+        source: String(f["Source"] || ""),
+        sourceOrderId: String(f["Source Order ID"] || ""),
+        sourceReviewId: String(f["Source Review ID"] || ""),
         avatar: avatarUrl,
         photos: photosUrls,
       };
@@ -152,6 +155,7 @@ export async function onRequestPost({ env, request }) {
       "Text": text,
       "Active": false,
       "Date": now,
+      "Source": "Mosaic Pins",
     };
 
     if (country) fields["Country"] = country;
