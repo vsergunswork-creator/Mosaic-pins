@@ -904,6 +904,7 @@
   const elName    = document.getElementById("name");
   const elCountry = document.getElementById("country");
   const elText    = document.getElementById("text");
+  const elPhotos  = document.getElementById("photos");
   const elSend    = document.getElementById("sendBtn");
 
   function validate(){
@@ -912,6 +913,12 @@
     if (name.length < 2) return "Name is too short";
     if (rating < 1 || rating > 5) return "Rating must be 1..5";
     if (text.length < 10) return "Text is too short (min 10 chars)";
+    const photos = Array.from(elPhotos?.files || []);
+    if (photos.length > 4) return "Please select up to 4 photos";
+    for (const file of photos){
+      if (!["image/jpeg","image/png","image/webp"].includes(file.type)) return "Photos must be JPG, PNG or WebP";
+      if (file.size > 8 * 1024 * 1024) return "Each photo must be 8 MB or smaller";
+    }
     return null;
   }
 
@@ -919,13 +926,13 @@
     const err = validate();
     if (err){ toast("Review", err); return; }
 
-    const payload = {
-      name: (elName.value || "").trim(),
-      country: (elCountry.value || "").trim(),
-      rating: rating,
-      text: (elText.value || "").trim(),
-      source: "site",
-    };
+    const payload = new FormData();
+    payload.append("name", (elName.value || "").trim());
+    payload.append("country", (elCountry.value || "").trim());
+    payload.append("rating", String(rating));
+    payload.append("text", (elText.value || "").trim());
+    payload.append("source", "site");
+    Array.from(elPhotos?.files || []).forEach(file => payload.append("photos", file, file.name));
 
     if (elSend){
       elSend.disabled = true;
@@ -935,8 +942,7 @@
     try{
       const r = await fetch(API_REVIEWS, {
         method:"POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify(payload),
+        body: payload,
       });
       const data = await r.json().catch(()=>({}));
       if (!r.ok || !data?.ok){
@@ -945,6 +951,7 @@
 
       toast("Review", "Sent ✅ Waiting for approval");
       if (elText) elText.value = "";
+      if (elPhotos) elPhotos.value = "";
       loadReviews();
     }catch(e){
       toast("Review", String(e?.message || e));

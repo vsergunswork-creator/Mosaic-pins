@@ -116,22 +116,35 @@ export async function onRequestGet({ env, request }) {
   }
 }
 
-// ---------------- POST (оставляем почти без изменений) ----------------
+// ---------------- POST ----------------
 export async function onRequestPost({ env, request }) {
+  const uploadedKeys = [];
   try {
     const token = (env.AIRTABLE_TOKEN_REVIEWS || env.AIRTABLE_TOKEN || "").trim();
     const baseId = (env.AIRTABLE_BASE_ID || "").trim();
     const table = String(env.AIRTABLE_REVIEWS_TABLE || "Reviews").trim();
 
-    if (!token || !baseId) {
-      return json({ error: "Reviews disabled" }, 500);
+    if (!token || !baseId) return json({ error: "Reviews disabled" }, 500);
+
+    const contentType = String(request.headers.get("content-type") || "").toLowerCase();
+    let body = {};
+    let photos = [];
+
+    if (contentType.includes("multipart/form-data")) {
+      const form = await request.formData();
+      body = {
+        website: form.get("website"),
+        name: form.get("name"),
+        text: form.get("text"),
+        rating: form.get("rating"),
+        country: form.get("country"),
+      };
+      photos = form.getAll("photos").filter((x) => x && typeof x.arrayBuffer === "function" && x.size > 0);
+    } else {
+      body = await request.json().catch(() => ({}));
     }
 
-    const body = await request.json().catch(() => ({}));
-
-    if (String(body?.website || "").trim()) {
-      return json({ ok: true }, 200);
-    }
+    if (String(body?.website || "").trim()) return json({ ok: true }, 200);
 
     const name = String(body?.name || "").trim();
     const text = String(body?.text || "").trim();
@@ -140,49 +153,76 @@ export async function onRequestPost({ env, request }) {
 
     if (name.length < 2) return json({ error: "Name is too short" }, 400);
     if (name.length > 80) return json({ error: "Name is too long" }, 400);
-
     if (text.length < 10) return json({ error: "Text is too short" }, 400);
     if (text.length > 2000) return json({ error: "Text is too long" }, 400);
 
     const rating = clampNumber(ratingRaw, 1, 5);
     if (!Number.isFinite(rating)) return json({ error: "Rating must be 1..5" }, 400);
 
-    const now = new Date().toISOString();
+    if (photos.length > 4) return json({ error: "Up to 4 photos are allowed" }, 400);
+
+    const allowed = new Map([
+      ["image/jpeg", "jpg"],
+      ["image/png", "png"],
+      ["image/webp", "webp"],
+    ]);
+    for (const file of photos) {
+      if (!allowed.has(String(file.type || "").toLowerCase())) return json({ error: "Photos must be JPG, PNG or WebP" }, 400);
+      if (file.size > 8 * 1024 * 1024) return json({ error: "Each photo must be 8 MB or smaller" }, 400);
+    }
+
+    const publicBase = String(env.R2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+    if (photos.length && (!env.PRODUCT_IMAGES || !publicBase)) return json({ error: "Photo uploads are unavailable" }, 503);
+
+    const photoUrls = [];
+    const now = new Date();
+    const yyyy = String(now.getUTCFullYear());
+    const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+
+    for (const file of photos) {
+      const type = String(file.type || "").toLowerCase();
+      const ext = allowed.get(type);
+      const key = `reviews/${yyyy}/${mm}/${crypto.randomUUID()}.${ext}`;
+      await env.PRODUCT_IMAGES.put(key, await file.arrayBuffer(), {
+        httpMetadata: { contentType: type, cacheControl: "public, max-age=31536000, immutable" },
+      });
+      uploadedKeys.push(key);
+      photoUrls.push(`${publicBase}/${key}`);
+    }
 
     const fields = {
       "Name": name,
       "Rating": rating,
       "Text": text,
       "Active": false,
-      "Date": now,
+      "Date": now.toISOString(),
       "Source": "Mosaic Pins",
     };
-
     if (country) fields["Country"] = country;
-
-    const payload = {
-      records: [{ fields }],
-    };
+    if (photoUrls.length) fields["Photos"] = photoUrls.map((url) => ({ url }));
 
     const apiUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
-
     const r = await fetch(apiUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ records: [{ fields }] }),
     });
 
     if (!r.ok) {
+      await cleanupUploads(env, uploadedKeys);
       return json({ error: "Airtable create failed" }, 400);
     }
 
-    return json({ ok: true, status: "queued_for_moderation" });
+    return json({ ok: true, status: "queued_for_moderation", photos: photoUrls.length });
   } catch (e) {
+    await cleanupUploads(env, uploadedKeys);
     return json({ error: "Server error" }, 500);
   }
+}
+
+async function cleanupUploads(env, keys) {
+  if (!env?.PRODUCT_IMAGES || !Array.isArray(keys) || !keys.length) return;
+  await Promise.all(keys.map((key) => env.PRODUCT_IMAGES.delete(key).catch(() => {})));
 }
 
 // ---------------- helpers ----------------
