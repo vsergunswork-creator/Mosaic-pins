@@ -1,7 +1,7 @@
 // functions/api/reviews.js
 // SAFE version (cache + fallback, но сохраняем вашу логику)
 
-import { cacheGet, cacheSet } from "./_cache.js";
+import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
 
 const TTL_SEC = 60;
 const FALLBACK_TTL_SEC = 7 * 86400;
@@ -235,6 +235,11 @@ export async function onRequestPost({ env, request }) {
         error: detail ? `Airtable create failed — ${detail}` : `Airtable create failed (HTTP ${r.status})`,
       }, r.status >= 400 && r.status < 600 ? r.status : 400);
     }
+
+    // The Reviews page requests the default first page (limit=30, no offset).
+    // Clear that short-lived cache immediately after publishing so the new
+    // review is visible on the next load instead of waiting up to 60 seconds.
+    await cacheDel(env, "reviews:30:");
 
     return json({
       ok: true,
