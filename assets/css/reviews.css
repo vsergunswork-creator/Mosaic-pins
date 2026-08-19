@@ -460,7 +460,7 @@
       transition: transform .12s ease, background .12s ease;
     }
     .starBtn:hover{background:rgba(255,255,255,.08); transform: translateY(-1px);}
-    .starBtn.active{background:rgba(34,197,94,.16); border-color: rgba(34,197,94,.25);}
+    .starBtn.active{background:rgba(245,197,66,.12); border-color:rgba(245,197,66,.35); color:#f5c542;}
     .ratingText{color:var(--muted); font-size:12px;}
 
     .btn{
@@ -499,7 +499,7 @@
     }
     .rName{font-weight:950; letter-spacing:.2px; margin:0; font-size:13px;}
     .rDate{color:var(--muted); font-size:12px;}
-    .rStars{display:flex; gap:2px; font-size:14px; line-height:1; white-space:nowrap;}
+    .rStars{display:flex; gap:2px; font-size:14px; line-height:1; white-space:nowrap; color:#f5c542;}
     .rText{
       margin:10px 0 0;
       color:var(--muted);

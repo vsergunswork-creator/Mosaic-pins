@@ -860,8 +860,8 @@
 
       if (heroMeta){
         heroMeta.textContent = total
-          ? `Showing approved reviews from customers.`
-          : `No approved reviews yet. Be the first 🙂`;
+          ? `Showing customer reviews.`
+          : `No reviews yet. Be the first 🙂`;
       }
       if (countHint) countHint.textContent = total ? `${total} reviews` : "—";
 
@@ -877,7 +877,7 @@
 
       if (!items.length){
         if (elList){
-          elList.innerHTML = `<div class="empty">No reviews yet. Your review will appear after approval.</div>`;
+          elList.innerHTML = `<div class="empty">No reviews yet. Be the first 🙂</div>`;
         }
         return;
       }
@@ -990,7 +990,7 @@
         throw new Error(data?.error || "Failed to send review");
       }
 
-      toast("Review", "Sent ✅ Waiting for approval");
+      toast("Review", "Published ✅ Thank you for your review!");
       if (elText) elText.value = "";
       if (elPhotos) elPhotos.value = "";
       renderPhotoPreview();

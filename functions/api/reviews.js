@@ -194,7 +194,7 @@ export async function onRequestPost({ env, request }) {
       "Name": name,
       "Rating": rating,
       "Text": text,
-      "Active": false,
+      "Active": true,
       "Date": now.toISOString(),
     };
     if (country) fields["Country"] = country;
@@ -222,7 +222,7 @@ export async function onRequestPost({ env, request }) {
       }, r.status >= 400 && r.status < 600 ? r.status : 400);
     }
 
-    return json({ ok: true, status: "queued_for_moderation", photos: photoUrls.length });
+    return json({ ok: true, status: "published", photos: photoUrls.length });
   } catch (e) {
     await cleanupUploads(env, uploadedKeys);
     return json({ error: "Server error" }, 500);
