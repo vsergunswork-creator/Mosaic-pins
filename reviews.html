@@ -116,8 +116,16 @@
 
               <div class="field">
                 <div class="label">Photos (optional, up to 4)</div>
-                <input class="input" id="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple />
-                <div class="hint">JPG, PNG or WebP · max 8 MB each</div>
+                <div class="photoUpload" id="photoUpload">
+                  <input id="photos" class="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+                  <div class="photoUploadIcon" aria-hidden="true">＋</div>
+                  <div class="photoUploadCopy">
+                    <div class="photoUploadTitle">Add photos to your review</div>
+                    <div class="photoUploadHint">JPG, PNG or WebP · up to 4 photos · max 8 MB each</div>
+                  </div>
+                  <label class="photoUploadButton" for="photos">Choose photos</label>
+                </div>
+                <div class="photoPreview" id="photoPreview" aria-live="polite"></div>
               </div>
 
               <button class="btn" id="sendBtn" type="button">Send review</button>
@@ -243,7 +251,7 @@
   <script id="pp-sdk" data-loaded="0"></script>
 
 <script src="/assets/js/shipping-ui.js"></script>
-  <script src="/assets/js/reviews.js"></script>
-  <script src="/assets/js/site-common.js?v=20260818-static-all1"></script>
+  <script src="/assets/js/reviews.js?v=20260819-photo-ui2"></script>
+  <script src="/assets/js/site-common.js?v=20260819-photo-ui2"></script>
 </body>
 </html>

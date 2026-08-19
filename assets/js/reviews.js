@@ -905,7 +905,48 @@
   const elCountry = document.getElementById("country");
   const elText    = document.getElementById("text");
   const elPhotos  = document.getElementById("photos");
+  const elPhotoPreview = document.getElementById("photoPreview");
   const elSend    = document.getElementById("sendBtn");
+
+  let photoPreviewUrls = [];
+
+  function clearPhotoPreviewUrls(){
+    photoPreviewUrls.forEach(url => {
+      try{ URL.revokeObjectURL(url); }catch(_){}
+    });
+    photoPreviewUrls = [];
+  }
+
+  function renderPhotoPreview(){
+    if (!elPhotoPreview) return;
+    clearPhotoPreviewUrls();
+    elPhotoPreview.innerHTML = "";
+
+    const files = Array.from(elPhotos?.files || []).slice(0, 4);
+    elPhotoPreview.classList.toggle("hasPhotos", files.length > 0);
+
+    files.forEach(file => {
+      const url = URL.createObjectURL(file);
+      photoPreviewUrls.push(url);
+
+      const item = document.createElement("div");
+      item.className = "photoPreviewItem";
+
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = "Selected review photo";
+
+      const name = document.createElement("div");
+      name.className = "photoPreviewName";
+      name.textContent = file.name || "Photo";
+
+      item.appendChild(img);
+      item.appendChild(name);
+      elPhotoPreview.appendChild(item);
+    });
+  }
+
+  elPhotos?.addEventListener("change", renderPhotoPreview);
 
   function validate(){
     const name = (elName?.value || "").trim();
@@ -952,6 +993,7 @@
       toast("Review", "Sent ✅ Waiting for approval");
       if (elText) elText.value = "";
       if (elPhotos) elPhotos.value = "";
+      renderPhotoPreview();
       loadReviews();
     }catch(e){
       toast("Review", String(e?.message || e));
