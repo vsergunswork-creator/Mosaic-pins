@@ -209,8 +209,18 @@ export async function onRequestPost({ env, request }) {
     });
 
     if (!r.ok) {
+      const airtableError = await r.json().catch(() => ({}));
       await cleanupUploads(env, uploadedKeys);
-      return json({ error: "Airtable create failed" }, 400);
+
+      // Return Airtable's safe error type/message so production tests reveal
+      // the exact schema/permission problem instead of a generic failure.
+      const type = String(airtableError?.error?.type || "").trim();
+      const message = String(airtableError?.error?.message || "").trim();
+      const detail = [type, message].filter(Boolean).join(": ");
+
+      return json({
+        error: detail ? `Airtable create failed — ${detail}` : `Airtable create failed (HTTP ${r.status})`,
+      }, r.status >= 400 && r.status < 600 ? r.status : 400);
     }
 
     return json({ ok: true, status: "queued_for_moderation", photos: photoUrls.length });
