@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet } from "./_cache.js";
+import { getEurUsdRate } from "./_fx.js";
 
 const DHL_BASE = "https://api-eu.dhl.com/parcel/de/shipping/of/v1/public";
 const CATALOG_FRESH_KEY = "dhl:private-shipping:catalog:current:v1";
@@ -649,67 +650,3 @@ function roundMoney(n) {
 }
 
 
-async function getEurUsdRate(env) {
-  const key =
-    "fx:eurusd:daily:v1";
-
-  const cached =
-    await cacheGet(env, key);
-
-  if (cached) {
-    const n = Number(cached);
-
-    if (
-      Number.isFinite(n) &&
-      n > 0
-    ) {
-      return n;
-    }
-  }
-
-  try {
-    const r = await fetch(
-      "https://api.frankfurter.app/latest?from=EUR&to=USD",
-      {
-        headers: {
-          "accept": "application/json"
-        }
-      }
-    );
-
-    const d = await r
-      .json()
-      .catch(() => ({}));
-
-    const rate =
-      Number(d?.rates?.USD);
-
-    if (
-      !r.ok ||
-      !Number.isFinite(rate) ||
-      rate <= 0
-    ) {
-      throw new Error(
-        "EUR/USD rate unavailable"
-      );
-    }
-
-    await cacheSet(
-      env,
-      key,
-      String(rate),
-      12 * 60 * 60
-    );
-
-    return rate;
-
-  } catch (e) {
-
-    console.warn(
-      "FX feed unavailable; using fallback EUR/USD 1.10",
-      String(e?.message || e)
-    );
-
-    return 1.10;
-  }
-}

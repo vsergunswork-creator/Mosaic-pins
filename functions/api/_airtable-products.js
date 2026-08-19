@@ -2,6 +2,7 @@
 // Airtable is the source of truth. R2 is used only for durable product images.
 
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
+import { eurToUsd, getEurUsdRate } from "./_fx.js";
 
 export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v3";
 export const PRODUCTS_CACHE_TTL = 60; // keep catalog fresh while avoiding per-visit Airtable reads
@@ -32,9 +33,10 @@ export async function getProductsCatalog(env, { bypassCache = false } = {}) {
     const knownR2Urls = await getKnownR2Urls(env);
 
     const records = await listAllProductRecords(env);
+    const eurUsdRate = await getEurUsdRate(env);
     const products = [];
     for (const rec of records) {
-      const p = await normalizeAirtableProduct(env, rec, { knownR2Urls });
+      const p = await normalizeAirtableProduct(env, rec, { knownR2Urls, eurUsdRate });
       if (p) products.push(p);
     }
     products.sort((a, b) => String(a.pin).localeCompare(String(b.pin)));
@@ -117,7 +119,7 @@ export async function listAllProductRecords(env) {
   return records;
 }
 
-export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null } = {}) {
+export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, eurUsdRate = null } = {}) {
   const f = rec?.fields || {};
   const PIN_FIELD = String(env.AIRTABLE_PIN_FIELD || "PIN Code").trim();
   const pin = String(f[PIN_FIELD] ?? "").trim();
@@ -125,6 +127,10 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null } 
 
   const active = f["Active"] === true;
   const images = await durableImages(env, pin, f["Images"], knownR2Urls);
+  const priceEUR = toNumberOrNull(f["Price_EUR"]);
+  const fxRate = Number.isFinite(Number(eurUsdRate)) && Number(eurUsdRate) > 0
+    ? Number(eurUsdRate)
+    : await getEurUsdRate(env);
 
   return {
     recordId: String(rec.id || ""),
@@ -137,8 +143,8 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null } 
     materials: normalizeMaterials(f["Materials"]),
     stock: Math.max(0, toInt(f["Stock"], 0)),
     price: {
-      EUR: toNumberOrNull(f["Price_EUR"]),
-      USD: toNumberOrNull(f["Price_USD"]),
+      EUR: priceEUR,
+      USD: eurToUsd(priceEUR, fxRate),
     },
     images,
     active,
