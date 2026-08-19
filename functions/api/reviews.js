@@ -196,7 +196,6 @@ export async function onRequestPost({ env, request }) {
       "Text": text,
       "Active": false,
       "Date": now.toISOString(),
-      "Source": "Mosaic Pins",
     };
     if (country) fields["Country"] = country;
     if (photoUrls.length) fields["Photos"] = photoUrls.map((url) => ({ url }));
