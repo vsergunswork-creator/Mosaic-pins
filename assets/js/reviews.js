@@ -691,18 +691,34 @@
   const lbBack = document.getElementById("lightboxBack");
   const lb = document.getElementById("lightbox");
   const lbImg = document.getElementById("lbImg");
+  const lbVideo = document.getElementById("lbVideo");
   const lbClose = document.getElementById("lbClose");
   const lbCounter = document.getElementById("lbCounter");
 
   function openPhoto(url){
     if (!url) return;
+    if (lbVideo){ lbVideo.pause(); lbVideo.removeAttribute("src"); lbVideo.load(); lbVideo.style.display = "none"; }
+    lbImg.style.display = "block";
     lbImg.src = url;
     lbCounter.textContent = "Photo";
     lbBack.classList.add("show");
     lb.classList.add("show");
     document.body.style.overflow = "hidden";
   }
+  function openVideo(url){
+    if (!url || !lbVideo) return;
+    lbImg.removeAttribute("src");
+    lbImg.style.display = "none";
+    lbVideo.src = url;
+    lbVideo.style.display = "block";
+    lbCounter.textContent = "Video";
+    lbBack.classList.add("show");
+    lb.classList.add("show");
+    document.body.style.overflow = "hidden";
+  }
   function closePhoto(){
+    if (lbVideo){ lbVideo.pause(); lbVideo.removeAttribute("src"); lbVideo.load(); lbVideo.style.display = "none"; }
+    lbImg.style.display = "block";
     lbBack.classList.remove("show");
     lb.classList.remove("show");
     document.body.style.overflow = "";
@@ -842,15 +858,25 @@
     }
 
     if (r.video){
-      const videoWrap = document.createElement("div");
-      videoWrap.className = "rVideo";
-      const video = document.createElement("video");
-      video.controls = true;
-      video.preload = "metadata";
-      video.playsInline = true;
-      video.src = r.video;
-      videoWrap.appendChild(video);
-      wrap.appendChild(videoWrap);
+      const videoThumb = document.createElement("button");
+      videoThumb.className = "rVideoThumb";
+      videoThumb.type = "button";
+      videoThumb.setAttribute("aria-label", "Open review video");
+
+      const preview = document.createElement("video");
+      preview.muted = true;
+      preview.playsInline = true;
+      preview.preload = "metadata";
+      preview.src = r.video;
+
+      const play = document.createElement("span");
+      play.className = "rVideoPlay";
+      play.textContent = "▶";
+
+      videoThumb.appendChild(preview);
+      videoThumb.appendChild(play);
+      videoThumb.addEventListener("click", ()=> openVideo(r.video));
+      wrap.appendChild(videoThumb);
     }
 
     return wrap;
