@@ -9,6 +9,16 @@ export default {
 
   async fetch(request, env) {
     const url = new URL(request.url);
+
+      if (url.pathname === "/debug-env") {
+        return json({
+          ok: true,
+          mode: "safe-env-debug",
+          hasCronSecret: Boolean(String(env.CRON_SECRET || "").trim()),
+          hasEtsySyncSecret: Boolean(String(env.ETSY_SYNC_SECRET || "").trim()),
+          hasEtsySyncUrl: Boolean(String(env.ETSY_SYNC_URL || "").trim())
+        });
+      }
     if (url.pathname !== "/run") {
       return json({ ok: true, info: "Notification worker is active. Use /run?secret=... for a manual check." });
     }
