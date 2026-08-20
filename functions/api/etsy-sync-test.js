@@ -96,8 +96,9 @@ export async function onRequestGet({ env, request }) {
 
     let matchedExisting = 0;
     const matches = [];
-    const wouldCreate = [];
+    const pendingEtsy = [];
 
+    // Pass 1: strict date + rating + normalized text match.
     for (const review of etsyReviews) {
       const date = dateFromUnix(review?.created_timestamp);
       const key = historicalMatchKey({
@@ -108,9 +109,8 @@ export async function onRequestGet({ env, request }) {
       const queue = pools.get(key) || [];
       const existing = queue.shift() || null;
 
-      const apiKey = etsyApiKey(review);
       const summary = {
-        apiKey,
+        apiKey: etsyApiKey(review),
         transactionId: review?.transaction_id ?? null,
         listingId: review?.listing_id ?? null,
         rating: Number(review?.rating || 0),
@@ -121,22 +121,78 @@ export async function onRequestGet({ env, request }) {
         matchedExisting += 1;
         matches.push({
           ...summary,
+          matchMode: "exact",
           airtableRecordId: existing.recordId,
           airtableName: existing.name,
           currentImportKey: existing.importKey,
         });
       } else {
-        wouldCreate.push({
-          ...summary,
-          review: String(review?.review || "").slice(0, 240),
+        pendingEtsy.push({
+          review,
+          summary,
+          normalizedText: normalizeText(review?.review),
+          rating: Number(review?.rating || 0),
+          date,
         });
       }
     }
 
-    const unmatchedHistorical = [];
+    // Flatten only records left unmatched after strict matching.
+    const remainingHistorical = [];
     for (const queue of pools.values()) {
-      for (const left of queue) unmatchedHistorical.push(left);
+      for (const left of queue) remainingHistorical.push(left);
     }
+
+    // Add normalized comparison data to the remaining Airtable records.
+    const airtableById = new Map(
+      allAirtableRecords.map((rec) => [rec.id, rec?.fields || {}])
+    );
+    for (const item of remainingHistorical) {
+      const f = airtableById.get(item.recordId) || {};
+      item.normalizedText = normalizeText(f["Text"]);
+      item.rating = Number(f["Rating"] || 0);
+      item.date = normalizeDate(f["Date"]);
+    }
+
+    // Pass 2: tolerate a one-calendar-day date shift ONLY when text and rating
+    // are identical and there is exactly one possible historical candidate.
+    // This covers Etsy export/API timezone date differences without creating
+    // ambiguous matches for repeated identical reviews.
+    const consumedHistoricalIds = new Set();
+    const wouldCreate = [];
+
+    for (const pending of pendingEtsy) {
+      const candidates = remainingHistorical.filter((item) =>
+        !consumedHistoricalIds.has(item.recordId) &&
+        item.rating === pending.rating &&
+        item.normalizedText === pending.normalizedText &&
+        dayDifference(item.date, pending.date) <= 1
+      );
+
+      if (candidates.length === 1) {
+        const existing = candidates[0];
+        consumedHistoricalIds.add(existing.recordId);
+        matchedExisting += 1;
+        matches.push({
+          ...pending.summary,
+          matchMode: "same-text-rating-date±1d",
+          airtableRecordId: existing.recordId,
+          airtableName: existing.name,
+          currentImportKey: existing.importKey,
+          airtableDate: existing.date,
+        });
+      } else {
+        wouldCreate.push({
+          ...pending.summary,
+          review: String(pending.review?.review || "").slice(0, 240),
+          candidateCountWithinOneDay: candidates.length,
+        });
+      }
+    }
+
+    const unmatchedHistorical = remainingHistorical
+      .filter((item) => !consumedHistoricalIds.has(item.recordId))
+      .map(({ normalizedText, rating, date, ...item }) => item);
 
     return json({
       ok: true,
@@ -188,6 +244,21 @@ function normalizeDate(value) {
   const s = String(value || "").trim();
   const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : s;
+}
+
+
+function dayDifference(a, b) {
+  const da = dateToUtcDay(a);
+  const db = dateToUtcDay(b);
+  if (da === null || db === null) return Number.POSITIVE_INFINITY;
+  return Math.abs(da - db) / 86400000;
+}
+
+function dateToUtcDay(value) {
+  const s = normalizeDate(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const ms = Date.parse(`${s}T00:00:00Z`);
+  return Number.isFinite(ms) ? ms : null;
 }
 
 function dateFromUnix(value) {
