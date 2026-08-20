@@ -134,6 +134,10 @@
       "Add photos to your review":"Fotos zur Bewertung hinzufügen",
       "JPG, PNG or WebP · up to 4 photos · max 8 MB each":"JPG, PNG oder WebP · bis zu 4 Fotos · max. 8 MB pro Foto",
       "Choose photos":"Fotos auswählen",
+      "Video (optional, 1 video)":"Video (optional, 1 Video)",
+      "Add a video to your review":"Video zur Bewertung hinzufügen",
+      "MP4, WebM or MOV · 1 video · max 40 MB":"MP4, WebM oder MOV · 1 Video · max. 40 MB",
+      "Choose video":"Video auswählen",
       "Send review":"Bewertung senden",
       "Thank you very much for your feedback! 😉":"Vielen Dank für dein Feedback! 😉",
       "Reviews":"Bewertungen",
@@ -287,6 +291,10 @@
       "Add photos to your review":"Добавьте фотографии к отзыву",
       "JPG, PNG or WebP · up to 4 photos · max 8 MB each":"JPG, PNG или WebP · до 4 фотографий · максимум 8 МБ каждая",
       "Choose photos":"Выбрать фотографии",
+      "Video (optional, 1 video)":"Видео (необязательно, 1 видео)",
+      "Add a video to your review":"Добавьте видео к отзыву",
+      "MP4, WebM or MOV · 1 video · max 40 MB":"MP4, WebM или MOV · 1 видео · максимум 40 МБ",
+      "Choose video":"Выбрать видео",
       "Send review":"Отправить отзыв",
       "Thank you very much for your feedback! 😉":"Большое спасибо за ваш отзыв! 😉",
       "Reviews":"Отзывы",
@@ -440,6 +448,10 @@
       "Add photos to your review":"Ajoutez des photos à votre avis",
       "JPG, PNG or WebP · up to 4 photos · max 8 MB each":"JPG, PNG ou WebP · jusqu’à 4 photos · 8 Mo max. chacune",
       "Choose photos":"Choisir des photos",
+      "Video (optional, 1 video)":"Vidéo (facultatif, 1 vidéo)",
+      "Add a video to your review":"Ajoutez une vidéo à votre avis",
+      "MP4, WebM or MOV · 1 video · max 40 MB":"MP4, WebM ou MOV · 1 vidéo · 40 Mo max.",
+      "Choose video":"Choisir une vidéo",
       "Send review":"Envoyer l’avis",
       "Thank you very much for your feedback! 😉":"Merci beaucoup pour votre avis ! 😉",
       "Reviews":"Avis",
@@ -1046,6 +1058,11 @@
     if (m) {
       const word = lang === "de" ? "Artikel" : lang === "ru" ? "товаров" : "articles";
       return text.replace(trimmed, `${m[1]} ${word}`);
+    }
+    m = trimmed.match(/^Selected:\s*(.+)$/i);
+    if (m && !/^\d+\/5$/.test(m[1])) {
+      const base = lang === "de" ? "Ausgewählt" : lang === "ru" ? "Выбрано" : "Sélectionné";
+      return text.replace(trimmed, `${base}: ${m[1]}`);
     }
     return text;
   }
