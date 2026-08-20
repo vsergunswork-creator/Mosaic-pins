@@ -945,6 +945,7 @@
   const elPhotos  = document.getElementById("photos");
   const elVideo   = document.getElementById("video");
   const elVideoChooseBtn = document.getElementById("videoChooseBtn");
+  const elVideoPreview = document.getElementById("videoPreview");
   const elPhotoPreview = document.getElementById("photoPreview");
   const elSend    = document.getElementById("sendBtn");
 
