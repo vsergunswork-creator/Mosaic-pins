@@ -27,9 +27,9 @@ async function runScheduledJobs(env) {
   const notifications = await runNotificationSweep(env, { maxRecords: 25 });
   let etsySync = { ok: false, skipped: true };
   try {
-    const secret = String(env.ETSY_SYNC_SECRET || "").trim();
+    const secret = String(env.CRON_SECRET || "").trim();
     const syncUrl = String(env.ETSY_SYNC_URL || "").trim();
-    if (!secret) throw new Error("ETSY_SYNC_SECRET is not set");
+    if (!secret) throw new Error("CRON_SECRET is not set");
     if (!syncUrl) throw new Error("ETSY_SYNC_URL is not set");
     const r = await fetch(syncUrl, {
       method: "POST",
