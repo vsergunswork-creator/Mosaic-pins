@@ -993,6 +993,7 @@
     elVideoPreview.classList.toggle("hasVideo", !!file);
     elVideoPreview.textContent = file ? `Selected: ${file.name}` : "";
   }
+  elVideoChooseButton?.addEventListener("click", ()=> elVideo?.click());
   elVideo?.addEventListener("change", renderVideoPreview);
 
   function validate(){
