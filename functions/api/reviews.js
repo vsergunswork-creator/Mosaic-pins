@@ -129,6 +129,7 @@ export async function onRequestPost({ env, request }) {
     const contentType = String(request.headers.get("content-type") || "").toLowerCase();
     let body = {};
     let photos = [];
+    let video = null;
 
     if (contentType.includes("multipart/form-data")) {
       const form = await request.formData();
@@ -139,12 +140,16 @@ export async function onRequestPost({ env, request }) {
         rating: form.get("rating"),
         country: form.get("country"),
         photoCount: form.get("photoCount"),
+        videoCount: form.get("videoCount"),
       };
       photos = [];
       for (const [key, value] of form.entries()) {
-        if (key !== "photos") continue;
-        if (value && typeof value.arrayBuffer === "function" && Number(value.size || 0) > 0) {
+        if (!value || typeof value.arrayBuffer !== "function" || Number(value.size || 0) <= 0) continue;
+
+        if (key === "photos") {
           photos.push(value);
+        } else if (key === "video" && !video) {
+          video = value;
         }
       }
     } else {
@@ -175,6 +180,14 @@ export async function onRequestPost({ env, request }) {
 
     if (photos.length > 4) return json({ error: "Up to 4 photos are allowed" }, 400);
 
+    const expectedVideoCount = clampInt(body?.videoCount, 0, 1, 0);
+    const receivedVideoCount = video ? 1 : 0;
+    if (expectedVideoCount !== receivedVideoCount) {
+      return json({
+        error: `Video upload transport failed — selected ${expectedVideoCount}, received ${receivedVideoCount}. Please try again.`
+      }, 400);
+    }
+
     const allowed = new Map([
       ["image/jpeg", "jpg"],
       ["image/png", "png"],
@@ -185,10 +198,22 @@ export async function onRequestPost({ env, request }) {
       if (file.size > 8 * 1024 * 1024) return json({ error: "Each photo must be 8 MB or smaller" }, 400);
     }
 
+    const allowedVideos = new Map([
+      ["video/mp4", "mp4"],
+      ["video/webm", "webm"],
+      ["video/quicktime", "mov"],
+    ]);
+    if (video) {
+      const videoType = String(video.type || "").toLowerCase();
+      if (!allowedVideos.has(videoType)) return json({ error: "Video must be MP4, WebM or MOV" }, 400);
+      if (video.size > 40 * 1024 * 1024) return json({ error: "Video must be 40 MB or smaller" }, 400);
+    }
+
     const publicBase = String(env.R2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
-    if (photos.length && (!env.PRODUCT_IMAGES || !publicBase)) return json({ error: "Photo uploads are unavailable" }, 503);
+    if ((photos.length || video) && (!env.PRODUCT_IMAGES || !publicBase)) return json({ error: "Media uploads are unavailable" }, 503);
 
     const photoUrls = [];
+    let videoUrl = "";
     const now = new Date();
     const yyyy = String(now.getUTCFullYear());
     const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
@@ -204,6 +229,17 @@ export async function onRequestPost({ env, request }) {
       photoUrls.push(`${publicBase}/${key}`);
     }
 
+    if (video) {
+      const type = String(video.type || "").toLowerCase();
+      const ext = allowedVideos.get(type);
+      const key = `reviews/${yyyy}/${mm}/${crypto.randomUUID()}.${ext}`;
+      await env.PRODUCT_IMAGES.put(key, await video.arrayBuffer(), {
+        httpMetadata: { contentType: type, cacheControl: "public, max-age=31536000, immutable" },
+      });
+      uploadedKeys.push(key);
+      videoUrl = `${publicBase}/${key}`;
+    }
+
     const fields = {
       "Name": name,
       "Rating": rating,
@@ -213,6 +249,7 @@ export async function onRequestPost({ env, request }) {
     };
     if (country) fields["Country"] = country;
     if (photoUrls.length) fields["Photos"] = photoUrls.map((url) => ({ url }));
+    if (videoUrl) fields["Video"] = [{ url: videoUrl }];
 
     const apiUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
     const r = await fetch(apiUrl, {
@@ -246,6 +283,8 @@ export async function onRequestPost({ env, request }) {
       status: "published",
       photos: photoUrls.length,
       photosReceived: photos.length,
+      video: videoUrl ? 1 : 0,
+      videoReceived: receivedVideoCount,
     });
   } catch (e) {
     await cleanupUploads(env, uploadedKeys);
