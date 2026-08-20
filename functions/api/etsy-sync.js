@@ -121,7 +121,7 @@ async function runSync(env, request) {
 function authorized(env, request) {
   const required = String(env.ETSY_SYNC_SECRET || "").trim();
   const url = new URL(request.url);
-  const got = String(request.headers.get("x-cron-secret") || url.searchParams.get("secret") || "").trim();
+  const got = String(request.headers.get("x-etsy-sync-secret") || url.searchParams.get("secret") || "").trim();
   return Boolean(required) && got === required;
 }
 
