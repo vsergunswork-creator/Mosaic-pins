@@ -905,6 +905,7 @@
   const elCountry = document.getElementById("country");
   const elText    = document.getElementById("text");
   const elPhotos  = document.getElementById("photos");
+  const elVideo   = document.getElementById("video");
   const elPhotoPreview = document.getElementById("photoPreview");
   const elSend    = document.getElementById("sendBtn");
 
@@ -960,6 +961,11 @@
       if (!["image/jpeg","image/png","image/webp"].includes(file.type)) return "Photos must be JPG, PNG or WebP";
       if (file.size > 8 * 1024 * 1024) return "Each photo must be 8 MB or smaller";
     }
+    const video = elVideo?.files?.[0] || null;
+    if (video){
+      if (!["video/mp4","video/webm","video/quicktime"].includes(video.type)) return "Video must be MP4, WebM or MOV";
+      if (video.size > 40 * 1024 * 1024) return "Video must be 40 MB or smaller";
+    }
     return null;
   }
 
@@ -976,6 +982,9 @@
     const selectedPhotos = Array.from(elPhotos?.files || []);
     payload.append("photoCount", String(selectedPhotos.length));
     selectedPhotos.forEach(file => payload.append("photos", file, file.name));
+    const selectedVideo = elVideo?.files?.[0] || null;
+    payload.append("videoCount", selectedVideo ? "1" : "0");
+    if (selectedVideo) payload.append("video", selectedVideo, selectedVideo.name);
 
     if (elSend){
       elSend.disabled = true;
@@ -995,6 +1004,7 @@
       toast("Review", "Published ✅ Thank you for your review!");
       if (elText) elText.value = "";
       if (elPhotos) elPhotos.value = "";
+      if (elVideo) elVideo.value = "";
       renderPhotoPreview();
       loadReviews();
     }catch(e){
