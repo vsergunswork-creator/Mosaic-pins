@@ -944,6 +944,7 @@
   const elText    = document.getElementById("text");
   const elPhotos  = document.getElementById("photos");
   const elVideo   = document.getElementById("video");
+  const elVideoChooseBtn = document.getElementById("videoChooseBtn");
   const elPhotoPreview = document.getElementById("photoPreview");
   const elSend    = document.getElementById("sendBtn");
 
@@ -993,8 +994,8 @@
     elVideoPreview.classList.toggle("hasVideo", !!file);
     elVideoPreview.textContent = file ? `Selected: ${file.name}` : "";
   }
-  elVideoChooseButton?.addEventListener("click", ()=> elVideo?.click());
   elVideo?.addEventListener("change", renderVideoPreview);
+  elVideoChooseBtn?.addEventListener("click", () => elVideo?.click());
 
   function validate(){
     const name = (elName?.value || "").trim();
