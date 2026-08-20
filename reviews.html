@@ -129,8 +129,16 @@
 
               <div class="field">
                 <div class="label">Video (optional, 1 video)</div>
-                <input id="video" class="input" type="file" accept="video/mp4,video/webm,video/quicktime" />
-                <div style="margin-top:6px; color:var(--muted); font-size:12px;">MP4, WebM or MOV · max 40 MB</div>
+                <div class="videoUpload" id="videoUpload">
+                  <input id="video" class="videoInput" type="file" accept="video/mp4,video/webm,video/quicktime" />
+                  <div class="videoUploadIcon" aria-hidden="true">▶</div>
+                  <div class="videoUploadCopy">
+                    <div class="videoUploadTitle">Add a video to your review</div>
+                    <div class="videoUploadHint">MP4, WebM or MOV · 1 video · max 40 MB</div>
+                  </div>
+                  <label class="videoUploadButton" for="video">Choose video</label>
+                </div>
+                <div class="videoPreview" id="videoPreview" aria-live="polite"></div>
               </div>
 
               <button class="btn" id="sendBtn" type="button">Send review</button>
@@ -256,7 +264,7 @@
   <script id="pp-sdk" data-loaded="0"></script>
 
 <script src="/assets/js/shipping-ui.js"></script>
-  <script src="/assets/js/reviews.js?v=20260820-video-ui1"></script>
+  <script src="/assets/js/reviews.js?v=20260820-video-render1"></script>
   <script src="/assets/js/site-common.js?v=20260819-photo-ui2"></script>
 </body>
 </html>

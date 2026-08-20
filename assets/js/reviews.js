@@ -841,6 +841,18 @@
       wrap.appendChild(ph);
     }
 
+    if (r.video){
+      const videoWrap = document.createElement("div");
+      videoWrap.className = "rVideo";
+      const video = document.createElement("video");
+      video.controls = true;
+      video.preload = "metadata";
+      video.playsInline = true;
+      video.src = r.video;
+      videoWrap.appendChild(video);
+      wrap.appendChild(videoWrap);
+    }
+
     return wrap;
   }
 
@@ -949,6 +961,14 @@
 
   elPhotos?.addEventListener("change", renderPhotoPreview);
 
+  function renderVideoPreview(){
+    if (!elVideoPreview) return;
+    const file = elVideo?.files?.[0] || null;
+    elVideoPreview.classList.toggle("hasVideo", !!file);
+    elVideoPreview.textContent = file ? `Selected: ${file.name}` : "";
+  }
+  elVideo?.addEventListener("change", renderVideoPreview);
+
   function validate(){
     const name = (elName?.value || "").trim();
     const text = (elText?.value || "").trim();
@@ -1006,6 +1026,7 @@
       if (elPhotos) elPhotos.value = "";
       if (elVideo) elVideo.value = "";
       renderPhotoPreview();
+      renderVideoPreview();
       loadReviews();
     }catch(e){
       toast("Review", String(e?.message || e));

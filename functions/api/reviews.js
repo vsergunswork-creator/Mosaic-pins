@@ -78,6 +78,7 @@ export async function onRequestGet({ env, request }) {
       const photosUrls = Array.isArray(f["Photos"])
         ? f["Photos"].map((x) => x?.url).filter(Boolean)
         : [];
+      const videoUrl = Array.isArray(f["Video"]) ? (f["Video"][0]?.url || "") : "";
 
       return {
         id: rec.id,
@@ -91,6 +92,7 @@ export async function onRequestGet({ env, request }) {
         sourceReviewId: String(f["Source Review ID"] || ""),
         avatar: avatarUrl,
         photos: photosUrls,
+        video: videoUrl,
       };
     });
 
