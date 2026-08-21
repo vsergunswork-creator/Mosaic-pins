@@ -181,7 +181,7 @@ function fieldsForEtsyReview(review) {
   const fields = {
     "Name": name,
     "Rating": Number(review?.rating || 0),
-    "Text": String(review?.review || "").trim().slice(0, 2000),
+    "Text": decodeHtmlEntities(review?.review).trim().slice(0, 2000),
     "Active": true,
     "Date": new Date(Number(review?.created_timestamp || 0) * 1000).toISOString(),
     "Source": "Etsy",
@@ -215,7 +215,17 @@ function historicalMatchKey({ text, rating, date }) {
   return [normalizeDate(date), String(Number(rating || 0)), normalizeText(text)].join("|");
 }
 function normalizeText(value) {
-  return String(value || "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  return decodeHtmlEntities(value).normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+}
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&apos;/gi, "'")
+    .replace(/&quot;/gi, '\"')
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
 }
 function normalizeDate(value) {
   const s = String(value || "").trim();
