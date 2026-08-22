@@ -1126,20 +1126,39 @@
   ];
   const nav = document.querySelector(".sidebar .sb-nav, .sidebar .nav, .sidebar nav");
   if (nav) {
-    const links = new Map([...nav.querySelectorAll("a.nav-item")].map(a => [a.textContent.trim(), a]));
+    const navLinks = [...nav.querySelectorAll("a.nav-item")];
+    const links = new Map(navLinks.map(a => [a.textContent.trim(), a]));
 
-    // Keep Account available on every page that uses the shared desktop sidebar.
-    // Existing pages do not all contain this link in their HTML, so create it once
-    // here and then let the normal shared ordering/translation logic handle it.
-    if (!links.has("Account")) {
-      const account = document.createElement("a");
+    // Detect Account by href/id instead of visible text. The pre-paint translator
+    // may already have changed "Account" to "Аккаунт/Konto/Compte" before this runs.
+    let account = navLinks.find(a =>
+      a.id === "navAccount" ||
+      a.getAttribute("href") === "/account" ||
+      a.getAttribute("href") === "/account.html"
+    );
+
+    // Remove accidental duplicate Account links, keeping the first one.
+    const accountLinks = navLinks.filter(a =>
+      a.id === "navAccount" ||
+      a.getAttribute("href") === "/account" ||
+      a.getAttribute("href") === "/account.html"
+    );
+    if (accountLinks.length > 1) {
+      accountLinks.slice(1).forEach(a => a.remove());
+      account = accountLinks[0];
+    }
+
+    if (!account) {
+      account = document.createElement("a");
       account.className = "nav-item";
       account.href = "/account";
       account.textContent = "Account";
       account.id = "navAccount";
       nav.appendChild(account);
-      links.set("Account", account);
     }
+
+    // Make sure the shared ordering logic can always find Account by its EN key.
+    links.set("Account", account);
 
     for (const [label, href] of order) {
       const a = links.get(label);
