@@ -9,6 +9,23 @@
   <link rel="canonical" href="https://mosaicpins.space/" />
 
   <link rel="stylesheet" href="/assets/css/product.css">
+  <script id="mp-i18n-preload">
+    (() => {
+      try {
+        const lang = String(localStorage.getItem("mp_language") || "en").toLowerCase();
+        if (lang !== "en") {
+          document.documentElement.classList.add("mp-i18n-pending");
+          window.setTimeout(() => {
+            document.documentElement.classList.remove("mp-i18n-pending");
+          }, 2000);
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <style id="mp-i18n-preload-style">
+    html{background:#0b0d11}
+    html.mp-i18n-pending body{visibility:hidden}
+  </style>
 </head>
 
 <body>
