@@ -28,6 +28,13 @@ async function runSync(env, request) {
     if (!/^\d+$/.test(shopId)) return json({ ok: false, error: "Invalid Etsy shop id" }, 500);
 
     const etsyReviews = await fetchAllEtsyReviews(shopId, etsyKey, etsySecret);
+
+    // Buyer names are private receipt data. Etsy OAuth access tokens expire after
+    // about one hour, so obtain a fresh access token from the long-lived refresh
+    // token on every sync run. The refresh token itself remains stored only as a
+    // Cloudflare secret and is never returned by this endpoint.
+    const oauthAccessToken = await refreshEtsyAccessToken(env, etsyKey);
+
     const airtableRecords = await fetchAllAirtableReviews(baseId, table, airtableToken);
     const etsyAirtable = airtableRecords.filter((rec) =>
       String(rec?.fields?.["Source"] || "").trim().toLowerCase() === "etsy"
@@ -88,10 +95,17 @@ async function runSync(env, request) {
       newReviews.push(review);
     }
 
+    // Only new reviews need private receipt lookups, keeping Etsy API usage low.
+    const newReviewsWithNames = [];
+    for (const review of newReviews) {
+      const buyerName = await fetchEtsyBuyerName(shopId, review?.transaction_id, etsyKey, etsySecret, oauthAccessToken);
+      newReviewsWithNames.push({ review, buyerName });
+    }
+
     const created = [];
-    for (let i = 0; i < newReviews.length; i += 10) {
-      const batch = newReviews.slice(i, i + 10);
-      const records = batch.map((review) => ({ fields: fieldsForEtsyReview(review) }));
+    for (let i = 0; i < newReviewsWithNames.length; i += 10) {
+      const batch = newReviewsWithNames.slice(i, i + 10);
+      const records = batch.map(({ review, buyerName }) => ({ fields: fieldsForEtsyReview(review, buyerName) }));
       const made = await createAirtableRecords(baseId, table, airtableToken, records);
       created.push(...made);
     }
@@ -111,6 +125,7 @@ async function runSync(env, request) {
       createdCount: created.length,
       createdRecordIds: created.map((x) => x.id),
       unmatchedHistoricalCount: remainingById.size,
+      buyerNamesEnabled: true,
       cacheInvalidated: created.length > 0,
     });
   } catch (e) {
@@ -123,6 +138,54 @@ function authorized(env, request) {
   const url = new URL(request.url);
   const got = String(request.headers.get("x-etsy-sync-secret") || url.searchParams.get("secret") || "").trim();
   return Boolean(required) && got === required;
+}
+
+async function refreshEtsyAccessToken(env, clientId) {
+  const refreshToken = String(env.ETSY_REFRESH_TOKEN || "").trim();
+  if (!refreshToken) throw new Error("Missing ETSY_REFRESH_TOKEN");
+
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: clientId,
+    refresh_token: refreshToken,
+  });
+
+  const r = await fetch("https://api.etsy.com/v3/public/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`Etsy OAuth refresh failed (${r.status}): ${safeError(d)}`);
+
+  const accessToken = String(d?.access_token || "").trim();
+  if (!accessToken) throw new Error("Etsy OAuth refresh returned no access token");
+  return accessToken;
+}
+
+async function fetchEtsyBuyerName(shopId, transactionId, key, secret, accessToken) {
+  const txId = String(transactionId ?? "").trim();
+  if (!/^\d+$/.test(txId)) return "";
+
+  const headers = {
+    "x-api-key": `${key}:${secret}`,
+    Authorization: `Bearer ${accessToken}`,
+  };
+
+  const txUrl = `https://openapi.etsy.com/v3/application/shops/${encodeURIComponent(shopId)}/transactions/${encodeURIComponent(txId)}`;
+  const tr = await fetch(txUrl, { headers });
+  const td = await tr.json().catch(() => ({}));
+  if (!tr.ok) throw new Error(`Etsy transaction failed (${tr.status}): ${safeError(td)}`);
+
+  const receiptId = String(td?.receipt_id ?? "").trim();
+  if (!/^\d+$/.test(receiptId)) return "";
+
+  const receiptUrl = `https://openapi.etsy.com/v3/application/shops/${encodeURIComponent(shopId)}/receipts/${encodeURIComponent(receiptId)}`;
+  const rr = await fetch(receiptUrl, { headers });
+  const rd = await rr.json().catch(() => ({}));
+  if (!rr.ok) throw new Error(`Etsy receipt failed (${rr.status}): ${safeError(rd)}`);
+
+  return String(rd?.name || "").trim().slice(0, 80);
 }
 
 async function fetchAllEtsyReviews(shopId, key, secret) {
@@ -175,9 +238,9 @@ async function createAirtableRecords(baseId, table, token, records) {
   return Array.isArray(d?.records) ? d.records : [];
 }
 
-function fieldsForEtsyReview(review) {
+function fieldsForEtsyReview(review, buyerName = "") {
   const apiKey = etsyApiKey(review);
-  const name = String(review?.reviewer_name || review?.buyer_name || "Etsy customer").trim().slice(0, 80) || "Etsy customer";
+  const name = String(buyerName || review?.reviewer_name || review?.buyer_name || "Etsy customer").trim().slice(0, 80) || "Etsy customer";
   const fields = {
     "Name": name,
     "Rating": Number(review?.rating || 0),
