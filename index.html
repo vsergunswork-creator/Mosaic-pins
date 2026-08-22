@@ -22,7 +22,7 @@
         <a class="nav-item" href="/returns" id="navReturns">Returns</a>
         <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
         <a class="nav-item" href="/account" id="navAccount">Account</a>
-      </nav>
+</nav>
 
       <div class="sb-scroll">
         <div class="sb-section">
@@ -326,6 +326,22 @@
       }
     }
   </style>
+
+
+<script>
+(function(){
+  const labels={en:"Account",de:"Konto",ru:"Аккаунт",fr:"Compte"};
+  function setAccountLabel(){
+    const el=document.getElementById("navAccount"); if(!el) return;
+    let l="en";
+    try{l=String(localStorage.getItem("mp_language")||document.documentElement.lang||"en").toLowerCase().slice(0,2)}catch(e){}
+    el.textContent=labels[l]||labels.en;
+  }
+  setAccountLabel();
+  window.addEventListener("storage",setAccountLabel);
+  document.addEventListener("click",()=>setTimeout(setAccountLabel,0));
+})();
+</script>
 
 </body>
 </html>
