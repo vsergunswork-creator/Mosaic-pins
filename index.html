@@ -336,6 +336,8 @@
     let l="en";
     try{l=String(localStorage.getItem("mp_language")||document.documentElement.lang||"en").toLowerCase().slice(0,2)}catch(e){}
     el.textContent=labels[l]||labels.en;
+    const nav=el.closest(".sb-nav");
+    if(nav) nav.appendChild(el);
   }
   setAccountLabel();
   window.addEventListener("storage",setAccountLabel);
