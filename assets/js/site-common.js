@@ -1165,8 +1165,4 @@
 
   setupControls();
   wireTranslations();
-
-  // The page may be held briefly by the tiny inline preload guard while the
-  // saved language is applied. Reveal it only after shared translations are done.
-  document.documentElement.classList.remove("mp-i18n-pending");
 })();
