@@ -3,6 +3,7 @@ import {
   niceOrderId,
   escapeFormulaString,
 } from "../_airtable-orders.js";
+import { getProductsCatalog } from "../_airtable-products.js";
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -46,8 +47,17 @@ export async function onRequestGet({ request, env }) {
       pageSize: 100,
     });
 
+    // Reuse the normal cached product catalog so old orders can already show
+    // the current product title/image/diameter without touching checkout.
+    const { products: catalog = [] } = await getProductsCatalog(env);
+    const productByRecordId = new Map(
+      (catalog || [])
+        .filter((product) => product?.recordId)
+        .map((product) => [String(product.recordId), product])
+    );
+
     const orders = (result.records || [])
-      .map((record) => normalizeOrder(record, env))
+      .map((record) => normalizeOrder(record, env, productByRecordId))
       .sort((a, b) => timestamp(b.createdAt) - timestamp(a.createdAt));
 
     return json({
@@ -105,7 +115,7 @@ async function getAuthenticatedUser(request, env) {
   return row;
 }
 
-function normalizeOrder(record, env) {
+function normalizeOrder(record, env, productByRecordId = new Map()) {
   const f = record?.fields || {};
 
   const statusField = String(env.AIRTABLE_ORDER_STATUS_FIELD || "Order Status");
@@ -116,6 +126,30 @@ function normalizeOrder(record, env) {
   const quantityField = String(env.AIRTABLE_QUANTITY_FIELD || "Quantity");
   const countryField = String(env.AIRTABLE_SHIPPING_COUNTRY_FIELD || "Shipping Country");
   const refundField = String(env.AIRTABLE_REFUND_STATUS_FIELD || "Refund Status");
+  const productsField = String(env.AIRTABLE_ORDER_PRODUCTS_FIELD || "Products");
+
+  const linkedProductIds = Array.isArray(f[productsField])
+    ? f[productsField].map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
+
+  const totalQuantity = finiteNumberOrNull(f[quantityField]);
+
+  const items = linkedProductIds
+    .map((recordId) => productByRecordId.get(recordId))
+    .filter(Boolean)
+    .map((product) => ({
+      recordId: String(product.recordId || ""),
+      pin: String(product.pin || ""),
+      title: String(product.title || product.pin || ""),
+      image: Array.isArray(product.images) && product.images.length
+        ? String(product.images[0] || "")
+        : "",
+      diameter: finiteNumberOrNull(product.diameter),
+      // Historical Orders only store total Quantity, not quantity per linked product.
+      // If exactly one product is linked, its quantity is known. Otherwise keep null.
+      quantity: linkedProductIds.length === 1 ? totalQuantity : null,
+      snapshot: false,
+    }));
 
   return {
     orderId: niceOrderId(record, env),
@@ -124,9 +158,10 @@ function normalizeOrder(record, env) {
     refundStatus: String(f[refundField] || ""),
     amountTotal: finiteNumberOrNull(f[amountField]),
     currency: String(f[currencyField] || "").toUpperCase(),
-    quantity: finiteNumberOrNull(f[quantityField]),
+    quantity: totalQuantity,
     shippingCountry: String(f[countryField] || ""),
     trackingNumber: String(f[trackingField] || ""),
+    items,
   };
 }
 
