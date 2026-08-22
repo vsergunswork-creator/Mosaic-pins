@@ -141,7 +141,19 @@ function authorized(env, request) {
 }
 
 async function refreshEtsyAccessToken(env, clientId) {
-  const refreshToken = String(env.ETSY_REFRESH_TOKEN || "").trim();
+  const kvKey = "etsy:oauth:refresh_token";
+
+  // Prefer the latest refresh token saved in KV. The Cloudflare Secret remains
+  // the bootstrap/fallback token, so an empty KV does not break production.
+  let refreshToken = "";
+  if (env.CACHE_KV) {
+    try {
+      refreshToken = String((await env.CACHE_KV.get(kvKey)) || "").trim();
+    } catch (_) {
+      // Fall back to the Secret if KV is temporarily unavailable.
+    }
+  }
+  if (!refreshToken) refreshToken = String(env.ETSY_REFRESH_TOKEN || "").trim();
   if (!refreshToken) throw new Error("Missing ETSY_REFRESH_TOKEN");
 
   const body = new URLSearchParams({
@@ -160,6 +172,14 @@ async function refreshEtsyAccessToken(env, clientId) {
 
   const accessToken = String(d?.access_token || "").trim();
   if (!accessToken) throw new Error("Etsy OAuth refresh returned no access token");
+
+  // Etsy may return a refreshed refresh_token. Persist it for the next sync.
+  // Never expose either token in the endpoint response.
+  const nextRefreshToken = String(d?.refresh_token || "").trim();
+  if (nextRefreshToken && env.CACHE_KV) {
+    await env.CACHE_KV.put(kvKey, nextRefreshToken);
+  }
+
   return accessToken;
 }
 
