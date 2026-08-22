@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Account — Mosaic Pins</title>
+  <link rel="stylesheet" href="/assets/css/account.css" />
+</head>
+<body class="mp-page-account">
+  <main class="account-shell">
+    <a class="back-link" href="/">← Back to Shop</a>
+
+    <section class="account-card" aria-labelledby="accountTitle">
+      <div class="brand"><span class="dot"></span> Mosaic Pins</div>
+
+      <div id="accountLoading" class="account-state">
+        <h1 id="accountTitle">My Account</h1>
+        <p class="muted">Checking your session…</p>
+      </div>
+
+      <div id="accountGuest" class="account-state" hidden>
+        <h1>Sign in</h1>
+        <p class="muted" data-i18n="intro">Enter your email and we’ll send you a 6-digit sign-in code. No password needed.</p>
+
+        <form id="emailForm" class="account-form">
+          <label for="accountEmail" data-i18n="emailLabel">Email address</label>
+          <input id="accountEmail" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          <button id="sendCodeBtn" class="primary-btn" type="submit" data-i18n="sendCode">Send sign-in code</button>
+        </form>
+
+        <form id="codeForm" class="account-form" hidden>
+          <div class="sent-row">
+            <span class="muted" data-i18n="sentTo">Code sent to</span>
+            <strong id="sentEmail"></strong>
+          </div>
+          <label for="accountCode" data-i18n="codeLabel">6-digit code</label>
+          <input id="accountCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="6" pattern="[0-9]{6}" required placeholder="000000" />
+          <button id="verifyCodeBtn" class="primary-btn" type="submit" data-i18n="verify">Sign in</button>
+          <button id="changeEmailBtn" class="secondary-btn" type="button" data-i18n="changeEmail">Use another email</button>
+        </form>
+
+        <div id="accountMessage" class="message" role="status" aria-live="polite"></div>
+      </div>
+
+      <div id="accountSignedIn" class="account-state" hidden>
+        <div class="success-mark">✓</div>
+        <h1 data-i18n="signedIn">You’re signed in</h1>
+        <p class="muted" data-i18n="signedInAs">Signed in as</p>
+        <div id="signedInEmail" class="email-chip"></div>
+
+        <div class="coming-soon">
+          <strong data-i18n="accountReady">Your Mosaic Pins account is ready.</strong>
+          <span data-i18n="ordersSoon">Order history and verified-purchase reviews will be added next.</span>
+        </div>
+
+        <button id="logoutBtn" class="secondary-btn" type="button" data-i18n="logout">Sign out</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/assets/js/account.js"></script>
+  <script src="/assets/js/site-common.js?v=20260818-7"></script>
+</body>
+</html>
