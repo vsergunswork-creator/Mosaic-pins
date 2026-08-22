@@ -56,7 +56,7 @@
       "International orders may be subject to customs fees, VAT or import taxes.\n              These charges are the buyer’s responsibility.":"Bei internationalen Bestellungen können Zollgebühren, Mehrwertsteuer oder Einfuhrabgaben anfallen.\n              Diese Kosten trägt der Käufer.",
       "Need help with shipping?":"Brauchst du Hilfe beim Versand?",
       "Contact:":"Kontakt:",
-      "Shop":"Shop","About":"Über uns","Shipping":"Versand","Returns":"Rückgabe","Reviews":"Bewertungen",
+      "Shop":"Shop","About":"Über uns","Shipping":"Versand","Returns":"Rückgabe","Reviews":"Bewertungen","Account":"Konto",
       "Filters":"Filter","Cart":"Warenkorb","In stock":"Auf Lager","Selected":"Ausgewählt","Clear":"Löschen",
       "Diameter (Ø)":"Durchmesser (Ø)","Shipping country":"Versandland","Subtotal":"Zwischensumme","Total":"Gesamt",
       "Checkout":"Mit Karte zahlen","Clear cart":"Warenkorb leeren","PayPal is loading…":"PayPal wird geladen…",
@@ -213,7 +213,7 @@
       "International orders may be subject to customs fees, VAT or import taxes.\n              These charges are the buyer’s responsibility.":"Международные заказы могут облагаться таможенными сборами, НДС или импортными налогами.\n              Эти расходы оплачивает покупатель.",
       "Need help with shipping?":"Нужна помощь с доставкой?",
       "Contact:":"Контакт:",
-      "Shop":"Магазин","About":"О нас","Shipping":"Доставка","Returns":"Возврат","Reviews":"Отзывы",
+      "Shop":"Магазин","About":"О нас","Shipping":"Доставка","Returns":"Возврат","Reviews":"Отзывы","Account":"Аккаунт",
       "Filters":"Фильтры","Cart":"Корзина","In stock":"В наличии","Selected":"Выбрано","Clear":"Очистить",
       "Diameter (Ø)":"Диаметр (Ø)","Shipping country":"Страна доставки","Subtotal":"Товары","Total":"Итого",
       "Checkout":"Оплатить картой","Clear cart":"Очистить корзину","PayPal is loading…":"PayPal загружается…",
@@ -370,7 +370,7 @@
       "International orders may be subject to customs fees, VAT or import taxes.\n              These charges are the buyer’s responsibility.":"Les commandes internationales peuvent être soumises à des frais de douane, à la TVA ou à des taxes d’importation.\n              Ces frais sont à la charge de l’acheteur.",
       "Need help with shipping?":"Besoin d’aide pour la livraison ?",
       "Contact:":"Contact :",
-      "Shop":"Boutique","About":"À propos","Shipping":"Livraison","Returns":"Retours","Reviews":"Avis",
+      "Shop":"Boutique","About":"À propos","Shipping":"Livraison","Returns":"Retours","Reviews":"Avis","Account":"Compte",
       "Filters":"Filtres","Cart":"Panier","In stock":"En stock","Selected":"Sélectionné","Clear":"Effacer",
       "Diameter (Ø)":"Diamètre (Ø)","Shipping country":"Pays de livraison","Subtotal":"Sous-total","Total":"Total",
       "Checkout":"Payer par carte","Clear cart":"Vider le panier","PayPal is loading…":"Chargement de PayPal…",
@@ -1119,11 +1119,25 @@
 
   const order = [
     ["Shop", "/"], ["About", "/about"], ["Shipping", "/shipping"],
-    ["Returns", "/returns"], ["Reviews", "/reviews"]
+    ["Returns", "/returns"], ["Reviews", "/reviews"], ["Account", "/account"]
   ];
   const nav = document.querySelector(".sidebar .sb-nav, .sidebar .nav, .sidebar nav");
   if (nav) {
     const links = new Map([...nav.querySelectorAll("a.nav-item")].map(a => [a.textContent.trim(), a]));
+
+    // Keep Account available on every page that uses the shared desktop sidebar.
+    // Existing pages do not all contain this link in their HTML, so create it once
+    // here and then let the normal shared ordering/translation logic handle it.
+    if (!links.has("Account")) {
+      const account = document.createElement("a");
+      account.className = "nav-item";
+      account.href = "/account";
+      account.textContent = "Account";
+      account.id = "navAccount";
+      nav.appendChild(account);
+      links.set("Account", account);
+    }
+
     for (const [label, href] of order) {
       const a = links.get(label);
       if (a) { a.href = href; nav.appendChild(a); }
