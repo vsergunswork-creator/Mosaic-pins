@@ -15,6 +15,7 @@
 
   const translations = {
     de: {
+      signIn:"Anmelden",
       intro:"Gib deine E-Mail-Adresse ein. Wir senden dir einen 6-stelligen Anmeldecode. Kein Passwort nötig.",
       emailLabel:"E-Mail-Adresse", sendCode:"Anmeldecode senden", sentTo:"Code gesendet an",
       codeLabel:"6-stelliger Code", verify:"Anmelden", changeEmail:"Andere E-Mail verwenden",
@@ -22,6 +23,7 @@
       ordersSoon:"Bestellverlauf und Bewertungen verifizierter Käufe werden als Nächstes hinzugefügt.", logout:"Abmelden"
     },
     ru: {
+      signIn:"Войти",
       intro:"Введите email, и мы отправим 6-значный код для входа. Пароль не нужен.",
       emailLabel:"Электронная почта", sendCode:"Отправить код", sentTo:"Код отправлен на",
       codeLabel:"6-значный код", verify:"Войти", changeEmail:"Использовать другой email",
@@ -29,6 +31,7 @@
       ordersSoon:"История заказов и отзывы о подтверждённых покупках будут добавлены следующим этапом.", logout:"Выйти"
     },
     fr: {
+      signIn:"Se connecter",
       intro:"Saisissez votre e-mail et nous vous enverrons un code de connexion à 6 chiffres. Aucun mot de passe requis.",
       emailLabel:"Adresse e-mail", sendCode:"Envoyer le code", sentTo:"Code envoyé à",
       codeLabel:"Code à 6 chiffres", verify:"Se connecter", changeEmail:"Utiliser un autre e-mail",
