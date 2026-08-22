@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
     <script src="/assets/js/i18n-prepaint.js?v=20260822-1"></script>
 <title>Account — Mosaic Pins</title>
-  <link rel="stylesheet" href="/assets/css/account.css" />
+  <link rel="stylesheet" href="/assets/css/account.css?v=20260822-orders1" />
 </head>
 <body class="mp-page-account">
   <main class="account-shell">
@@ -50,17 +50,27 @@
         <p class="muted" data-i18n="signedInAs">Signed in as</p>
         <div id="signedInEmail" class="email-chip"></div>
 
-        <div class="coming-soon">
-          <strong data-i18n="accountReady">Your Mosaic Pins account is ready.</strong>
-          <span data-i18n="ordersSoon">Order history and verified-purchase reviews will be added next.</span>
-        </div>
+        <section id="ordersSection" class="orders-section" hidden aria-live="polite">
+          <div class="orders-heading">
+            <div>
+              <div id="ordersEyebrow" class="orders-eyebrow"></div>
+              <h2 id="ordersTitle"></h2>
+            </div>
+            <span id="ordersCount" class="orders-count"></span>
+          </div>
+
+          <div id="ordersLoading" class="orders-placeholder"></div>
+          <div id="ordersEmpty" class="orders-placeholder" hidden></div>
+          <div id="ordersList" class="orders-list"></div>
+          <div id="ordersFootnote" class="orders-footnote"></div>
+        </section>
 
         <button id="logoutBtn" class="secondary-btn" type="button" data-i18n="logout">Sign out</button>
       </div>
     </section>
   </main>
 
-  <script src="/assets/js/account.js"></script>
+  <script src="/assets/js/account.js?v=20260822-orders1"></script>
   <script src="/assets/js/site-common.js?v=20260818-7"></script>
 </body>
 </html>
