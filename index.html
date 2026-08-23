@@ -6,7 +6,7 @@
     <script src="/assets/js/i18n-prepaint.js?v=20260823-flow15"></script>
 <title>Mosaic Pins</title>
   <link rel="stylesheet" href="/assets/css/index.css">  
-  <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-mobile23">
+  <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-step24">
 </head>
 <body class="mp-page-shop">
 
@@ -191,7 +191,7 @@
 
   <script src="/assets/js/shipping-ui.js"></script>
   <script src="/assets/js/index.js?v=20260823-flow15"></script>
-  <script src="/assets/js/site-common.js?v=20260823-mobile23"></script>
+  <script src="/assets/js/site-common.js?v=20260823-step24"></script>
 
 
   <!-- Final mobile Shop controls: layout only. Does not change page background/theme. -->
@@ -302,53 +302,6 @@
         padding-right:36px !important;
         border-radius:12px !important;
         font-size:14px !important;
-      }
-    }
-
-    /* step23j: mobile slide-menu tool order: Search first, Filters last.
-       Filters is a normal action button, not a second hamburger/menu icon. */
-    @media (max-width:980px){
-      body.mp-page-shop .mp-mobile-menu-tools .search{
-        order:1 !important;
-      }
-      body.mp-page-shop .mp-mobile-menu-tools > .toggle{
-        order:2 !important;
-      }
-      body.mp-page-shop .mp-mobile-menu-tools > .mp-locale-controls{
-        order:3 !important;
-      }
-      body.mp-page-shop .mp-mobile-menu-tools #openFilters{
-        order:4 !important;
-        grid-column:auto !important;
-        grid-row:auto !important;
-        width:100% !important;
-        min-width:0 !important;
-        height:46px !important;
-        min-height:46px !important;
-        padding:0 14px !important;
-        display:flex !important;
-        align-items:center !important;
-        justify-content:center !important;
-        gap:8px !important;
-        border-radius:11px !important;
-        font-size:14px !important;
-        line-height:1.1 !important;
-        font-weight:900 !important;
-        white-space:nowrap !important;
-      }
-      body.mp-page-shop .mp-mobile-menu-tools #openFilters::before{
-        content:none !important;
-        display:none !important;
-      }
-      body.mp-page-shop .mp-mobile-menu-tools #filtersBadge{
-        display:inline-flex !important;
-        align-items:center !important;
-        justify-content:center !important;
-        min-width:28px !important;
-        padding:4px 8px !important;
-        border-radius:999px !important;
-        font-size:11px !important;
-        line-height:1 !important;
       }
     }
 

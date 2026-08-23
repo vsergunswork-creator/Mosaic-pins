@@ -1200,6 +1200,7 @@
     else if (path === "/returns") document.body.classList.add("mp-page-returns");
     else if (path === "/privacy") document.body.classList.add("mp-page-privacy");
     else if (path === "/impressum") document.body.classList.add("mp-page-impressum");
+    else if (path === "/account") document.body.classList.add("mp-page-account");
     else if (path === "/success") document.body.classList.add("mp-page-success");
     else if (path === "/cancel") document.body.classList.add("mp-page-cancel");
   }
@@ -1357,10 +1358,13 @@
         return;
       }
       const parts = movable();
+      // STEP 24: one canonical mobile control order across pages.
+      // Shop: Search -> In stock -> Language/Currency -> Filters.
+      // Legal pages keep Language/Currency -> Back when those controls exist.
       moveInto(parts.search, tools);
-      moveInto(parts.filters, tools);
       moveInto(parts.stock, tools);
       moveInto(parts.locale, tools);
+      moveInto(parts.filters, tools);
       moveInto(parts.back, tools);
       if (parts.filters && !filterCloseWired) {
         parts.filters.addEventListener("click", () => closeMenu(false), {capture:true});
