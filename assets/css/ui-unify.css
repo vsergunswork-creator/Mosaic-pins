@@ -490,3 +490,15 @@
     display:none !important;
   }
 }
+
+/* =========================================================
+   STEP 24A — SHOP SIDEBAR SCROLL CLEANUP
+   Remove the legacy sticky fade masks from the diameter list.
+   They overlap the first/last filter cards while scrolling and
+   make the container look translucent or visually "cut".
+   ========================================================= */
+body.mp-page-shop .sidebar .sb-scroll::before,
+body.mp-page-shop .sidebar .sb-scroll::after{
+  content:none !important;
+  display:none !important;
+}
