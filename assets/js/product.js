@@ -3173,12 +3173,6 @@ async function loadProduct(){
 
   const chips = [];
 
-  if (p.color){
-    chips.push(
-      `Color: ${p.color}`
-    );
-  }
-
   if (p.diameter != null){
     chips.push(
       `Ø ${p.diameter} mm`
@@ -3190,6 +3184,12 @@ async function loadProduct(){
       m =>
         chips.push(m)
     );
+
+  if (p.color){
+    chips.push(
+      `Color: ${p.color}`
+    );
+  }
 
   el("chips").innerHTML =
     chips
