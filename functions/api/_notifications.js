@@ -43,8 +43,9 @@ export async function sendShippedEmailForRecord(env, rec, { recheck = true } = {
   const to = String(f[emailField] || "").trim();
   if (!to) return { sent: false, reason: "missing_email" };
 
-  const carrierField = String(env.AIRTABLE_CARRIER_FIELD || "").trim();
-  const carrier = carrierField && f[carrierField] ? String(f[carrierField]).trim() : "DPD / DHL";
+  // Mosaic Pins currently ships customer parcels with DHL Paket.
+  // Do not expose legacy DPD fallback text in customer emails.
+  const carrier = "DHL Paket";
   const msg = buildShippedEmail(env, {
     name: String(f[nameField] || "").trim(),
     orderId: niceOrderId(rec, env),

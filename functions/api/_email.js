@@ -53,22 +53,34 @@ export function buildPaidEmail(env, { name, orderId, amount, currency }) {
   return { subject, text, html };
 }
 
-export function buildShippedEmail(env, { name, orderId, tracking, carrier }) {
+export function buildShippedEmail(env, { name, orderId, tracking, carrier = "DHL Paket" }) {
   const store = String(env.STORE_NAME || "Mosaic Pins");
+  const safeCarrier = String(carrier || "DHL Paket").trim() || "DHL Paket";
+  const trackingUrl = buildDhlTrackingUrl(tracking);
   const subject = `${store}: Your order has been shipped 🚚`;
-  const text = `Hello ${name || "friend"},\n\nGood news — your order ${orderId} has been shipped 🚚📦\n\nCarrier: ${carrier}\nTracking number: ${tracking}\n\nThank you for your purchase!\n`;
+  const text = `Hello ${name || "friend"},\n\nGood news — your order ${orderId} has been shipped with ${safeCarrier} 🚚📦\n\nCarrier: ${safeCarrier}\nTracking number: ${tracking}\nTrack your parcel: ${trackingUrl}\n\nThank you for your purchase!\n`;
   const html = shell(store, "Shipping update", `
     <div style="font-size:18px;font-weight:900;margin-bottom:10px;">Hello ${escapeHtml(name || "friend")},</div>
-    <div style="color:#a8b3c7;font-size:14px;line-height:1.5;margin-bottom:16px;">Good news — your order <b style="color:#e9eef7;">${escapeHtml(orderId)}</b> has been shipped 🚚📦</div>
+    <div style="color:#a8b3c7;font-size:14px;line-height:1.5;margin-bottom:16px;">Good news — your order <b style="color:#e9eef7;">${escapeHtml(orderId)}</b> has been shipped with <b style="color:#e9eef7;">${escapeHtml(safeCarrier)}</b> 🚚📦</div>
     <div style="border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.22);border-radius:16px;padding:14px;">
       <div style="font-size:13px;color:#a8b3c7;margin-bottom:6px;">Carrier</div>
-      <div style="font-size:15px;font-weight:900;margin-bottom:12px;">${escapeHtml(carrier)}</div>
+      <div style="font-size:15px;font-weight:900;margin-bottom:12px;">${escapeHtml(safeCarrier)}</div>
       <div style="font-size:13px;color:#a8b3c7;margin-bottom:6px;">Tracking number</div>
       <div style="font-size:15px;font-weight:900;letter-spacing:.4px;word-break:break-word;">${escapeHtml(tracking)}</div>
+      <div style="margin-top:16px;">
+        <a href="${escapeHtml(trackingUrl)}" target="_blank" rel="noopener noreferrer"
+           style="display:inline-block;padding:11px 16px;border-radius:12px;background:#22c55e;color:#07110a;text-decoration:none;font-size:13px;font-weight:900;">
+          Track your parcel
+        </a>
+      </div>
     </div>
     <div style="color:#a8b3c7;font-size:13px;margin-top:16px;">If you have any questions, just reply to this email.</div>
   `);
   return { subject, text, html };
+}
+
+function buildDhlTrackingUrl(tracking) {
+  return `https://nolp.dhl.de/nextt-online-public/?piececode=${encodeURIComponent(String(tracking || "").trim())}`;
 }
 
 function shell(store, subtitle, body) {
