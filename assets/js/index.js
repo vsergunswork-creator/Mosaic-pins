@@ -791,12 +791,13 @@ function removeFromCart(pin){
         .sort((a,b)=>a.n-b.n)
         .map(x => x.k);
 
-      // Diameter badge = PRODUCT MODEL count, never stock quantity.
-      // "All" means every catalog product. With one or more diameter filters
-      // selected, count the product models belonging to those diameters.
+      // Diameter badge = count of IN-STOCK PRODUCT MODELS, never stock quantity.
+      // "All" means every catalog product card with Stock > 0. With one or more
+      // diameter filters selected, count only in-stock product cards in those diameters.
+      const inStockProducts = products.filter(p => Number(p.stock || 0) > 0);
       const diameterProductCount = selectedDiameters.size === 0
-        ? products.length
-        : products.filter(p => p.diameterKey && selectedDiameters.has(p.diameterKey)).length;
+        ? inStockProducts.length
+        : inStockProducts.filter(p => p.diameterKey && selectedDiameters.has(p.diameterKey)).length;
       const diameterCountLabel = String(diameterProductCount);
       elDiaCount.textContent = diameterCountLabel;
       elMDiaCount.textContent = diameterCountLabel;
