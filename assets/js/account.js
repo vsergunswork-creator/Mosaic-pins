@@ -31,7 +31,7 @@
       ordersEyebrow:"Käufe", myOrders:"Meine Bestellungen", loadingOrders:"Bestellungen werden geladen…",
       noOrders:"Für diese E-Mail wurden noch keine Bestellungen gefunden.", orderLabel:"Bestellung",
       total:"Gesamt", destination:"Ziel", tracking:"Sendungsnummer", quantity:"Menge", diameter:"Durchmesser",
-      leaveReview:"Bewertung schreiben",
+      leaveReview:"Bewertung schreiben", reviewSubmitted:"Bewertung abgegeben ✓",
       paid:"Bezahlt", shipped:"Versendet", processing:"In Bearbeitung", refunded:"Erstattet",
       cancelled:"Storniert", notRefunded:"Nicht erstattet"
     },
@@ -44,7 +44,7 @@
       ordersEyebrow:"Покупки", myOrders:"Мои заказы", loadingOrders:"Загружаем заказы…",
       noOrders:"Для этого email пока не найдено заказов.", orderLabel:"Заказ",
       total:"Итого", destination:"Доставка", tracking:"Трек-номер", quantity:"Количество", diameter:"Диаметр",
-      leaveReview:"Оставить отзыв",
+      leaveReview:"Оставить отзыв", reviewSubmitted:"Вы уже оставили отзыв ✓",
       paid:"Оплачен", shipped:"Отправлен", processing:"В обработке", refunded:"Возвращён",
       cancelled:"Отменён", notRefunded:"Без возврата"
     },
@@ -57,7 +57,7 @@
       ordersEyebrow:"Achats", myOrders:"Mes commandes", loadingOrders:"Chargement des commandes…",
       noOrders:"Aucune commande n’a encore été trouvée pour cet e-mail.", orderLabel:"Commande",
       total:"Total", destination:"Destination", tracking:"Suivi", quantity:"Quantité", diameter:"Diamètre",
-      leaveReview:"Laisser un avis",
+      leaveReview:"Laisser un avis", reviewSubmitted:"Avis envoyé ✓",
       paid:"Payée", shipped:"Expédiée", processing:"En traitement", refunded:"Remboursée",
       cancelled:"Annulée", notRefunded:"Non remboursée"
     }
@@ -83,7 +83,7 @@
       ordersEyebrow:"Purchases", myOrders:"My Orders", loadingOrders:"Loading orders…",
       noOrders:"No orders have been found for this email yet.", orderLabel:"Order",
       total:"Total", destination:"Destination", tracking:"Tracking", quantity:"Quantity", diameter:"Diameter",
-      leaveReview:"Leave a review",
+      leaveReview:"Leave a review", reviewSubmitted:"Review submitted ✓",
       paid:"Paid", shipped:"Shipped", processing:"Processing", refunded:"Refunded",
       cancelled:"Cancelled", notRefunded:"Not refunded"
     };
@@ -215,9 +215,15 @@
           String(order.status || "").trim().toLowerCase()
         );
         if (reviewableStatus && item.snapshot === true && item.pin && order.orderId) {
-          const reviewLink = make("a", "order-review-btn", t("leaveReview"));
-          reviewLink.href = `/reviews?pin=${encodeURIComponent(item.pin)}&order=${encodeURIComponent(order.orderId)}`;
-          info.appendChild(reviewLink);
+          if (item.reviewSubmitted === true) {
+            const reviewStatus = make("span", "order-review-status", t("reviewSubmitted"));
+            reviewStatus.setAttribute("aria-label", t("reviewSubmitted"));
+            info.appendChild(reviewStatus);
+          } else {
+            const reviewLink = make("a", "order-review-btn", t("leaveReview"));
+            reviewLink.href = `/reviews?pin=${encodeURIComponent(item.pin)}&order=${encodeURIComponent(order.orderId)}`;
+            info.appendChild(reviewLink);
+          }
         }
 
         row.append(media, info);

@@ -69,12 +69,26 @@ export async function onRequestGet({ request, env }) {
       console.error("account/orders snapshot read failed; using catalog fallback", snapshotError);
     }
 
+    // Purchase-linked reviews already have a stable Import Key:
+    // site-purchase:v1:<orderKey>:<pin>
+    // Load those keys once so My Orders can replace "Leave a review" with a
+    // non-clickable "Review submitted" status for the exact purchased item.
+    let submittedPurchaseReviews = new Set();
+    try {
+      submittedPurchaseReviews = await loadSubmittedPurchaseReviews(env);
+    } catch (reviewStatusError) {
+      // Best effort only. The Reviews POST endpoint still blocks duplicates
+      // server-side if Airtable is temporarily unavailable here.
+      console.error("account/orders review status read failed", reviewStatusError);
+    }
+
     const orders = (result.records || [])
       .map((record) => normalizeOrder(
         record,
         env,
         productByRecordId,
-        snapshotsByOrderKey
+        snapshotsByOrderKey,
+        submittedPurchaseReviews
       ))
       .sort((a, b) => timestamp(b.createdAt) - timestamp(a.createdAt));
 
@@ -137,7 +151,8 @@ function normalizeOrder(
   record,
   env,
   productByRecordId = new Map(),
-  snapshotsByOrderKey = new Map()
+  snapshotsByOrderKey = new Map(),
+  submittedPurchaseReviews = new Set()
 ) {
   const f = record?.fields || {};
 
@@ -161,17 +176,23 @@ function normalizeOrder(
     ? (snapshotsByOrderKey.get(orderKey) || [])
     : [];
 
-  const snapshotItems = snapshotRows.map((row) => ({
-    recordId: String(row.product_record_id || ""),
-    pin: String(row.pin || ""),
-    title: String(row.title || row.pin || ""),
-    image: String(row.image || ""),
-    diameter: finiteNumberOrNull(row.diameter),
-    quantity: finiteNumberOrNull(row.quantity),
-    unitPrice: finiteNumberOrNull(row.unit_price),
-    currency: String(row.currency || f[currencyField] || "").toUpperCase(),
-    snapshot: true,
-  }));
+  const snapshotItems = snapshotRows.map((row) => {
+    const pin = String(row.pin || "");
+    return {
+      recordId: String(row.product_record_id || ""),
+      pin,
+      title: String(row.title || row.pin || ""),
+      image: String(row.image || ""),
+      diameter: finiteNumberOrNull(row.diameter),
+      quantity: finiteNumberOrNull(row.quantity),
+      unitPrice: finiteNumberOrNull(row.unit_price),
+      currency: String(row.currency || f[currencyField] || "").toUpperCase(),
+      snapshot: true,
+      reviewSubmitted: submittedPurchaseReviews.has(
+        purchaseReviewMapKey(orderKey, pin)
+      ),
+    };
+  });
 
   const catalogItems = linkedProductIds
     .map((recordId) => productByRecordId.get(recordId))
@@ -247,6 +268,83 @@ function snapshotOrderKey(record, env) {
   const idField = String(env.AIRTABLE_ORDER_ID_FIELD || "Order ID");
   const stripeField = String(env.AIRTABLE_STRIPE_SESSION_FIELD || "Stripe Session ID");
   return String(f[idField] || f[stripeField] || "").trim();
+}
+
+const PURCHASE_IMPORT_PREFIX = "site-purchase:v1:";
+
+async function loadSubmittedPurchaseReviews(env) {
+  const token = String(env.AIRTABLE_TOKEN_REVIEWS || env.AIRTABLE_TOKEN || "").trim();
+  const baseId = String(env.AIRTABLE_BASE_ID || "").trim();
+  const table = String(env.AIRTABLE_REVIEWS_TABLE || "Reviews").trim();
+
+  if (!token || !baseId) return new Set();
+
+  const submitted = new Set();
+  let offset = "";
+  let pages = 0;
+
+  do {
+    const apiUrl = new URL(
+      `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`
+    );
+    apiUrl.searchParams.set("pageSize", "100");
+    apiUrl.searchParams.set(
+      "filterByFormula",
+      `LEFT({Import Key},${PURCHASE_IMPORT_PREFIX.length})='${PURCHASE_IMPORT_PREFIX}'`
+    );
+    if (offset) apiUrl.searchParams.set("offset", offset);
+
+    const response = await fetch(apiUrl.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const type = String(data?.error?.type || "").trim();
+      const message = String(data?.error?.message || "").trim();
+      const detail = [type, message].filter(Boolean).join(": ");
+      throw new Error(
+        detail
+          ? `Purchase review status failed — ${detail}`
+          : `Purchase review status failed (HTTP ${response.status})`
+      );
+    }
+
+    for (const record of Array.isArray(data?.records) ? data.records : []) {
+      const ref = parsePurchaseImportKey(record?.fields?.["Import Key"]);
+      if (!ref) continue;
+      submitted.add(purchaseReviewMapKey(ref.orderKey, ref.pin));
+    }
+
+    offset = String(data?.offset || "");
+    pages += 1;
+  } while (offset && pages < 10);
+
+  return submitted;
+}
+
+function parsePurchaseImportKey(value) {
+  const raw = String(value || "").trim();
+  if (!raw.startsWith(PURCHASE_IMPORT_PREFIX)) return null;
+
+  const rest = raw.slice(PURCHASE_IMPORT_PREFIX.length);
+  const splitAt = rest.indexOf(":");
+  if (splitAt <= 0 || splitAt >= rest.length - 1) return null;
+
+  try {
+    const orderKey = decodeURIComponent(rest.slice(0, splitAt));
+    const pin = decodeURIComponent(rest.slice(splitAt + 1));
+    if (!orderKey || !pin) return null;
+    return { orderKey, pin };
+  } catch (_) {
+    return null;
+  }
+}
+
+function purchaseReviewMapKey(orderKey, pin) {
+  const a = String(orderKey || "").trim();
+  const b = String(pin || "").trim().toLowerCase();
+  return a && b ? `${a}\u0000${b}` : "";
 }
 
 function finiteNumberOrNull(value) {
