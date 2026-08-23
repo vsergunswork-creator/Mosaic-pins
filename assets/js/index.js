@@ -791,9 +791,18 @@ function removeFromCart(pin){
         .sort((a,b)=>a.n-b.n)
         .map(x => x.k);
 
-      elDiaCount.textContent = String(arr.length);
-      elMDiaCount.textContent = String(arr.length);
-      elFiltersBadge.textContent = String(arr.length);
+      // No explicit selection means all available diameter groups are active.
+      // Show their numeric count instead of 0 / "All". Only diameter groups
+      // that currently have at least one in-stock product are counted.
+      const inStockDiameterCount = new Set(
+        products
+          .filter(p => Number(p.stock || 0) > 0 && p.diameterKey)
+          .map(p => p.diameterKey)
+      ).size;
+      const diameterCountLabel = arr.length ? String(arr.length) : String(inStockDiameterCount);
+      elDiaCount.textContent = diameterCountLabel;
+      elMDiaCount.textContent = diameterCountLabel;
+      elFiltersBadge.textContent = diameterCountLabel;
 
       const text = (arr.length ? arr.map(k => `Ø${diameterLabelByKey(k)}`).join(", ") : "—");
 
