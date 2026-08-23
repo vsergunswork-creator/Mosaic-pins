@@ -1223,3 +1223,66 @@
     margin-left:0;
   }
 }
+
+
+/* ===== Desktop reviews: fixed-height right column with inner scroll =====
+   The reviews panel follows the height of the "Leave a review" panel.
+   Only the review list scrolls; the page/footer no longer has to move just
+   to reach older comments. Mobile/tablet behaviour stays unchanged. */
+@media (min-width:981px){
+  .grid2{
+    align-items:stretch;
+  }
+
+  .grid2 > .panel{
+    min-height:0;
+  }
+
+  .grid2 > .panel:nth-child(2){
+    display:flex;
+    flex-direction:column;
+    height:auto;
+    min-height:0;
+    max-height:100%;
+  }
+
+  .grid2 > .panel:nth-child(2) > .panelHead{
+    flex:0 0 auto;
+  }
+
+  .grid2 > .panel:nth-child(2) > .panelBody{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .grid2 > .panel:nth-child(2) .list{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding-right:6px;
+    overscroll-behavior:contain;
+    scrollbar-gutter:stable;
+  }
+
+  .grid2 > .panel:nth-child(2) .list::-webkit-scrollbar{
+    width:8px;
+  }
+
+  .grid2 > .panel:nth-child(2) .list::-webkit-scrollbar-track{
+    background:rgba(0,0,0,.12);
+    border-radius:999px;
+  }
+
+  .grid2 > .panel:nth-child(2) .list::-webkit-scrollbar-thumb{
+    background:rgba(255,255,255,.16);
+    border-radius:999px;
+  }
+
+  .grid2 > .panel:nth-child(2) .list::-webkit-scrollbar-thumb:hover{
+    background:rgba(255,255,255,.24);
+  }
+}
