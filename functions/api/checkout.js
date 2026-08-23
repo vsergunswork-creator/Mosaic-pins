@@ -46,6 +46,11 @@ export async function onRequestPost(ctx) {
       return json({ ok: false, error: "STRIPE_EVENTS_KV binding is not set" }, 500, headers);
     }
 
+    // Optional Stripe-only test hook. It is OFF unless STRIPE_TEST_FREE_SHIPPING_EMAIL
+    // is configured and the request belongs to that exact verified signed-in account.
+    // This keeps normal DHL pricing untouched for every other customer.
+    const freeShippingTest = await isAuthorizedFreeShippingTest({ request, env });
+
     // --- normalize cart ---
     const cartMap = new Map();
 
@@ -183,21 +188,24 @@ export async function onRequestPost(ctx) {
           shippingService: shippingQuote.service,
           shippingProductNumber: shippingQuote.productNumber || "",
           shippingBaseEUR: String(shippingQuote.basePriceEUR),
+          testFreeShipping: freeShippingTest ? "1" : "0",
         },
         shipping_address_collection: { allowed_countries: allowedCountries },
         phone_number_collection: { enabled: true },
-        shipping_options: [
-          {
-            shipping_rate_data: {
-              type: "fixed_amount",
-              fixed_amount: {
-                amount: moneyToCents(shippingAmount),
-                currency: currency.toLowerCase(),
+        shipping_options: freeShippingTest
+          ? []
+          : [
+              {
+                shipping_rate_data: {
+                  type: "fixed_amount",
+                  fixed_amount: {
+                    amount: moneyToCents(shippingAmount),
+                    currency: currency.toLowerCase(),
+                  },
+                  display_name: shippingName,
+                },
               },
-              display_name: shippingName,
-            },
-          },
-        ],
+            ],
       },
     });
 
@@ -208,6 +216,56 @@ export async function onRequestPost(ctx) {
 }
 
 // ---------------- Helpers ----------------
+
+async function isAuthorizedFreeShippingTest({ request, env }) {
+  const expectedEmail = String(env.STRIPE_TEST_FREE_SHIPPING_EMAIL || "")
+    .trim()
+    .toLowerCase();
+
+  if (!expectedEmail || !env.DB) return false;
+
+  try {
+    const token = getCookie(request.headers.get("Cookie") || "", "mp_session");
+    if (!token) return false;
+
+    const now = Math.floor(Date.now() / 1000);
+    const tokenHash = await sha256(token);
+
+    const session = await env.DB.prepare(
+      `SELECT
+         u.email AS email,
+         u.email_verified_at AS email_verified_at
+       FROM account_sessions AS s
+       JOIN account_users AS u ON u.id = s.user_id
+       WHERE s.token_hash = ?1
+         AND s.expires_at >= ?2
+       LIMIT 1`
+    ).bind(tokenHash, now).first();
+
+    if (!session?.email_verified_at) return false;
+    return String(session.email || "").trim().toLowerCase() === expectedEmail;
+  } catch (error) {
+    console.warn("Stripe test free-shipping auth check failed:", error);
+    return false;
+  }
+}
+
+function getCookie(cookieHeader, name) {
+  const prefix = `${name}=`;
+  for (const part of String(cookieHeader || "").split(";")) {
+    const item = part.trim();
+    if (item.startsWith(prefix)) return item.slice(prefix.length);
+  }
+  return "";
+}
+
+async function sha256(value) {
+  const data = new TextEncoder().encode(String(value || ""));
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
