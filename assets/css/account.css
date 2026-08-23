@@ -163,11 +163,26 @@ body::before{
 .muted{color:var(--muted);line-height:1.55}
 
 /* Loading and sign-in stay cosy, but live inside the normal site shell. */
+/* Center the sign-in/loading card inside the right Account workspace.
+   Signed-in My Orders layout remains untouched. */
+.content:has(#accountGuest:not([hidden])),
+.content:has(#accountLoading:not([hidden])){
+  display:grid;
+  place-items:center;
+}
+
+.account-shell:has(#accountGuest:not([hidden])),
+.account-shell:has(#accountLoading:not([hidden])){
+  width:100%;
+  display:grid;
+  place-items:center;
+}
+
 #accountLoading,
 #accountGuest{
   width:min(560px,100%);
-  margin:18px 0;
-  padding:28px;
+  margin:0;
+  padding:30px;
   border:1px solid var(--line);
   border-radius:20px;
   background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.03));
@@ -539,4 +554,16 @@ button:disabled{opacity:.55;cursor:wait}
   .order-summary{grid-template-columns:1fr;gap:8px;padding:12px 14px 14px}
   .order-card-head{padding:14px}
   .order-items{padding:12px 14px 4px}
+}
+
+@media(min-width:981px){
+  #accountGuest{
+    min-height:300px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+  }
+  #accountGuest h1{
+    font-size:34px;
+  }
 }
