@@ -718,47 +718,106 @@
   let index = 0;
   let stepPx = 0;
 
+  const ABOUT_LOCAL_CACHE = "mp_about_content_v1";
+  const ABOUT_LOCAL_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
   function setHeroBg(url){
     if (!url) return;
+    if (heroImg.dataset.src === url) return;
+
+    heroImg.dataset.src = url;
     heroImg.style.backgroundImage = `url("${url}")`;
+
+    // Desktop: match the actual banner ratio, then use contain. This keeps the
+    // complete lower row of pins visible instead of cropping it with cover.
+    if (window.matchMedia("(min-width: 981px)").matches) {
+      const probe = new Image();
+      probe.decoding = "async";
+      probe.onload = () => {
+        const w = Number(probe.naturalWidth || 0);
+        const h = Number(probe.naturalHeight || 0);
+        if (w > 0 && h > 0) {
+          const ratio = w / h;
+          // Protect the layout from a malformed/extreme attachment.
+          if (ratio >= 2 && ratio <= 8) hero.style.aspectRatio = `${w} / ${h}`;
+        }
+      };
+      probe.src = url;
+    }
+  }
+
+  function readLocalAbout(){
+    try{
+      const raw = localStorage.getItem(ABOUT_LOCAL_CACHE);
+      if (!raw) return null;
+      const saved = JSON.parse(raw);
+      if (!saved?.content || !saved?.ts) return null;
+      if (Date.now() - Number(saved.ts) > ABOUT_LOCAL_MAX_AGE) return null;
+      return saved.content;
+    }catch(_){ return null; }
+  }
+
+  function writeLocalAbout(content){
+    try{
+      localStorage.setItem(ABOUT_LOCAL_CACHE, JSON.stringify({
+        ts: Date.now(),
+        content
+      }));
+    }catch(_){}
   }
 
   async function fetchContent(key){
-    const r = await fetch(API_CONTENT + encodeURIComponent(key), { cache:"no-store" });
+    const r = await fetch(API_CONTENT + encodeURIComponent(key));
     const data = await r.json().catch(()=> ({}));
     if (!r.ok) throw new Error(data?.error || "Content load failed");
     return data?.content || null;
   }
 
+  function applyAboutContent(c){
+    if (!c) return;
+
+    topTitle.textContent = "About";
+    topSub.textContent = c.heroTitle ? c.heroTitle : "Mosaic Pins Space";
+
+    heroTitle.textContent = c.heroTitle || "Mosaic Pins Space";
+    heroSubtitle.textContent = c.heroSubtitle || "";
+    aboutBody.textContent = c.aboutBody || "";
+
+    setHeroBg(c.heroImage);
+
+    // Preserve the existing compact mobile banner behaviour.
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      hero.style.aspectRatio = "16 / 7";
+    }
+
+    gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
+    galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
+
+    buildCarousel();
+  }
+
   async function loadAbout(){
+    const local = readLocalAbout();
+
+    // Returning visitors see the last successful About immediately while the
+    // shared server cache is checked in the background.
+    if (local) applyAboutContent(local);
+
     try{
       let c = await fetchContent("about").catch(()=>null);
       if (!c) c = await fetchContent("About");
       if (!c) throw new Error("Not found");
 
-      topTitle.textContent = "About";
-      topSub.textContent = c.heroTitle ? c.heroTitle : "Mosaic Pins Space";
-
-      heroTitle.textContent = c.heroTitle || "Mosaic Pins Space";
-      heroSubtitle.textContent = c.heroSubtitle || "";
-      aboutBody.textContent = c.aboutBody || "";
-
-      setHeroBg(c.heroImage);
-
-      if (window.matchMedia("(max-width: 980px)").matches) {
-        const w = Number(c.heroImageWidth || 0);
-        const h = Number(c.heroImageHeight || 0);
-        hero.style.aspectRatio = (w > 0 && h > 0) ? `${w} / ${h}` : "16 / 7";
-      }
-
-      gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
-      galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
-
-      buildCarousel();
+      writeLocalAbout(c);
+      applyAboutContent(c);
     }catch(e){
-      heroSubtitle.textContent = "Failed to load content.";
-      aboutBody.textContent = "Please check /api/content?key=about and Airtable permissions.";
-      toast("About", String(e?.message || e));
+      // If a cached copy is already on screen, keep it instead of replacing it
+      // with an error because Airtable/network had a temporary problem.
+      if (!local) {
+        heroSubtitle.textContent = "Failed to load content.";
+        aboutBody.textContent = "Please check /api/content?key=about and Airtable permissions.";
+        toast("About", String(e?.message || e));
+      }
     }
   }
 
@@ -925,9 +984,12 @@
     applyCarousel();
 
     if (window.matchMedia("(max-width: 980px)").matches) {
-      if (!hero.style.aspectRatio) hero.style.aspectRatio = "16 / 7";
-    } else {
-      hero.style.aspectRatio = "";
+      hero.style.aspectRatio = "16 / 7";
+    } else if (heroImg.dataset.src) {
+      // Re-run the image probe after crossing the desktop breakpoint.
+      const src = heroImg.dataset.src;
+      heroImg.dataset.src = "";
+      setHeroBg(src);
     }
   });
 

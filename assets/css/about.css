@@ -882,3 +882,156 @@
   border-top:1px solid var(--line);
   font-size:15px;
 }
+
+
+/* =========================================================
+   About desktop polish — quieter layout + uncropped hero
+   Mobile/tablet styles below 980px remain on the approved layout.
+   ========================================================= */
+@media (min-width:981px){
+  .content{
+    padding:16px 18px 18px;
+  }
+
+  .hero{
+    min-height:0;
+    aspect-ratio:4 / 1;
+    border-radius:16px;
+    border-color:rgba(255,255,255,.075);
+    background:#07090c;
+    box-shadow:0 8px 24px rgba(0,0,0,.28);
+  }
+
+  .heroImg{
+    background-size:contain;
+    background-position:center bottom;
+    transform:none;
+    filter:none;
+  }
+
+  .heroOverlay{
+    background:
+      linear-gradient(180deg,rgba(0,0,0,.01) 55%,rgba(0,0,0,.22) 100%);
+  }
+
+  .heroInner{
+    min-height:0;
+    height:100%;
+    padding:14px 16px;
+    justify-content:flex-end;
+  }
+
+  .heroSubtitle{
+    width:max-content;
+    max-width:min(72ch,80%);
+    padding:7px 10px;
+    border-radius:10px;
+    background:rgba(5,7,10,.48);
+    border:1px solid rgba(255,255,255,.055);
+    color:rgba(233,238,247,.90);
+    font-size:12px;
+    line-height:1.45;
+    text-shadow:none;
+    backdrop-filter:blur(8px);
+  }
+
+  .heroSubtitle:empty{
+    display:none;
+  }
+
+  .aboutWrap{
+    margin-top:18px;
+    grid-template-columns:minmax(0,1.05fr) minmax(420px,.95fr);
+    gap:18px;
+  }
+
+  .panel{
+    border-radius:16px;
+    border-color:rgba(255,255,255,.07);
+    background:rgba(0,0,0,.16);
+    box-shadow:none;
+  }
+
+  .panelHead{
+    padding:12px 15px 11px;
+    background:rgba(255,255,255,.018);
+    border-bottom-color:rgba(255,255,255,.06);
+  }
+
+  .panelTitle{
+    font-size:13px;
+    letter-spacing:.15px;
+  }
+
+  .panelBody{
+    padding:18px 18px 20px;
+    font-size:14px;
+    line-height:1.72;
+    color:#b7c1d1;
+  }
+
+  .hint{
+    font-size:11px;
+    opacity:.75;
+  }
+
+  .carousel{
+    padding:10px 12px 12px;
+  }
+
+  .viewport{
+    padding:8px 10px 10px;
+    border:0;
+    border-radius:13px;
+    background:transparent;
+  }
+
+  .track{
+    gap:12px;
+  }
+
+  .slide{
+    flex:0 0 calc((100% - 24px) / 3);
+    border-radius:12px;
+    border-color:rgba(255,255,255,.07);
+    background:rgba(255,255,255,.025);
+    transform:none;
+    opacity:1;
+    transition:border-color .18s ease, box-shadow .18s ease, opacity .18s ease;
+  }
+
+  .slide.is-center{
+    transform:none;
+    opacity:1;
+    filter:none;
+    background:rgba(255,255,255,.03);
+    border-color:rgba(34,197,94,.32);
+    box-shadow:0 0 0 1px rgba(34,197,94,.08);
+  }
+
+  .carBtn{
+    width:34px;
+    height:34px;
+    background:rgba(5,7,10,.62);
+    box-shadow:none;
+  }
+
+  .carPrev{left:8px}
+  .carNext{right:8px}
+
+  .dots{
+    gap:6px;
+    padding-top:9px;
+  }
+
+  .dotBtn{
+    width:6px;
+    height:6px;
+    opacity:.55;
+  }
+
+  .dotBtn.active{
+    background:rgba(34,197,94,.65);
+    border-color:rgba(34,197,94,.5);
+  }
+}
