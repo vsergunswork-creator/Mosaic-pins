@@ -56,8 +56,26 @@ export async function onRequestGet({ request, env }) {
         .map((product) => [String(product.recordId), product])
     );
 
+    // Prefer immutable purchase-time snapshots for orders that have them.
+    // Historical orders created before snapshots existed keep the current
+    // catalog fallback, so enabling snapshots cannot make old orders disappear.
+    let snapshotsByOrderKey = new Map();
+    try {
+      snapshotsByOrderKey = await loadOrderItemSnapshots(
+        env,
+        result.records || []
+      );
+    } catch (snapshotError) {
+      console.error("account/orders snapshot read failed; using catalog fallback", snapshotError);
+    }
+
     const orders = (result.records || [])
-      .map((record) => normalizeOrder(record, env, productByRecordId))
+      .map((record) => normalizeOrder(
+        record,
+        env,
+        productByRecordId,
+        snapshotsByOrderKey
+      ))
       .sort((a, b) => timestamp(b.createdAt) - timestamp(a.createdAt));
 
     return json({
@@ -115,7 +133,12 @@ async function getAuthenticatedUser(request, env) {
   return row;
 }
 
-function normalizeOrder(record, env, productByRecordId = new Map()) {
+function normalizeOrder(
+  record,
+  env,
+  productByRecordId = new Map(),
+  snapshotsByOrderKey = new Map()
+) {
   const f = record?.fields || {};
 
   const statusField = String(env.AIRTABLE_ORDER_STATUS_FIELD || "Order Status");
@@ -133,8 +156,24 @@ function normalizeOrder(record, env, productByRecordId = new Map()) {
     : [];
 
   const totalQuantity = finiteNumberOrNull(f[quantityField]);
+  const orderKey = snapshotOrderKey(record, env);
+  const snapshotRows = orderKey
+    ? (snapshotsByOrderKey.get(orderKey) || [])
+    : [];
 
-  const items = linkedProductIds
+  const snapshotItems = snapshotRows.map((row) => ({
+    recordId: String(row.product_record_id || ""),
+    pin: String(row.pin || ""),
+    title: String(row.title || row.pin || ""),
+    image: String(row.image || ""),
+    diameter: finiteNumberOrNull(row.diameter),
+    quantity: finiteNumberOrNull(row.quantity),
+    unitPrice: finiteNumberOrNull(row.unit_price),
+    currency: String(row.currency || f[currencyField] || "").toUpperCase(),
+    snapshot: true,
+  }));
+
+  const catalogItems = linkedProductIds
     .map((recordId) => productByRecordId.get(recordId))
     .filter(Boolean)
     .map((product) => ({
@@ -148,8 +187,12 @@ function normalizeOrder(record, env, productByRecordId = new Map()) {
       // Historical Orders only store total Quantity, not quantity per linked product.
       // If exactly one product is linked, its quantity is known. Otherwise keep null.
       quantity: linkedProductIds.length === 1 ? totalQuantity : null,
+      unitPrice: null,
+      currency: String(f[currencyField] || "").toUpperCase(),
       snapshot: false,
     }));
+
+  const items = snapshotItems.length ? snapshotItems : catalogItems;
 
   return {
     orderId: niceOrderId(record, env),
@@ -163,6 +206,47 @@ function normalizeOrder(record, env, productByRecordId = new Map()) {
     trackingNumber: String(f[trackingField] || ""),
     items,
   };
+}
+
+async function loadOrderItemSnapshots(env, records = []) {
+  if (!env.DB) return new Map();
+
+  const orderKeys = [...new Set(
+    (Array.isArray(records) ? records : [])
+      .map((record) => snapshotOrderKey(record, env))
+      .filter(Boolean)
+  )];
+
+  if (!orderKeys.length) return new Map();
+
+  // account/orders currently loads at most 50 Airtable orders, so one D1 query
+  // stays comfortably below SQLite/D1 bind-variable limits.
+  const placeholders = orderKeys.map((_, index) => `?${index + 1}`).join(",");
+  const query =
+    `SELECT order_key, product_record_id, pin, title, image, diameter, ` +
+    `quantity, unit_price, currency, created_at ` +
+    `FROM order_item_snapshots ` +
+    `WHERE order_key IN (${placeholders}) ` +
+    `ORDER BY created_at ASC, pin ASC`;
+
+  const response = await env.DB.prepare(query).bind(...orderKeys).all();
+  const grouped = new Map();
+
+  for (const row of Array.isArray(response?.results) ? response.results : []) {
+    const key = String(row?.order_key || "").trim();
+    if (!key) continue;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  }
+
+  return grouped;
+}
+
+function snapshotOrderKey(record, env) {
+  const f = record?.fields || {};
+  const idField = String(env.AIRTABLE_ORDER_ID_FIELD || "Order ID");
+  const stripeField = String(env.AIRTABLE_STRIPE_SESSION_FIELD || "Stripe Session ID");
+  return String(f[idField] || f[stripeField] || "").trim();
 }
 
 function finiteNumberOrNull(value) {

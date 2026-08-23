@@ -203,6 +203,12 @@
         if (Number.isFinite(Number(item.quantity))) {
           meta.appendChild(make("span", "", `${t("quantity")}: ${Number(item.quantity)}`));
         }
+        if (Number.isFinite(Number(item.unitPrice))) {
+          meta.appendChild(make("span", "", formatMoney(
+            item.unitPrice,
+            item.currency || order.currency
+          )));
+        }
         if (meta.childNodes.length) info.appendChild(meta);
 
         row.append(media, info);
