@@ -6,7 +6,7 @@
     <script src="/assets/js/i18n-prepaint.js?v=20260822-1"></script>
 <title>Reviews — Mosaic Pins</title>
 
-  <link rel="stylesheet" href="/assets/css/reviews.css?v=20260823-fieldfix1">
+  <link rel="stylesheet" href="/assets/css/reviews.css?v=20260823-reviews20">
   <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-ui19">
 </head>
 <body>
@@ -67,22 +67,6 @@
       </div>
 
       <div class="content">
-        <section class="hero">
-          <div class="heroRow">
-            <div>
-              <h2 class="heroTitle">Customer reviews</h2>
-              <div class="heroMeta" id="heroMeta">Loading…</div>
-            </div>
-
-            <div class="avgBox" aria-label="Average rating">
-              <div class="avgNum" id="avgNum">—</div>
-              <div>
-                <div class="rStars" id="avgStars" aria-label="Average stars">—</div>
-                <div class="avgSub" id="avgSub">—</div>
-              </div>
-            </div>
-          </div>
-        </section>
 
         <div class="grid2">
           <section class="panel">
@@ -160,9 +144,16 @@
           </section>
 
           <section class="panel">
-            <div class="panelHead">
-              <h3 class="panelTitle">Reviews</h3>
-              <div class="hint" id="countHint">—</div>
+            <div class="panelHead reviewsPanelHead">
+              <h3 class="panelTitle">Customer reviews</h3>
+
+              <div class="avgBox reviewsPanelRating" aria-label="Average rating">
+                <div class="avgNum" id="avgNum">—</div>
+                <div>
+                  <div class="rStars" id="avgStars" aria-label="Average stars">—</div>
+                  <div class="avgSub" id="avgSub">—</div>
+                </div>
+              </div>
             </div>
 
             <div class="panelBody">
@@ -269,7 +260,7 @@
   <script id="pp-sdk" data-loaded="0"></script>
 
 <script src="/assets/js/shipping-ui.js"></script>
-  <script src="/assets/js/reviews.js?v=20260823-flow15"></script>
+  <script src="/assets/js/reviews.js?v=20260823-reviews20"></script>
   <script src="/assets/js/site-common.js?v=20260819-photo-ui2"></script>
 </body>
 </html>

@@ -1181,3 +1181,45 @@
   border-top:1px solid var(--line);
   font-size:15px;
 }
+
+
+/* ===== Reviews clean header =====
+   The page title remains in the top green bar.
+   Overall rating lives in the Customer reviews panel header. */
+.reviewsPanelHead{
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.reviewsPanelRating{
+  margin-left:auto;
+  min-height:40px;
+  padding:7px 10px;
+  border-radius:12px;
+  background:rgba(0,0,0,.18);
+  box-shadow:none;
+}
+
+.reviewsPanelRating .avgNum{
+  font-size:16px;
+}
+
+.reviewsPanelRating .rStars{
+  line-height:1;
+  white-space:nowrap;
+}
+
+.reviewsPanelRating .avgSub{
+  margin-top:3px;
+  font-size:10px;
+  white-space:nowrap;
+}
+
+@media(max-width:620px){
+  .reviewsPanelHead{
+    align-items:flex-start;
+  }
+  .reviewsPanelRating{
+    margin-left:0;
+  }
+}

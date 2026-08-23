@@ -852,12 +852,45 @@
   renderPicker();
 
   const elList    = document.getElementById("list");
-  const heroMeta  = document.getElementById("heroMeta");
-  const countHint = document.getElementById("countHint");
 
   const avgNum    = document.getElementById("avgNum");
   const avgStars  = document.getElementById("avgStars");
   const avgSub    = document.getElementById("avgSub");
+
+  function reviewLang(){
+    try{
+      const saved = String(localStorage.getItem("mp_language") || "").toLowerCase();
+      if (["en","de","ru","fr"].includes(saved)) return saved;
+    }catch(_){}
+    const htmlLang = String(document.documentElement.lang || "").toLowerCase().slice(0,2);
+    return ["en","de","ru","fr"].includes(htmlLang) ? htmlLang : "en";
+  }
+
+  function reviewCountLabel(count){
+    count = Math.max(0, Number(count) || 0);
+    const lang = reviewLang();
+
+    if (lang === "de") return `${count} ${count === 1 ? "Bewertung" : "Bewertungen"}`;
+    if (lang === "fr") return `${count} avis`;
+    if (lang === "ru"){
+      const mod10 = count % 10;
+      const mod100 = count % 100;
+      let word = "отзывов";
+      if (mod10 === 1 && mod100 !== 11) word = "отзыв";
+      else if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) word = "отзыва";
+      return `${count} ${word}`;
+    }
+    return `${count} ${count === 1 ? "review" : "reviews"}`;
+  }
+
+  function noReviewsLabel(){
+    return ({
+      en:"No reviews yet",
+      de:"Noch keine Bewertungen",
+      ru:"Отзывов пока нет",
+      fr:"Aucun avis pour le moment"
+    })[reviewLang()] || "No reviews yet";
+  }
 
   function fmtDate(value){
     if (!value) return "";
@@ -968,7 +1001,6 @@
   }
 
   async function loadReviews(){
-    if (heroMeta) heroMeta.textContent = "Loading…";
     if (elList) elList.innerHTML = "";
 
     try{
@@ -981,21 +1013,14 @@
 
       const total = items.length;
 
-      if (heroMeta){
-        heroMeta.textContent = total
-          ? `Showing customer reviews.`
-          : `No reviews yet. Be the first 🙂`;
-      }
-      if (countHint) countHint.textContent = total ? `${total} reviews` : "—";
-
       if (avg == null){
         if (avgNum) avgNum.textContent = "—";
         if (avgStars) avgStars.textContent = "—";
-        if (avgSub) avgSub.textContent = "No ratings yet";
+        if (avgSub) avgSub.textContent = noReviewsLabel();
       } else {
         if (avgNum) avgNum.textContent = avg.toFixed(2);
         if (avgStars) avgStars.textContent = starsText(Math.round(avg));
-        if (avgSub) avgSub.textContent = `${count} ratings`;
+        if (avgSub) avgSub.textContent = reviewCountLabel(total);
       }
 
       if (!items.length){
