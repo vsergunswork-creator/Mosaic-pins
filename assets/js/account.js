@@ -31,7 +31,7 @@
       ordersEyebrow:"Käufe", myOrders:"Meine Bestellungen", loadingOrders:"Bestellungen werden geladen…",
       noOrders:"Für diese E-Mail wurden noch keine Bestellungen gefunden.", orderLabel:"Bestellung",
       total:"Gesamt", destination:"Ziel", tracking:"Sendungsnummer", quantity:"Menge", diameter:"Durchmesser",
-      verifiedSoon:"Bewertungen verifizierter Käufe werden als Nächstes mit diesen Bestellungen verknüpft.",
+      leaveReview:"Bewertung schreiben",
       paid:"Bezahlt", shipped:"Versendet", processing:"In Bearbeitung", refunded:"Erstattet",
       cancelled:"Storniert", notRefunded:"Nicht erstattet"
     },
@@ -44,7 +44,7 @@
       ordersEyebrow:"Покупки", myOrders:"Мои заказы", loadingOrders:"Загружаем заказы…",
       noOrders:"Для этого email пока не найдено заказов.", orderLabel:"Заказ",
       total:"Итого", destination:"Доставка", tracking:"Трек-номер", quantity:"Количество", diameter:"Диаметр",
-      verifiedSoon:"Следующим этапом мы привяжем к этим заказам отзывы с отметкой «Подтверждённая покупка».",
+      leaveReview:"Оставить отзыв",
       paid:"Оплачен", shipped:"Отправлен", processing:"В обработке", refunded:"Возвращён",
       cancelled:"Отменён", notRefunded:"Без возврата"
     },
@@ -57,7 +57,7 @@
       ordersEyebrow:"Achats", myOrders:"Mes commandes", loadingOrders:"Chargement des commandes…",
       noOrders:"Aucune commande n’a encore été trouvée pour cet e-mail.", orderLabel:"Commande",
       total:"Total", destination:"Destination", tracking:"Suivi", quantity:"Quantité", diameter:"Diamètre",
-      verifiedSoon:"Les avis d’achats vérifiés seront ensuite liés à ces commandes.",
+      leaveReview:"Laisser un avis",
       paid:"Payée", shipped:"Expédiée", processing:"En traitement", refunded:"Remboursée",
       cancelled:"Annulée", notRefunded:"Non remboursée"
     }
@@ -83,7 +83,7 @@
       ordersEyebrow:"Purchases", myOrders:"My Orders", loadingOrders:"Loading orders…",
       noOrders:"No orders have been found for this email yet.", orderLabel:"Order",
       total:"Total", destination:"Destination", tracking:"Tracking", quantity:"Quantity", diameter:"Diameter",
-      verifiedSoon:"Verified-purchase reviews will be linked to these orders next.",
+      leaveReview:"Leave a review",
       paid:"Paid", shipped:"Shipped", processing:"Processing", refunded:"Refunded",
       cancelled:"Cancelled", notRefunded:"Not refunded"
     };
@@ -155,7 +155,7 @@
     ordersLoading.hidden = true;
     ordersEmpty.hidden = orders.length !== 0;
     ordersEmpty.textContent = t("noOrders");
-    ordersFootnote.textContent = t("verifiedSoon");
+    ordersFootnote.textContent = "";
     ordersList.replaceChildren();
 
     for (const order of orders) {
@@ -210,6 +210,15 @@
           )));
         }
         if (meta.childNodes.length) info.appendChild(meta);
+
+        const reviewableStatus = ["paid", "shipped"].includes(
+          String(order.status || "").trim().toLowerCase()
+        );
+        if (reviewableStatus && item.snapshot === true && item.pin && order.orderId) {
+          const reviewLink = make("a", "order-review-btn", t("leaveReview"));
+          reviewLink.href = `/reviews?pin=${encodeURIComponent(item.pin)}&order=${encodeURIComponent(order.orderId)}`;
+          info.appendChild(reviewLink);
+        }
 
         row.append(media, info);
         itemsWrap.appendChild(row);

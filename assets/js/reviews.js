@@ -5,6 +5,9 @@
   })();
 
   const API_REVIEWS  = "/api/reviews";
+  const reviewQuery = new URLSearchParams(location.search);
+  const purchaseReviewPin = String(reviewQuery.get("pin") || "").trim();
+  const purchaseReviewOrderId = String(reviewQuery.get("order") || "").trim();
   const API_CHECKOUT = "/api/checkout";
 
   // PayPal endpoints (EXACT as About)
@@ -842,6 +845,29 @@
     text.textContent = r.text || "";
 
     wrap.appendChild(top);
+
+    if (r.purchase && (r.purchase.pin || r.purchase.title)) {
+      const purchase = document.createElement("div");
+      purchase.className = "rPurchase";
+
+      if (r.purchase.image) {
+        const image = document.createElement("img");
+        image.className = "rPurchaseImg";
+        image.src = r.purchase.image;
+        image.alt = r.purchase.title || r.purchase.pin || "Mosaic Pin";
+        image.loading = "lazy";
+        purchase.appendChild(image);
+      }
+
+      const label = document.createElement("div");
+      label.className = "rPurchaseText";
+      const titlePart = String(r.purchase.title || "").trim();
+      const pinPart = String(r.purchase.pin || "").trim();
+      label.textContent = [titlePart, pinPart].filter(Boolean).join(" · ");
+      purchase.appendChild(label);
+      wrap.appendChild(purchase);
+    }
+
     wrap.appendChild(text);
 
     if (Array.isArray(r.photos) && r.photos.length){
@@ -1028,6 +1054,10 @@
     payload.append("rating", String(rating));
     payload.append("text", (elText.value || "").trim());
     payload.append("source", "site");
+    if (purchaseReviewPin && purchaseReviewOrderId) {
+      payload.append("purchasePin", purchaseReviewPin);
+      payload.append("purchaseOrderId", purchaseReviewOrderId);
+    }
     const selectedPhotos = Array.from(elPhotos?.files || []);
     payload.append("photoCount", String(selectedPhotos.length));
     selectedPhotos.forEach(file => payload.append("photos", file, file.name));

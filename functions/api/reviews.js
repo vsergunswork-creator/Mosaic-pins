@@ -2,6 +2,7 @@
 // SAFE version (cache + fallback, но сохраняем вашу логику)
 
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
+import { verifyPurchaseForRequest } from "./account/verified-purchase.js";
 
 const TTL_SEC = 60;
 const FALLBACK_TTL_SEC = 7 * 86400;
@@ -71,6 +72,13 @@ export async function onRequestGet({ env, request }) {
 
     const records = Array.isArray(data?.records) ? data.records : [];
 
+    let purchaseByReviewId = new Map();
+    try {
+      purchaseByReviewId = await loadReviewPurchaseSnapshots(env, records);
+    } catch (purchaseError) {
+      console.error("reviews purchase snapshot read failed", purchaseError);
+    }
+
     const reviews = records.map((rec) => {
       const f = rec.fields || {};
 
@@ -93,6 +101,7 @@ export async function onRequestGet({ env, request }) {
         avatar: avatarUrl,
         photos: photosUrls,
         video: videoUrl,
+        purchase: purchaseByReviewId.get(rec.id) || null,
       };
     });
 
@@ -143,6 +152,8 @@ export async function onRequestPost({ env, request }) {
         country: form.get("country"),
         photoCount: form.get("photoCount"),
         videoCount: form.get("videoCount"),
+        purchasePin: form.get("purchasePin"),
+        purchaseOrderId: form.get("purchaseOrderId"),
       };
       photos = [];
       for (const [key, value] of form.entries()) {
@@ -172,6 +183,29 @@ export async function onRequestPost({ env, request }) {
 
     const rating = clampNumber(ratingRaw, 1, 5);
     if (!Number.isFinite(rating)) return json({ error: "Rating must be 1..5" }, 400);
+
+    const purchasePin = String(body?.purchasePin || "").trim();
+    const purchaseOrderId = String(body?.purchaseOrderId || "").trim();
+    let linkedPurchase = null;
+
+    if (purchasePin || purchaseOrderId) {
+      if (!purchasePin || !purchaseOrderId) {
+        return json({ error: "Incomplete purchase review reference" }, 400);
+      }
+
+      const verification = await verifyPurchaseForRequest({
+        request,
+        env,
+        pin: purchasePin,
+        orderId: purchaseOrderId,
+      });
+
+      if (!verification?.verifiedPurchase || !verification?.purchase) {
+        return json({ error: "This purchased item could not be verified for your account" }, 403);
+      }
+
+      linkedPurchase = verification.purchase;
+    }
 
     const expectedPhotoCount = clampInt(body?.photoCount, 0, 4, 0);
     if (expectedPhotoCount > 0 && photos.length !== expectedPhotoCount) {
@@ -250,6 +284,10 @@ export async function onRequestPost({ env, request }) {
       "Date": now.toISOString(),
     };
     if (country) fields["Country"] = country;
+    if (linkedPurchase) {
+      fields["Source Order ID"] = String(linkedPurchase.orderId || "");
+      fields["Import Key"] = makePurchaseImportKey(linkedPurchase.orderKey, linkedPurchase.pin);
+    }
     if (photoUrls.length) fields["Photos"] = photoUrls.map((url) => ({ url }));
     if (videoUrl) fields["Video"] = [{ url: videoUrl }];
 
@@ -287,11 +325,91 @@ export async function onRequestPost({ env, request }) {
       photosReceived: photos.length,
       video: videoUrl ? 1 : 0,
       videoReceived: receivedVideoCount,
+      purchaseLinked: !!linkedPurchase,
     });
   } catch (e) {
     await cleanupUploads(env, uploadedKeys);
     return json({ error: "Server error" }, 500);
   }
+}
+
+
+const PURCHASE_IMPORT_PREFIX = "site-purchase:v1:";
+
+function makePurchaseImportKey(orderKey, pin) {
+  return `${PURCHASE_IMPORT_PREFIX}${encodeURIComponent(String(orderKey || ""))}:${encodeURIComponent(String(pin || ""))}`;
+}
+
+function parsePurchaseImportKey(value) {
+  const raw = String(value || "").trim();
+  if (!raw.startsWith(PURCHASE_IMPORT_PREFIX)) return null;
+
+  const rest = raw.slice(PURCHASE_IMPORT_PREFIX.length);
+  const splitAt = rest.indexOf(":");
+  if (splitAt <= 0 || splitAt >= rest.length - 1) return null;
+
+  try {
+    const orderKey = decodeURIComponent(rest.slice(0, splitAt));
+    const pin = decodeURIComponent(rest.slice(splitAt + 1));
+    if (!orderKey || !pin) return null;
+    return { orderKey, pin };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function loadReviewPurchaseSnapshots(env, records = []) {
+  const out = new Map();
+  if (!env?.DB || !Array.isArray(records) || !records.length) return out;
+
+  const refs = records
+    .map((record) => ({
+      reviewId: String(record?.id || ""),
+      ref: parsePurchaseImportKey(record?.fields?.["Import Key"]),
+    }))
+    .filter((item) => item.reviewId && item.ref);
+
+  if (!refs.length) return out;
+
+  const orderKeys = [...new Set(refs.map((item) => item.ref.orderKey))];
+  const placeholders = orderKeys.map((_, index) => `?${index + 1}`).join(",");
+
+  const response = await env.DB.prepare(
+    `SELECT order_key, pin, title, image, diameter ` +
+    `FROM order_item_snapshots ` +
+    `WHERE order_key IN (${placeholders})`
+  ).bind(...orderKeys).all();
+
+  const snapshotByKey = new Map();
+  for (const row of Array.isArray(response?.results) ? response.results : []) {
+    const key = purchaseSnapshotMapKey(row?.order_key, row?.pin);
+    if (key && !snapshotByKey.has(key)) snapshotByKey.set(key, row);
+  }
+
+  for (const item of refs) {
+    const row = snapshotByKey.get(purchaseSnapshotMapKey(item.ref.orderKey, item.ref.pin));
+    if (!row) continue;
+
+    out.set(item.reviewId, {
+      pin: String(row.pin || item.ref.pin || ""),
+      title: String(row.title || row.pin || item.ref.pin || ""),
+      image: String(row.image || ""),
+      diameter: finiteNumberOrNull(row.diameter),
+    });
+  }
+
+  return out;
+}
+
+function purchaseSnapshotMapKey(orderKey, pin) {
+  const order = String(orderKey || "").trim();
+  const productPin = String(pin || "").trim().toLowerCase();
+  return order && productPin ? `${order}\u0000${productPin}` : "";
+}
+
+function finiteNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 async function cleanupUploads(env, keys) {

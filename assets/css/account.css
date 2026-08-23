@@ -276,6 +276,25 @@ button:disabled{opacity:.55;cursor:wait}
   background:rgba(255,255,255,.04);
   border:1px solid rgba(255,255,255,.06);
 }
+
+.order-review-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:9px;
+  min-height:32px;
+  padding:6px 10px;
+  border-radius:9px;
+  border:1px solid rgba(34,197,94,.28);
+  background:rgba(34,197,94,.09);
+  color:#b9f6cc;
+  font-size:11px;
+  font-weight:900;
+  text-decoration:none;
+  width:max-content;
+  max-width:100%;
+}
+.order-review-btn:hover{background:rgba(34,197,94,.15)}
 .order-summary{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
