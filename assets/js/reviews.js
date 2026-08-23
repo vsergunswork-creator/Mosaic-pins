@@ -731,10 +731,10 @@
       toast("Checkout", String(e?.message || e));
       if (elCartCheckout){
         elCartCheckout.disabled = false;
-        elCartCheckout.textContent = "Checkout";
+        elCartCheckout.textContent = "Pay by card";
       }
     }finally{
-      if (elCartCheckout && !elCartCheckout.disabled) elCartCheckout.textContent = "Checkout";
+      if (elCartCheckout && !elCartCheckout.disabled) elCartCheckout.textContent = "Pay by card";
     }
   }
   elCartCheckout?.addEventListener("click", startCheckout);

@@ -1248,7 +1248,7 @@ async function startCheckout(){
         false;
 
       elCartCheckout.textContent =
-        "Checkout";
+        "Pay by card";
     }
 
   }finally{
@@ -1258,7 +1258,7 @@ async function startCheckout(){
       !elCartCheckout.disabled
     ){
       elCartCheckout.textContent =
-        "Checkout";
+        "Pay by card";
     }
   }
 }

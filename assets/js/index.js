@@ -747,10 +747,10 @@ function removeFromCart(pin){
       }catch(e){
         toast("Checkout", String(e?.message || e));
         elCartCheckout.disabled = false;
-        elCartCheckout.textContent = "Checkout";
+        elCartCheckout.textContent = "Pay by card";
       }finally{
         // restore text when coming back without redirect
-        if (!elCartCheckout.disabled) elCartCheckout.textContent = "Checkout";
+        if (!elCartCheckout.disabled) elCartCheckout.textContent = "Pay by card";
       }
     }
     elCartCheckout.addEventListener("click", startCheckout);
@@ -854,7 +854,7 @@ function removeFromCart(pin){
               </div>
               <div style="display:flex; gap:8px;">
                 <button class="btn2" ${soldOut ? "disabled" : ""} data-add="${escapeHtml(p.pin)}" title="Add to cart" type="button">＋</button>
-                <button class="btn" ${soldOut ? "disabled" : ""} data-openbuy="${escapeHtml(p.pin)}" type="button">Buy</button>
+                <button class="btn" data-openbuy="${escapeHtml(p.pin)}" type="button">View</button>
               </div>
             </div>
           </div>
