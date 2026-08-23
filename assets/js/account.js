@@ -25,6 +25,8 @@
     de: {
       signIn:"Anmelden",
       intro:"Gib deine E-Mail-Adresse ein. Wir senden dir einen 6-stelligen Anmeldecode. Kein Passwort nötig.",
+      noRegistrationTitle:"Keine Registrierung erforderlich",
+      noRegistrationText:"Du kannst ganz normal einkaufen, ohne dich anzumelden. Die beim Checkout verwendete E-Mail-Adresse bleibt mit deiner Bestellung verknüpft. Wenn du dich später mit derselben E-Mail-Adresse anmeldest, erscheinen deine bisherigen Bestellungen automatisch unter „Meine Bestellungen“.",
       emailLabel:"E-Mail-Adresse", sendCode:"Anmeldecode senden", sentTo:"Code gesendet an",
       codeLabel:"6-stelliger Code", verify:"Anmelden", changeEmail:"Andere E-Mail verwenden",
       signedIn:"Du bist angemeldet", signedInAs:"Angemeldet als", logout:"Abmelden",
@@ -38,6 +40,8 @@
     ru: {
       signIn:"Войти",
       intro:"Введите email, и мы отправим 6-значный код для входа. Пароль не нужен.",
+      noRegistrationTitle:"Регистрация не требуется",
+      noRegistrationText:"Вы можете покупать как обычно, не входя в аккаунт. Email, указанный при оформлении заказа, остаётся связан с заказом. Если позже войти с тем же email, предыдущие покупки автоматически появятся в разделе «Мои заказы».",
       emailLabel:"Электронная почта", sendCode:"Отправить код", sentTo:"Код отправлен на",
       codeLabel:"6-значный код", verify:"Войти", changeEmail:"Использовать другой email",
       signedIn:"Вы вошли в аккаунт", signedInAs:"Вы вошли как", logout:"Выйти",
@@ -51,6 +55,8 @@
     fr: {
       signIn:"Se connecter",
       intro:"Saisissez votre e-mail et nous vous enverrons un code de connexion à 6 chiffres. Aucun mot de passe requis.",
+      noRegistrationTitle:"Aucune inscription requise",
+      noRegistrationText:"Vous pouvez acheter sans vous connecter. L’adresse e-mail utilisée lors du paiement reste liée à votre commande. Si vous vous connectez plus tard avec la même adresse, vos commandes précédentes apparaîtront automatiquement dans « Mes commandes ».",
       emailLabel:"Adresse e-mail", sendCode:"Envoyer le code", sentTo:"Code envoyé à",
       codeLabel:"Code à 6 chiffres", verify:"Se connecter", changeEmail:"Utiliser un autre e-mail",
       signedIn:"Vous êtes connecté", signedInAs:"Connecté en tant que", logout:"Se déconnecter",
