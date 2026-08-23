@@ -2,6 +2,7 @@
 // SAFE version (cache + fallback, но сохраняем вашу логику)
 
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
+import { escapeFormulaString } from "./_airtable-orders.js";
 import { verifyPurchaseForRequest } from "./account/verified-purchase.js";
 
 const TTL_SEC = 60;
@@ -205,6 +206,25 @@ export async function onRequestPost({ env, request }) {
       }
 
       linkedPurchase = verification.purchase;
+
+      const purchaseImportKey = makePurchaseImportKey(
+        linkedPurchase.orderKey,
+        linkedPurchase.pin
+      );
+
+      const alreadyReviewed = await purchaseReviewAlreadyExists({
+        token,
+        baseId,
+        table,
+        importKey: purchaseImportKey,
+      });
+
+      if (alreadyReviewed) {
+        return json({
+          error: "A review has already been submitted for this purchased item.",
+          purchaseReviewDuplicate: true,
+        }, 409);
+      }
     }
 
     const expectedPhotoCount = clampInt(body?.photoCount, 0, 4, 0);
@@ -356,6 +376,42 @@ function parsePurchaseImportKey(value) {
   } catch (_) {
     return null;
   }
+}
+
+async function purchaseReviewAlreadyExists({ token, baseId, table, importKey }) {
+  const key = String(importKey || "").trim();
+  if (!key) return false;
+
+  const apiUrl = new URL(
+    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`
+  );
+  apiUrl.searchParams.set(
+    "filterByFormula",
+    `{Import Key}='${escapeFormulaString(key)}'`
+  );
+  apiUrl.searchParams.set("maxRecords", "1");
+  apiUrl.searchParams.set("pageSize", "1");
+
+  const response = await fetch(apiUrl.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  // Fail closed for purchase-linked reviews. If Airtable cannot confirm
+  // uniqueness, do not risk creating a duplicate review.
+  if (!response.ok) {
+    const type = String(data?.error?.type || "").trim();
+    const message = String(data?.error?.message || "").trim();
+    const detail = [type, message].filter(Boolean).join(": ");
+    throw new Error(
+      detail
+        ? `Purchase review duplicate check failed — ${detail}`
+        : `Purchase review duplicate check failed (HTTP ${response.status})`
+    );
+  }
+
+  return Array.isArray(data?.records) && data.records.length > 0;
 }
 
 async function loadReviewPurchaseSnapshots(env, records = []) {
