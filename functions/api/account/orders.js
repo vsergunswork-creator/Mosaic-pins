@@ -215,18 +215,58 @@ function normalizeOrder(
 
   const items = snapshotItems.length ? snapshotItems : catalogItems;
 
+  const rawStatus = String(f[statusField] || "").trim();
+  const refundStatus = String(f[refundField] || "").trim();
+  const trackingNumber = String(f[trackingField] || "").trim();
+
+  // Account display status:
+  // - explicit refunded/cancelled states keep priority;
+  // - otherwise the presence of a tracking number means the order was shipped.
+  // This only affects My Orders display. It does not modify Airtable or any
+  // Stripe/PayPal/DHL/email automation.
+  const displayStatus = accountDisplayStatus({
+    status: rawStatus,
+    refundStatus,
+    trackingNumber,
+  });
+
   return {
     orderId: niceOrderId(record, env),
     createdAt: String(f[createdField] || ""),
-    status: String(f[statusField] || ""),
-    refundStatus: String(f[refundField] || ""),
+    status: displayStatus,
+    refundStatus,
     amountTotal: finiteNumberOrNull(f[amountField]),
     currency: String(f[currencyField] || "").toUpperCase(),
     quantity: totalQuantity,
     shippingCountry: String(f[countryField] || ""),
-    trackingNumber: String(f[trackingField] || ""),
+    trackingNumber,
     items,
   };
+}
+
+function accountDisplayStatus({ status, refundStatus, trackingNumber }) {
+  const raw = String(status || "").trim();
+  const normalized = raw.toLowerCase();
+  const refund = String(refundStatus || "").trim().toLowerCase();
+
+  if (
+    normalized === "refunded" ||
+    refund === "refunded" ||
+    refund === "fully_refunded" ||
+    refund === "fully refunded"
+  ) {
+    return "refunded";
+  }
+
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return normalized;
+  }
+
+  if (String(trackingNumber || "").trim()) {
+    return "shipped";
+  }
+
+  return raw;
 }
 
 async function loadOrderItemSnapshots(env, records = []) {
