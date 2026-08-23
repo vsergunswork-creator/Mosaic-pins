@@ -959,7 +959,7 @@ function removeFromCart(pin){
           const div = document.createElement("div");
           const active = isAll ? (selectedDiameters.size === 0) : selectedDiameters.has(valueKey);
           div.className = "item" + (active ? " active" : "");
-          div.innerHTML = `${escapeHtml(label)}<small>${escapeHtml(sub)}</small>`;
+          div.innerHTML = `${escapeHtml(label)}${sub ? `<small>${escapeHtml(sub)}</small>` : ""}`;
 
           div.addEventListener("click", () => {
             if (isAll) selectedDiameters.clear();
@@ -978,7 +978,7 @@ function removeFromCart(pin){
         container.appendChild(makeItem({ label:"All", sub:"Any size", valueKey:null, isAll:true }));
 
         for (const d of diameters){
-          const sub = d.note ? d.note : "Exact";
+          const sub = d.note || "";
           container.appendChild(makeItem({ label:`Ø ${d.display}`, sub, valueKey:d.key }));
         }
       };
