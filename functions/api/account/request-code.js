@@ -1,4 +1,4 @@
-import { sendStoreEmail } from "../_email.js";
+import { buildSignInCodeEmail, sendStoreEmail } from "../_email.js";
 
 const CODE_TTL_SECONDS = 10 * 60;
 
@@ -57,19 +57,7 @@ export async function onRequestPost({ request, env }) {
        VALUES (?1, ?2, ?3, ?4, NULL, ?5)`
     ).bind(codeId, user.id, codeHash, now + CODE_TTL_SECONDS, now).run();
 
-    const store = String(env.STORE_NAME || "Mosaic Pins");
-    const subject = `${store}: your sign-in code`;
-    const text =
-      `Your ${store} sign-in code is: ${code}\n\n` +
-      `The code is valid for 10 minutes.\n\n` +
-      `If you did not request this code, you can ignore this email.`;
-    const html =
-      `<div style="background:#0b0d11;padding:24px;font-family:Arial,sans-serif;color:#e9eef7;">` +
-      `<div style="max-width:520px;margin:0 auto;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:#15181f;overflow:hidden;">` +
-      `<div style="padding:18px;border-bottom:1px solid rgba(255,255,255,.08);"><b>🟢 ${escapeHtml(store)}</b></div>` +
-      `<div style="padding:22px;"><div style="color:#a8b3c7;font-size:14px;">Your sign-in code</div>` +
-      `<div style="font-size:32px;font-weight:900;letter-spacing:7px;margin:12px 0 18px;">${code}</div>` +
-      `<div style="color:#a8b3c7;font-size:13px;line-height:1.5;">Valid for 10 minutes.<br>If you did not request this code, you can ignore this email.</div></div></div></div>`;
+    const { subject, text, html } = buildSignInCodeEmail(env, { code });
 
     try {
       // Login mail must never BCC the shop mailbox.
@@ -107,14 +95,6 @@ async function sha256(value) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {

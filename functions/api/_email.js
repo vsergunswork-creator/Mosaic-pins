@@ -12,7 +12,7 @@ export async function sendStoreEmail(env, { to, subject, text, html }) {
       to: [{ email: to }],
       ...(bcc ? { bcc: [{ email: bcc }] } : {}),
     }],
-    from: { email: from },
+    from: { email: from, name: getStoreName(env) },
     ...(replyTo ? { reply_to: { email: replyTo } } : {}),
     subject,
     content: [
@@ -39,7 +39,7 @@ export function normalizeOrderLanguage(value) {
 }
 
 export function buildPaidEmail(env, { name, orderId, amount, currency, language = "en" }) {
-  const store = String(env.STORE_NAME || "Mosaic Pins");
+  const store = getStoreName(env);
   const lang = normalizeOrderLanguage(language);
   const t = COPY[lang];
   const greeting = makeGreeting(name, t, lang);
@@ -77,7 +77,7 @@ ${t.questions}
 }
 
 export function buildShippedEmail(env, { name, orderId, tracking, carrier = "DHL Paket", language = "en" }) {
-  const store = String(env.STORE_NAME || "Mosaic Pins");
+  const store = getStoreName(env);
   const lang = normalizeOrderLanguage(language);
   const t = COPY[lang];
   const greeting = makeGreeting(name, t, lang);
@@ -241,12 +241,39 @@ function buildDhlTrackingUrl(tracking) {
   return `https://nolp.dhl.de/nextt-online-public/?piececode=${encodeURIComponent(String(tracking || "").trim())}`;
 }
 
+const BRAND_LOGO_URL = "https://mosaicpins.space/assets/img/mosaic-pins-mark.png";
+
+export function buildSignInCodeEmail(env, { code }) {
+  const store = getStoreName(env);
+  const safeCode = String(code || "").trim();
+  const subject = `${store}: your sign-in code`;
+  const text =
+    `Your ${store} sign-in code is: ${safeCode}\n\n` +
+    `The code is valid for 10 minutes.\n\n` +
+    `If you did not request this code, you can ignore this email.`;
+  const html = shell(store, "Secure sign-in", `
+    <div style="color:#a8b3c7;font-size:14px;">Your sign-in code</div>
+    <div style="font-size:32px;font-weight:900;letter-spacing:7px;margin:12px 0 18px;">${escapeHtml(safeCode)}</div>
+    <div style="color:#a8b3c7;font-size:13px;line-height:1.5;">Valid for 10 minutes.<br/>If you did not request this code, you can ignore this email.</div>
+  `, "Mosaic Pins Space");
+  return { subject, text, html };
+}
+
+function getStoreName(env) {
+  const configured = String(env?.STORE_NAME || "").trim();
+  if (!configured || configured.toLowerCase() === "mosaic pins") return "Mosaic Pins Space";
+  return configured;
+}
+
 function shell(store, subtitle, body, footerText) {
   return `<div style="background:#0b0d11;padding:24px;font-family:Arial,sans-serif;color:#e9eef7;">
   <div style="max-width:520px;margin:0 auto;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));box-shadow:0 12px 30px rgba(0,0,0,.45);overflow:hidden;">
     <div style="padding:18px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(34,197,94,.14),rgba(0,0,0,0));">
-      <div style="font-weight:900;font-size:16px;letter-spacing:.2px;">🟢 ${escapeHtml(store)}</div>
-      <div style="color:#a8b3c7;font-size:13px;margin-top:4px;">${escapeHtml(subtitle)}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr>
+        <td style="vertical-align:middle;padding-right:10px;"><img src="${BRAND_LOGO_URL}" width="30" height="30" alt="Mosaic Pins Space" style="display:block;width:30px;height:30px;border:0;border-radius:50%;"/></td>
+        <td style="vertical-align:middle;font-weight:900;font-size:16px;letter-spacing:.2px;color:#e9eef7;">${escapeHtml(store)}</td>
+      </tr></table>
+      <div style="color:#a8b3c7;font-size:13px;margin-top:6px;">${escapeHtml(subtitle)}</div>
     </div>
     <div style="padding:20px;">${body}</div>
     <div style="padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.25);color:#a8b3c7;font-size:12px;text-align:center;">${escapeHtml(footerText)}</div>
