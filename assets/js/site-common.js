@@ -1126,26 +1126,40 @@
   ];
   const nav = document.querySelector(".sidebar .sb-nav, .sidebar .nav, .sidebar nav");
   if (nav) {
-    const navLinks = [...nav.querySelectorAll("a.nav-item")];
-    const links = new Map(navLinks.map(a => [a.textContent.trim(), a]));
+    const normalizeNavPath = (href) => {
+      try {
+        return (new URL(href || "/", location.origin).pathname || "/")
+          .replace(/\.html$/, "") || "/";
+      } catch (_) {
+        return String(href || "/").replace(/\.html$/, "") || "/";
+      }
+    };
 
-    // Detect Account by href/id instead of visible text. The pre-paint translator
-    // may already have changed "Account" to "Аккаунт/Konto/Compte" before this runs.
+    let navLinks = [...nav.querySelectorAll("a.nav-item")];
+
+    // Find links by route, never by visible text. The pre-paint translator can
+    // translate labels before this runs (Shop -> Магазин / Konto / Boutique etc.),
+    // so text-based ordering breaks on non-English languages.
+    const linksByPath = new Map();
+    for (const a of navLinks) {
+      const path = normalizeNavPath(a.getAttribute("href"));
+      if (!linksByPath.has(path)) linksByPath.set(path, a);
+    }
+
     let account = navLinks.find(a =>
       a.id === "navAccount" ||
-      a.getAttribute("href") === "/account" ||
-      a.getAttribute("href") === "/account.html"
+      normalizeNavPath(a.getAttribute("href")) === "/account"
     );
 
     // Remove accidental duplicate Account links, keeping the first one.
     const accountLinks = navLinks.filter(a =>
       a.id === "navAccount" ||
-      a.getAttribute("href") === "/account" ||
-      a.getAttribute("href") === "/account.html"
+      normalizeNavPath(a.getAttribute("href")) === "/account"
     );
     if (accountLinks.length > 1) {
       accountLinks.slice(1).forEach(a => a.remove());
       account = accountLinks[0];
+      navLinks = [...nav.querySelectorAll("a.nav-item")];
     }
 
     if (!account) {
@@ -1157,12 +1171,17 @@
       nav.appendChild(account);
     }
 
-    // Make sure the shared ordering logic can always find Account by its EN key.
-    links.set("Account", account);
+    linksByPath.set("/account", account);
 
-    for (const [label, href] of order) {
-      const a = links.get(label);
-      if (a) { a.href = href; nav.appendChild(a); }
+    // Force the same navigation order in EN / DE / RU / FR regardless of when
+    // translation happens.
+    for (const [, href] of order) {
+      const path = normalizeNavPath(href);
+      const a = linksByPath.get(path);
+      if (a) {
+        a.href = href;
+        nav.appendChild(a);
+      }
     }
     const path = location.pathname.replace(/\.html$/, "") || "/";
     for (const a of nav.querySelectorAll("a.nav-item")) {
