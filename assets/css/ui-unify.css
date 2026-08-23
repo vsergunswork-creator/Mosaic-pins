@@ -31,3 +31,12 @@
     letter-spacing: .15px !important;
   }
 }
+
+
+/* Desktop already has persistent sidebar navigation.
+   Keep Back to Shop buttons only for compact/mobile layouts. */
+@media (min-width:981px){
+  .topbar .backBtn{
+    display:none !important;
+  }
+}
