@@ -1188,6 +1188,41 @@
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendReview();
   });
 
+  // Keep the Customer reviews panel exactly as tall as the Leave a review
+  // panel on desktop. A ResizeObserver also catches purchase context, photo/video
+  // previews, translations and any other form-height changes.
+  function initReviewPanelHeightSync(){
+    const grid = document.querySelector(".grid2");
+    const panels = grid ? Array.from(grid.children).filter(el => el.classList?.contains("panel")) : [];
+    const formPanel = panels[0] || null;
+    const reviewsPanel = panels[1] || null;
+
+    if (!grid || !formPanel || !reviewsPanel) return;
+
+    let raf = 0;
+
+    const sync = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!window.matchMedia("(min-width: 981px)").matches) {
+          reviewsPanel.style.removeProperty("--reviews-panel-height");
+          return;
+        }
+
+        const h = Math.ceil(formPanel.getBoundingClientRect().height);
+        if (h > 0) reviewsPanel.style.setProperty("--reviews-panel-height", `${h}px`);
+      });
+    };
+
+    const observer = new ResizeObserver(sync);
+    observer.observe(formPanel);
+
+    window.addEventListener("resize", sync, { passive:true });
+    window.addEventListener("load", sync, { once:true });
+    sync();
+  }
+
   // init
+  initReviewPanelHeightSync();
   initPurchaseReviewContext();
   loadReviews();
