@@ -1,0 +1,33 @@
+/* Mosaic Pins Space — shared desktop visual unification
+   Keeps the top green page header, removes duplicate sidebar page pills,
+   and makes inner panel headers match the calmer About style. */
+
+@media (min-width: 981px) {
+  /* Brand is shown once; the small page-name/count pill beside it is redundant. */
+  .sidebar .sb-top .pill {
+    display: none !important;
+  }
+
+  /* Top green bar should show only the page title on desktop. */
+  .topbar .sub {
+    display: none !important;
+  }
+
+  /* About is the visual reference for inner panels. */
+  .panel {
+    border-color: rgba(255,255,255,.07) !important;
+    background: rgba(0,0,0,.16) !important;
+    box-shadow: none !important;
+  }
+
+  .panelHead {
+    padding: 12px 15px 11px !important;
+    background: rgba(255,255,255,.018) !important;
+    border-bottom-color: rgba(255,255,255,.06) !important;
+  }
+
+  .panelTitle {
+    font-size: 13px !important;
+    letter-spacing: .15px !important;
+  }
+}
