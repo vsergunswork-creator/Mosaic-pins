@@ -4,9 +4,9 @@
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
 import { eurToUsd, getEurUsdRate } from "./_fx.js";
 
-export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v4";
+export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v5";
 export const PRODUCTS_CACHE_TTL = 60; // keep catalog fresh while avoiding per-visit Airtable reads
-export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v3";
+export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v5";
 export const PRODUCTS_FALLBACK_TTL = 7 * 86400;
 
 export function requireAirtableEnv(env) {
@@ -138,6 +138,10 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, e
     title: String(f["Title"] ?? pin),
     description: String(f["Description"] ?? ""),
     type: valueOrNull(f["Type"]),
+    // Keep both the exact Airtable value and a normalized number. The storefront
+    // prefers diameterRaw, so values such as 6,35 / Ø6,35 / 10 are never
+    // reconstructed from unrelated data or an old cached representation.
+    diameterRaw: f["Diameter"] ?? null,
     diameter: toNumberOrNull(f["Diameter"]),
     color: valueOrNull(f["Color"]),
     materials: normalizeMaterials(f["Materials"]),

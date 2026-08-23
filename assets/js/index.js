@@ -791,15 +791,13 @@ function removeFromCart(pin){
         .sort((a,b)=>a.n-b.n)
         .map(x => x.k);
 
-      // No explicit selection means all available diameter groups are active.
-      // Show their numeric count instead of 0 / "All". Only diameter groups
-      // that currently have at least one in-stock product are counted.
-      const inStockDiameterCount = new Set(
-        products
-          .filter(p => Number(p.stock || 0) > 0 && p.diameterKey)
-          .map(p => p.diameterKey)
-      ).size;
-      const diameterCountLabel = arr.length ? String(arr.length) : String(inStockDiameterCount);
+      // Diameter badge = PRODUCT MODEL count, never stock quantity.
+      // "All" means every catalog product. With one or more diameter filters
+      // selected, count the product models belonging to those diameters.
+      const diameterProductCount = selectedDiameters.size === 0
+        ? products.length
+        : products.filter(p => p.diameterKey && selectedDiameters.has(p.diameterKey)).length;
+      const diameterCountLabel = String(diameterProductCount);
       elDiaCount.textContent = diameterCountLabel;
       elMDiaCount.textContent = diameterCountLabel;
       elFiltersBadge.textContent = diameterCountLabel;
@@ -907,7 +905,9 @@ function removeFromCart(pin){
         const pin = x.pin || x.pin_code || x.PIN || x["PIN Code"] || "—";
         const title = x.title || x.name || "Untitled";
         const description = x.description || "";
-        const diameterRaw = (x.diameter ?? x.diameter_mm ?? x["Diameter"] ?? null);
+        // Prefer the exact raw Airtable Diameter value returned by the API.
+        // Fall back to the normalized numeric value for older responses.
+        const diameterRaw = (x.diameterRaw ?? x.diameter ?? x.diameter_mm ?? x["Diameter"] ?? null);
 
         const dia = parseDiameter(diameterRaw);
 
