@@ -81,6 +81,8 @@ export async function onRequestPost(ctx) {
         recordId: p.recordId,
         pin: p.pin,
         title: p.title,
+        image: Array.isArray(p.images) && p.images.length ? String(p.images[0] || "") : "",
+        diameter: Number.isFinite(Number(p.diameter)) ? Number(p.diameter) : null,
         stock: Number(p.stock || 0),
         active: p.active === true,
         priceEUR: p.price?.EUR,
@@ -135,7 +137,12 @@ export async function onRequestPost(ctx) {
       metaItems.push({
         recordId: p.recordId,
         pin: p.pin,
+        title: p.title,
+        image: p.image,
+        diameter: p.diameter,
         qty,
+        unitPrice: unit,
+        currency,
       });
     }
 

@@ -1,5 +1,6 @@
 import { decrementAirtableStock } from "./_airtable-products.js";
 import { runShippedSweep, sendPaidEmailForRecord } from "./_notifications.js";
+import { upsertOrderItemSnapshots } from "./_order-snapshots.js";
 
 // functions/api/stripe-webhook.js
 // POST /api/stripe-webhook
@@ -98,7 +99,7 @@ export async function onRequestPost(ctx) {
 
     // ---------- normalize items ----------
     // meta item format: { recordId, pin, qty }
-    const map = new Map(); // recordId -> { qty, pin }
+    const map = new Map(); // recordId -> validated checkout item + purchase snapshot
 
     for (const it of items) {
       const recordId = String(it?.recordId || "").trim();
@@ -108,19 +109,33 @@ export async function onRequestPost(ctx) {
       if (!recordId) continue;
       if (!Number.isFinite(qty) || qty <= 0) continue;
 
+      const snapshot = {
+        pin,
+        title: String(it?.title || "").trim(),
+        image: String(it?.image || "").trim(),
+        diameter: Number.isFinite(Number(it?.diameter)) ? Number(it.diameter) : null,
+        unitPrice: Number(it?.unitPrice),
+        currency: String(it?.currency || "").trim().toUpperCase(),
+      };
+
       const prevItem = map.get(recordId);
       if (prevItem) {
         prevItem.qty += qty;
         if (!prevItem.pin && pin) prevItem.pin = pin;
         map.set(recordId, prevItem);
       } else {
-        map.set(recordId, { qty, pin });
+        map.set(recordId, { qty, ...snapshot });
       }
     }
 
     const normalized = [...map.entries()].map(([recordId, data]) => ({
       recordId,
       pin: String(data?.pin || "").trim(),
+      title: String(data?.title || "").trim(),
+      image: String(data?.image || "").trim(),
+      diameter: Number.isFinite(Number(data?.diameter)) ? Number(data.diameter) : null,
+      unitPrice: Number(data?.unitPrice),
+      snapshotCurrency: String(data?.currency || "").trim().toUpperCase(),
       qty: Number(data?.qty || 0),
     }));
 
@@ -242,6 +257,29 @@ export async function onRequestPost(ctx) {
         recordId: existing.id,
         fields: orderFields,
       });
+    }
+
+    // Save exact purchase-time product data for My Orders / Verified Purchase.
+    // This is deliberately best-effort: a snapshot failure must never block a
+    // completed payment, Airtable order creation, stock update, or confirmation email.
+    try {
+      await upsertOrderItemSnapshots(env, {
+        orderKey: stripeSessionId,
+        provider: "stripe",
+        currency,
+        createdAt: createdSec || createdAtISO,
+        items: normalized.map((it) => ({
+          recordId: it.recordId,
+          pin: it.pin,
+          title: it.title,
+          image: it.image,
+          diameter: it.diameter,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+        })),
+      });
+    } catch (snapshotError) {
+      console.error("Stripe order snapshot failed; payment flow continues", snapshotError);
     }
 
     // Customer confirmation is sent immediately when possible.
