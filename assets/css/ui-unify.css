@@ -2,6 +2,37 @@
    Keeps the top green page header, removes duplicate sidebar page pills,
    and makes inner panel headers match the calmer About style. */
 
+/* =========================================================
+   STEP 24E — SHARED BRAND MARK
+   Replaces the old decorative green dot with the Mosaic Pins
+   pin mark in desktop/sidebar branding, mobile drawer branding,
+   account branding and the shared footer.
+   ========================================================= */
+.brand > .dot,
+.footerBrand > .dot,
+.mp-mobile-menu-brand > .dot{
+  display:inline-block;
+  flex:0 0 auto;
+  border-radius:50% !important;
+  background:transparent url("/assets/img/mosaic-pins-mark.png") center/contain no-repeat !important;
+  box-shadow:none !important;
+}
+
+.brand > .dot{
+  width:26px !important;
+  height:26px !important;
+}
+
+.footerBrand > .dot{
+  width:17px !important;
+  height:17px !important;
+}
+
+.mp-mobile-menu-brand > .dot{
+  width:24px !important;
+  height:24px !important;
+}
+
 @media (min-width: 981px) {
   /* Brand is shown once; the small page-name/count pill beside it is redundant. */
   .sidebar .sb-top .pill {
