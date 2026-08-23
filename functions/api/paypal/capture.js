@@ -3,6 +3,7 @@
 
 import { findProductRecordsByPins, decrementAirtableStock, invalidateProductCache } from "../_airtable-products.js";
 import { sendPaidEmailForRecord } from "../_notifications.js";
+import { upsertOrderItemSnapshots } from "../_order-snapshots.js";
 
 export function onRequestOptions({ request }) {
   return new Response(null, {
@@ -493,6 +494,56 @@ export async function onRequestPost(ctx) {
               "Tracking Number": "",
             }
           );
+
+      // Save exact purchase-time product data for My Orders / Verified Purchase.
+      // create-order cached title/image/diameter/unit price before the buyer left
+      // for PayPal. If that cache is unavailable, fall back only to fields PayPal
+      // itself preserved on the paid order. Snapshot failure must never block the
+      // completed payment, Airtable order, stock update, or confirmation email.
+      try {
+        const snapshotKey = `paypal_cart:${orderID}`;
+        let snapshotItems = [];
+        let snapshotCurrency = currency;
+
+        const cachedSnapshot = String(
+          (await env.STRIPE_EVENTS_KV.get(snapshotKey)) || ""
+        ).trim();
+
+        if (cachedSnapshot) {
+          try {
+            const parsed = JSON.parse(cachedSnapshot);
+            if (Array.isArray(parsed?.items)) snapshotItems = parsed.items;
+            if (parsed?.currency) snapshotCurrency = String(parsed.currency).toUpperCase();
+          } catch (_) {}
+        }
+
+        if (!snapshotItems.length) {
+          snapshotItems = rawItems.map((it) => {
+            const pin = String(it?.sku || "").trim();
+            const qty = Math.floor(Number(it?.quantity || 0));
+            const unitPrice = Number(it?.unit_amount?.value);
+            return {
+              recordId: String(byPin.get(pin)?.id || ""),
+              pin,
+              title: String(it?.name || pin).trim(),
+              image: "",
+              diameter: null,
+              qty,
+              unitPrice,
+            };
+          });
+        }
+
+        await upsertOrderItemSnapshots(env, {
+          orderKey: orderID,
+          provider: "paypal",
+          currency: snapshotCurrency || currency,
+          createdAt,
+          items: snapshotItems,
+        });
+      } catch (snapshotError) {
+        console.error("PayPal order snapshot failed; payment flow continues", snapshotError);
+      }
 
       for (const [pin, qty] of itemMap) {
         const recordId =

@@ -19,6 +19,11 @@ export async function onRequestPost({ request, env }) {
     const body = await request.json().catch(() => ({}));
     const currency = normCurrency(body.currency);
     const shippingCountry = String(body.shippingCountry || "").toUpperCase().trim();
+
+    // Optional PayPal-only test/admin hook. It is OFF unless
+    // PAYPAL_TEST_FREE_SHIPPING_EMAIL is configured and the request belongs
+    // to that exact verified signed-in Mosaic Pins account.
+    const freeShippingTest = await isAuthorizedFreeShippingTest({ request, env });
     const rawItems = Array.isArray(body.items) ? body.items : [];
     if (!shippingCountry || shippingCountry.length !== 2) return json({ ok: false, error: "shippingCountry is required" }, 400, headers);
 
@@ -43,6 +48,7 @@ export async function onRequestPost({ request, env }) {
 
     let itemTotalCents = 0;
     const ppItems = [];
+    const snapshotItems = [];
     for (const pin of pins) {
       const qty = cart.get(pin);
       const p = byPin.get(pin);
@@ -60,13 +66,24 @@ export async function onRequestPost({ request, env }) {
         sku: pin,
         category: "PHYSICAL_GOODS",
       });
+      snapshotItems.push({
+        recordId: String(p.recordId || ""),
+        pin,
+        title: String(p.title || pin),
+        image: String(Array.isArray(p.images) ? (p.images[0] || "") : ""),
+        diameter: Number.isFinite(Number(p.diameter)) ? Number(p.diameter) : null,
+        qty,
+        unitPrice: unitCents / 100,
+        currency,
+      });
     }
 
     const shippingQuote = await getDhlTracked2kgQuote(env, shippingCountry, currency);
-    const shippingCents = Math.round(Number(shippingQuote.price) * 100);
-    if (!Number.isFinite(shippingCents) || shippingCents <= 0) {
+    const quotedShippingCents = Math.round(Number(shippingQuote.price) * 100);
+    if (!Number.isFinite(quotedShippingCents) || quotedShippingCents <= 0) {
       return json({ ok: false, error: "DHL shipping quote is unavailable." }, 503, headers);
     }
+    const shippingCents = freeShippingTest ? 0 : quotedShippingCents;
     const totalCents = itemTotalCents + shippingCents;
 
     const apiBase = mode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
@@ -103,10 +120,74 @@ export async function onRequestPost({ request, env }) {
     const orderData = await orderRes.json().catch(() => ({}));
     if (!orderRes.ok || !orderData.id) return json({ ok: false, error: "Create PayPal order failed", details: orderData }, 500, headers);
 
+    // Keep exact purchase-time product data until the PayPal order is captured.
+    // This is best-effort and must never block creation of a valid PayPal order.
+    try {
+      if (env.STRIPE_EVENTS_KV) {
+        await env.STRIPE_EVENTS_KV.put(
+          `paypal_cart:${orderData.id}`,
+          JSON.stringify({ currency, items: snapshotItems }),
+          { expirationTtl: 7 * 24 * 60 * 60 }
+        );
+      }
+    } catch (snapshotCacheError) {
+      console.error("PayPal purchase snapshot cache failed; checkout continues", snapshotCacheError);
+    }
+
     return json({ ok: true, id: orderData.id, total: cents(totalCents), currency, mode }, 200, headers);
   } catch (e) {
     return json({ ok: false, error: String(e?.message || e) }, 500, headers);
   }
+}
+
+async function isAuthorizedFreeShippingTest({ request, env }) {
+  const expectedEmail = String(env.PAYPAL_TEST_FREE_SHIPPING_EMAIL || "")
+    .trim()
+    .toLowerCase();
+
+  if (!expectedEmail || !env.DB) return false;
+
+  try {
+    const token = getCookie(request.headers.get("Cookie") || "", "mp_session");
+    if (!token) return false;
+
+    const now = Math.floor(Date.now() / 1000);
+    const tokenHash = await sha256(token);
+
+    const session = await env.DB.prepare(
+      `SELECT
+         u.email AS email,
+         u.email_verified_at AS email_verified_at
+       FROM account_sessions AS s
+       JOIN account_users AS u ON u.id = s.user_id
+       WHERE s.token_hash = ?1
+         AND s.expires_at >= ?2
+       LIMIT 1`
+    ).bind(tokenHash, now).first();
+
+    if (!session?.email_verified_at) return false;
+    return String(session.email || "").trim().toLowerCase() === expectedEmail;
+  } catch (error) {
+    console.warn("PayPal test free-shipping auth check failed:", error);
+    return false;
+  }
+}
+
+function getCookie(cookieHeader, name) {
+  const prefix = `${name}=`;
+  for (const part of String(cookieHeader || "").split(";")) {
+    const item = part.trim();
+    if (item.startsWith(prefix)) return item.slice(prefix.length);
+  }
+  return "";
+}
+
+async function sha256(value) {
+  const data = new TextEncoder().encode(String(value || ""));
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function requirePayPalMode(env) { const m = String(env.PAYPAL_MODE || "").toLowerCase().trim(); if (!['live','sandbox'].includes(m)) throw new Error('PAYPAL_MODE must be explicitly set to live or sandbox'); return m; }
