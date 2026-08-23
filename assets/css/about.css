@@ -558,7 +558,8 @@
 
       .hero{
         min-height: 0;
-        aspect-ratio: 16 / 7;
+        /* Wide fallback until the real Airtable banner ratio is known. */
+        aspect-ratio: 4 / 1;
       }
       .heroInner{
         min-height: 0;

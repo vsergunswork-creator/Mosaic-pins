@@ -728,22 +728,21 @@
     heroImg.dataset.src = url;
     heroImg.style.backgroundImage = `url("${url}")`;
 
-    // Desktop: match the actual banner ratio, then use contain. This keeps the
-    // complete lower row of pins visible instead of cropping it with cover.
-    if (window.matchMedia("(min-width: 981px)").matches) {
-      const probe = new Image();
-      probe.decoding = "async";
-      probe.onload = () => {
-        const w = Number(probe.naturalWidth || 0);
-        const h = Number(probe.naturalHeight || 0);
-        if (w > 0 && h > 0) {
-          const ratio = w / h;
-          // Protect the layout from a malformed/extreme attachment.
-          if (ratio >= 2 && ratio <= 8) hero.style.aspectRatio = `${w} / ${h}`;
-        }
-      };
-      probe.src = url;
-    }
+    // Match the hero container to the banner's real proportions on every
+    // screen size. The image is shown with contain, so mobile no longer
+    // gets a tall 16:7 box with empty bands around a wide banner.
+    const probe = new Image();
+    probe.decoding = "async";
+    probe.onload = () => {
+      const w = Number(probe.naturalWidth || 0);
+      const h = Number(probe.naturalHeight || 0);
+      if (w > 0 && h > 0) {
+        const ratio = w / h;
+        // Protect the layout from a malformed/extreme attachment.
+        if (ratio >= 2 && ratio <= 8) hero.style.aspectRatio = `${w} / ${h}`;
+      }
+    };
+    probe.src = url;
   }
 
   function readLocalAbout(){
@@ -784,11 +783,6 @@
     aboutBody.textContent = c.aboutBody || "";
 
     setHeroBg(c.heroImage);
-
-    // Preserve the existing compact mobile banner behaviour.
-    if (window.matchMedia("(max-width: 980px)").matches) {
-      hero.style.aspectRatio = "16 / 7";
-    }
 
     gallery = Array.isArray(c.gallery) ? c.gallery.filter(Boolean) : [];
     galHint.textContent = gallery.length ? `${gallery.length} photos` : "No photos";
