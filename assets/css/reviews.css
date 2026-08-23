@@ -603,6 +603,14 @@
       white-space:pre-line;
     }
 
+    .purchaseReviewContext{
+      margin-bottom:12px;
+    }
+    .purchaseReviewContext[hidden]{display:none;}
+    .purchaseReviewContext .rPurchase{
+      margin-top:0;
+    }
+
     .rPurchase{
       margin-top:10px;
       display:inline-flex;

@@ -10,6 +10,47 @@
   const purchaseReviewOrderId = String(reviewQuery.get("order") || "").trim();
   const API_CHECKOUT = "/api/checkout";
 
+  async function initPurchaseReviewContext(){
+    const host = document.getElementById("purchaseReviewContext");
+    if (!host || !purchaseReviewPin || !purchaseReviewOrderId) return;
+
+    try{
+      const params = new URLSearchParams({ pin: purchaseReviewPin, order: purchaseReviewOrderId });
+      const response = await fetch(`/api/account/verified-purchase?${params.toString()}`, {
+        method:"GET",
+        credentials:"same-origin",
+        cache:"no-store"
+      });
+      const data = await response.json().catch(()=>({}));
+      const purchase = data?.verifiedPurchase ? data?.purchase : null;
+      if (!response.ok || !purchase) return;
+
+      host.innerHTML = "";
+      const row = document.createElement("div");
+      row.className = "rPurchase purchaseReviewRow";
+
+      if (purchase.image){
+        const image = document.createElement("img");
+        image.className = "rPurchaseImg";
+        image.src = purchase.image;
+        image.alt = purchase.title || purchaseReviewPin || "Mosaic Pin";
+        row.appendChild(image);
+      }
+
+      const label = document.createElement("div");
+      label.className = "rPurchaseText";
+      const titlePart = String(purchase.title || "").trim();
+      const pinPart = String(purchase.pin || purchaseReviewPin || "").trim();
+      label.textContent = [titlePart, pinPart].filter(Boolean).join(" · ");
+      row.appendChild(label);
+
+      host.appendChild(row);
+      host.hidden = false;
+    }catch(_){
+      // Submit is still protected by the same backend verification.
+    }
+  }
+
   // PayPal endpoints (EXACT as About)
   const API_PP_CONFIG  = "/api/paypal/config";        // returns { clientId }
   const API_PP_CREATE  = "/api/paypal/create-order";  // returns { id }
@@ -1104,4 +1145,5 @@
   });
 
   // init
+  initPurchaseReviewContext();
   loadReviews();
