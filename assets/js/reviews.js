@@ -6,9 +6,27 @@
 
   const API_REVIEWS  = "/api/reviews";
   const reviewQuery = new URLSearchParams(location.search);
-  const purchaseReviewPin = String(reviewQuery.get("pin") || "").trim();
-  const purchaseReviewOrderId = String(reviewQuery.get("order") || "").trim();
+  let purchaseReviewPin = String(reviewQuery.get("pin") || "").trim();
+  let purchaseReviewOrderId = String(reviewQuery.get("order") || "").trim();
   const API_CHECKOUT = "/api/checkout";
+
+  function clearPurchaseReviewContext(){
+    const host = document.getElementById("purchaseReviewContext");
+    if (host){
+      host.innerHTML = "";
+      host.hidden = true;
+    }
+
+    purchaseReviewPin = "";
+    purchaseReviewOrderId = "";
+
+    try{
+      const url = new URL(location.href);
+      url.searchParams.delete("pin");
+      url.searchParams.delete("order");
+      history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }catch(_){}
+  }
 
   async function initPurchaseReviewContext(){
     const host = document.getElementById("purchaseReviewContext");
@@ -1127,6 +1145,7 @@
       if (elVideo) elVideo.value = "";
       renderPhotoPreview();
       renderVideoPreview();
+      clearPurchaseReviewContext();
       loadReviews();
     }catch(e){
       toast("Review", String(e?.message || e));
