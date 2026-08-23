@@ -4,7 +4,7 @@
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
 import { eurToUsd, getEurUsdRate } from "./_fx.js";
 
-export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v3";
+export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v4";
 export const PRODUCTS_CACHE_TTL = 60; // keep catalog fresh while avoiding per-visit Airtable reads
 export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v3";
 export const PRODUCTS_FALLBACK_TTL = 7 * 86400;
@@ -263,7 +263,22 @@ function valueOrNull(v) {
 }
 function toNumberOrNull(v) {
   if (v == null || v === "") return null;
-  const n = Number(String(v).replace(/\s+/g, "").replace(",", "."));
+
+  // Airtable Diameter may be a Number, formula/text such as "6,35",
+  // "Ø6,35", "6.35 mm", or a single-value array. Normalize all of
+  // those to one numeric diameter for the storefront/filter logic.
+  if (Array.isArray(v)) v = v.length ? v[0] : null;
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+
+  const s = String(v)
+    .trim()
+    .replace(/\u00a0/g, " ")
+    .replace(/,/g, ".");
+  const match = s.match(/[-+]?\d+(?:\.\d+)?/);
+  if (!match) return null;
+
+  const n = Number(match[0]);
   return Number.isFinite(n) ? n : null;
 }
 function toInt(v, fallback = 0) {

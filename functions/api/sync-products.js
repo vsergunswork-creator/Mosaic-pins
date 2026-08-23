@@ -247,7 +247,18 @@ function valueOrNull(v) {
 
 function toNumberOrNull(v) {
   if (v == null || v === "") return null;
-  const n = Number(String(v).replace(",", "."));
+  if (Array.isArray(v)) v = v.length ? v[0] : null;
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+
+  const s = String(v)
+    .trim()
+    .replace(/\u00a0/g, " ")
+    .replace(/,/g, ".");
+  const match = s.match(/[-+]?\d+(?:\.\d+)?/);
+  if (!match) return null;
+
+  const n = Number(match[0]);
   return Number.isFinite(n) ? n : null;
 }
 
