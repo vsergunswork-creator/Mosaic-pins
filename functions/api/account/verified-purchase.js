@@ -135,6 +135,7 @@ export async function verifyPurchaseForRequest({ request, env, pin, orderId = ""
     purchase: {
       orderId: order ? niceOrderId(order, env) : String(snapshot.order_key || ""),
       orderKey: String(snapshot.order_key || ""),
+      pin: String(snapshot.pin || normalizedPin),
       provider: String(snapshot.provider || ""),
       productRecordId: String(snapshot.product_record_id || ""),
       title: String(snapshot.title || snapshot.pin || ""),
