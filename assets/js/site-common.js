@@ -1204,6 +1204,182 @@
     else if (path === "/cancel") document.body.classList.add("mp-page-cancel");
   }
 
+
+  function setupMobileMenu(){
+    if (document.getElementById("mpMobileShell")) return;
+    const app = document.querySelector(".app");
+    const sourceNav = document.querySelector(".sidebar .sb-nav, .sidebar .nav, .sidebar nav");
+    if (!app || !sourceNav) return;
+
+    const labels = {
+      en:{menu:"Open menu",close:"Close menu",cart:"Cart"},
+      de:{menu:"Menü öffnen",close:"Menü schließen",cart:"Warenkorb"},
+      ru:{menu:"Открыть меню",close:"Закрыть меню",cart:"Корзина"},
+      fr:{menu:"Ouvrir le menu",close:"Fermer le menu",cart:"Panier"}
+    }[lang] || {menu:"Open menu",close:"Close menu",cart:"Cart"};
+
+    const shell = document.createElement("header");
+    shell.id = "mpMobileShell";
+    shell.className = "mp-mobile-shell";
+    shell.innerHTML = `
+      <button class="mp-mobile-menu-btn" type="button" aria-label="${labels.menu}" aria-expanded="false" aria-controls="mpMobileMenu">
+        <span class="mp-mobile-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
+      <div class="mp-mobile-page-title" id="mpMobilePageTitle">Mosaic Pins Space</div>
+      <button class="mp-mobile-cart-btn" type="button" aria-label="${labels.cart}" title="${labels.cart}" hidden>
+        <span aria-hidden="true">🛒</span><span class="mp-mobile-cart-badge" id="mpMobileCartBadge">0</span>
+      </button>`;
+    document.body.insertBefore(shell, app);
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "mp-mobile-menu-backdrop";
+    backdrop.setAttribute("aria-hidden", "true");
+
+    const drawer = document.createElement("aside");
+    drawer.id = "mpMobileMenu";
+    drawer.className = "mp-mobile-menu";
+    drawer.setAttribute("aria-hidden", "true");
+    drawer.innerHTML = `
+      <div class="mp-mobile-menu-head">
+        <div class="mp-mobile-menu-brand"><span class="dot" aria-hidden="true"></span><span>Mosaic Pins Space</span></div>
+        <button class="mp-mobile-menu-close" type="button" aria-label="${labels.close}" title="${labels.close}">✕</button>
+      </div>
+      <div class="mp-mobile-menu-scroll">
+        <nav class="mp-mobile-menu-nav" aria-label="Navigation"></nav>
+        <div class="mp-mobile-menu-tools"></div>
+      </div>
+      <div class="mp-mobile-menu-legal">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/impressum">Impressum</a>
+      </div>`;
+    document.body.append(backdrop, drawer);
+
+    const mobileNav = drawer.querySelector(".mp-mobile-menu-nav");
+    const tools = drawer.querySelector(".mp-mobile-menu-tools");
+    const menuButton = shell.querySelector(".mp-mobile-menu-btn");
+    const closeButton = drawer.querySelector(".mp-mobile-menu-close");
+    const cartButton = shell.querySelector(".mp-mobile-cart-btn");
+    const mobileCartBadge = shell.querySelector(".mp-mobile-cart-badge");
+    const pageTitle = shell.querySelector(".mp-mobile-page-title");
+    const sourceTitle = document.querySelector(".topbar .h-title");
+    const sourceCart = document.getElementById("openCart");
+    const sourceCartBadge = document.getElementById("cartBadge");
+
+    const navClone = sourceNav.cloneNode(true);
+    navClone.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+    [...navClone.children].forEach(child => mobileNav.appendChild(child));
+
+    const syncTitle = () => {
+      const next = String(sourceTitle?.textContent || "").trim();
+      pageTitle.textContent = next || "Mosaic Pins Space";
+    };
+    syncTitle();
+    if (sourceTitle && typeof MutationObserver !== "undefined") {
+      new MutationObserver(syncTitle).observe(sourceTitle, {subtree:true, childList:true, characterData:true});
+    }
+
+    const syncCart = () => {
+      if (!sourceCart) {
+        cartButton.hidden = true;
+        return;
+      }
+      cartButton.hidden = false;
+      const count = String(sourceCartBadge?.textContent || "0").trim() || "0";
+      mobileCartBadge.textContent = count;
+    };
+    syncCart();
+    if (sourceCartBadge && typeof MutationObserver !== "undefined") {
+      new MutationObserver(syncCart).observe(sourceCartBadge, {subtree:true, childList:true, characterData:true});
+    }
+    if (sourceCart) cartButton.addEventListener("click", () => sourceCart.click());
+
+    let lastFocus = null;
+    const openMenu = () => {
+      if (!window.matchMedia("(max-width:980px)").matches) return;
+      lastFocus = document.activeElement;
+      document.body.classList.add("mp-mobile-menu-open");
+      menuButton.setAttribute("aria-expanded", "true");
+      drawer.setAttribute("aria-hidden", "false");
+      backdrop.setAttribute("aria-hidden", "false");
+      requestAnimationFrame(() => closeButton.focus({preventScroll:true}));
+    };
+    const closeMenu = (restoreFocus=true) => {
+      document.body.classList.remove("mp-mobile-menu-open");
+      menuButton.setAttribute("aria-expanded", "false");
+      drawer.setAttribute("aria-hidden", "true");
+      backdrop.setAttribute("aria-hidden", "true");
+      if (restoreFocus && lastFocus && typeof lastFocus.focus === "function") {
+        try { lastFocus.focus({preventScroll:true}); } catch (_) { lastFocus.focus(); }
+      }
+    };
+
+    menuButton.addEventListener("click", openMenu);
+    closeButton.addEventListener("click", () => closeMenu());
+    backdrop.addEventListener("click", () => closeMenu());
+    drawer.addEventListener("click", e => {
+      if (e.target.closest("a")) closeMenu(false);
+    });
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("mp-mobile-menu-open")) closeMenu();
+    });
+
+    const moved = new Map();
+    const moveInto = (el, target) => {
+      if (!el || !target || moved.has(el)) return;
+      const marker = document.createComment("mp-mobile-control-placeholder");
+      el.parentNode?.insertBefore(marker, el);
+      moved.set(el, marker);
+      target.appendChild(el);
+    };
+    const restore = el => {
+      const marker = moved.get(el);
+      if (!marker) return;
+      if (marker.parentNode) marker.parentNode.insertBefore(el, marker.nextSibling);
+      marker.remove();
+      moved.delete(el);
+    };
+    const restoreAll = () => [...moved.keys()].reverse().forEach(restore);
+
+    const movable = () => ({
+      search: document.querySelector(".topbar .search"),
+      filters: document.getElementById("openFilters"),
+      stock: document.querySelector(".topbar .toggle"),
+      locale: document.querySelector(".mp-locale-controls"),
+      back: document.querySelector(".topbar .backBtn")
+    });
+
+    let filterCloseWired = false;
+    const arrange = () => {
+      const isMobile = window.matchMedia("(max-width:980px)").matches;
+      if (!isMobile) {
+        closeMenu(false);
+        restoreAll();
+        return;
+      }
+      const parts = movable();
+      moveInto(parts.search, tools);
+      moveInto(parts.filters, tools);
+      moveInto(parts.stock, tools);
+      moveInto(parts.locale, tools);
+      moveInto(parts.back, tools);
+      if (parts.filters && !filterCloseWired) {
+        parts.filters.addEventListener("click", () => closeMenu(false), {capture:true});
+        filterCloseWired = true;
+      }
+    };
+
+    arrange();
+    const mq = window.matchMedia("(max-width:980px)");
+    if (typeof mq.addEventListener === "function") mq.addEventListener("change", arrange);
+    else if (typeof mq.addListener === "function") mq.addListener(arrange);
+
+    // The translation observer is already active on non-English pages, so the
+    // two newly inserted legal links are translated automatically. Do one
+    // immediate pass as well for browsers that schedule MutationObserver later.
+    translateTree(drawer);
+  }
+
   setupControls();
   wireTranslations();
+  setupMobileMenu();
 })();
