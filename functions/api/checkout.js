@@ -23,6 +23,7 @@ export async function onRequestPost(ctx) {
     const currency = String(body.currency || "EUR").toUpperCase();
     const items = Array.isArray(body.items) ? body.items : [];
     const shippingCountry = String(body.shippingCountry || "").trim().toUpperCase();
+    const language = normalizeOrderLanguage(getCookie(request.headers.get("Cookie") || "", "mp_language"));
 
     if (!["EUR", "USD"].includes(currency)) {
       return json({ ok: false, error: "Invalid currency" }, 400, headers);
@@ -182,6 +183,7 @@ export async function onRequestPost(ctx) {
         client_reference_id: `mp-${Date.now()}`,
         metadata: {
           currency,
+          language,
           checkoutId,
           cartKey,
           shippingCountry,
@@ -265,6 +267,11 @@ async function sha256(value) {
   return [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function normalizeOrderLanguage(value) {
+  const lang = String(value || "").trim().toLowerCase().slice(0, 2);
+  return ["en", "de", "ru", "fr"].includes(lang) ? lang : "en";
 }
 
 function corsHeaders(request) {

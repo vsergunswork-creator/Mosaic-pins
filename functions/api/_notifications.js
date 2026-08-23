@@ -1,5 +1,5 @@
 import { getOrderRecord, listOrderRecords, niceOrderId, updateOrderRecord } from "./_airtable-orders.js";
-import { buildPaidEmail, buildShippedEmail, sendStoreEmail } from "./_email.js";
+import { buildPaidEmail, buildShippedEmail, normalizeOrderLanguage, sendStoreEmail } from "./_email.js";
 
 export async function sendPaidEmailForRecord(env, rec, { recheck = true } = {}) {
   if (!rec?.id) return { sent: false, reason: "missing_record" };
@@ -18,11 +18,15 @@ export async function sendPaidEmailForRecord(env, rec, { recheck = true } = {}) 
   const to = String(f[emailField] || "").trim();
   if (!to) return { sent: false, reason: "missing_email" };
 
+  const languageField = String(env.AIRTABLE_LANGUAGE_FIELD || "Language");
+  const language = normalizeOrderLanguage(f[languageField]);
+
   const msg = buildPaidEmail(env, {
     name: String(f[nameField] || "").trim(),
     orderId: niceOrderId(rec, env),
     amount: f[amountField],
     currency: f[currencyField],
+    language,
   });
   await sendStoreEmail(env, { to, ...msg });
   await updateOrderRecord(env, rec.id, { [sentField]: true });
@@ -46,11 +50,15 @@ export async function sendShippedEmailForRecord(env, rec, { recheck = true } = {
   // Mosaic Pins currently ships customer parcels with DHL Paket.
   // Do not expose legacy DPD fallback text in customer emails.
   const carrier = "DHL Paket";
+  const languageField = String(env.AIRTABLE_LANGUAGE_FIELD || "Language");
+  const language = normalizeOrderLanguage(f[languageField]);
+
   const msg = buildShippedEmail(env, {
     name: String(f[nameField] || "").trim(),
     orderId: niceOrderId(rec, env),
     tracking,
     carrier,
+    language,
   });
   await sendStoreEmail(env, { to, ...msg });
   await updateOrderRecord(env, rec.id, { [sentField]: true });

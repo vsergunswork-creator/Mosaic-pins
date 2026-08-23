@@ -430,6 +430,20 @@ export async function onRequestPost(ctx) {
         amountObj?.currency_code || "EUR"
       ).toUpperCase();
 
+      // Language selected on mosaicpins.space when the PayPal order was created.
+      // If the cache is unavailable (legacy order / temporary KV issue), EN is the fallback.
+      let language = "en";
+      try {
+        const cachedPurchase = String(
+          (await env.STRIPE_EVENTS_KV.get(`paypal_cart:${orderID}`)) || ""
+        ).trim();
+
+        if (cachedPurchase) {
+          const parsedPurchase = JSON.parse(cachedPurchase);
+          language = normalizeOrderLanguage(parsedPurchase?.language);
+        }
+      } catch (_) {}
+
       const createdAt = String(
         capture?.create_time ||
           orderData?.create_time ||
@@ -479,21 +493,52 @@ export async function onRequestPost(ctx) {
             : 0,
       };
 
-      const savedOrder = existing?.id
-        ? await patchAirtableRecord(
-            env,
-            ORDERS,
-            existing.id,
-            fields
-          )
-        : await createAirtableRecord(
-            env,
-            ORDERS,
-            {
-              ...fields,
-              "Tracking Number": "",
-            }
-          );
+      const languageField = String(env.AIRTABLE_LANGUAGE_FIELD || "Language").trim();
+      if (languageField) fields[languageField] = language;
+
+      let savedOrder;
+      try {
+        savedOrder = existing?.id
+          ? await patchAirtableRecord(
+              env,
+              ORDERS,
+              existing.id,
+              fields
+            )
+          : await createAirtableRecord(
+              env,
+              ORDERS,
+              {
+                ...fields,
+                "Tracking Number": "",
+              }
+            );
+      } catch (orderSaveError) {
+        // Safety fallback: missing Language field must never block a completed
+        // PayPal payment, stock update, snapshots or customer confirmation.
+        if (!languageField || !isUnknownAirtableFieldError(orderSaveError, languageField)) {
+          throw orderSaveError;
+        }
+
+        console.warn(`Airtable field "${languageField}" is missing; PayPal order saved without language.`);
+        delete fields[languageField];
+
+        savedOrder = existing?.id
+          ? await patchAirtableRecord(
+              env,
+              ORDERS,
+              existing.id,
+              fields
+            )
+          : await createAirtableRecord(
+              env,
+              ORDERS,
+              {
+                ...fields,
+                "Tracking Number": "",
+              }
+            );
+      }
 
       // Save exact purchase-time product data for My Orders / Verified Purchase.
       // create-order cached title/image/diameter/unit price before the buyer left
@@ -667,6 +712,17 @@ export async function onRequestPost(ctx) {
       headers
     );
   }
+}
+
+function normalizeOrderLanguage(value) {
+  const lang = String(value || "").trim().toLowerCase().slice(0, 2);
+  return ["en", "de", "ru", "fr"].includes(lang) ? lang : "en";
+}
+
+function isUnknownAirtableFieldError(error, fieldName) {
+  const msg = String(error?.message || error || "");
+  return msg.includes("UNKNOWN_FIELD_NAME") ||
+    (msg.toLowerCase().includes("unknown field") && msg.includes(String(fieldName || "")));
 }
 
 function requirePayPalMode(env) {

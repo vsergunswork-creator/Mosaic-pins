@@ -19,6 +19,7 @@ export async function onRequestPost({ request, env }) {
     const body = await request.json().catch(() => ({}));
     const currency = normCurrency(body.currency);
     const shippingCountry = String(body.shippingCountry || "").toUpperCase().trim();
+    const language = normalizeOrderLanguage(getCookie(request.headers.get("Cookie") || "", "mp_language"));
 
     // Optional PayPal-only test/admin hook. It is OFF unless
     // PAYPAL_TEST_FREE_SHIPPING_EMAIL is configured and the request belongs
@@ -126,7 +127,7 @@ export async function onRequestPost({ request, env }) {
       if (env.STRIPE_EVENTS_KV) {
         await env.STRIPE_EVENTS_KV.put(
           `paypal_cart:${orderData.id}`,
-          JSON.stringify({ currency, items: snapshotItems }),
+          JSON.stringify({ currency, language, items: snapshotItems }),
           { expirationTtl: 7 * 24 * 60 * 60 }
         );
       }
@@ -171,6 +172,11 @@ async function isAuthorizedFreeShippingTest({ request, env }) {
     console.warn("PayPal test free-shipping auth check failed:", error);
     return false;
   }
+}
+
+function normalizeOrderLanguage(value) {
+  const lang = String(value || "").trim().toLowerCase().slice(0, 2);
+  return ["en", "de", "ru", "fr"].includes(lang) ? lang : "en";
 }
 
 function getCookie(cookieHeader, name) {

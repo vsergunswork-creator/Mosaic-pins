@@ -79,6 +79,7 @@ export async function onRequestPost(ctx) {
     }
 
     const meta = session?.metadata || {};
+    const language = normalizeOrderLanguage(meta.language);
     // New sessions store the cart in KV; legacy sessions may still contain metadata.items.
     let itemsJson = String(meta.items || "").trim();
     const cartKey = String(meta.cartKey || "").trim();
@@ -241,22 +242,51 @@ export async function onRequestPost(ctx) {
       "Payment Intent ID": paymentIntentId,
     };
 
+    const languageField = String(env.AIRTABLE_LANGUAGE_FIELD || "Language").trim();
+    if (languageField) orderFields[languageField] = language;
+
     let savedOrder;
-    if (!existing?.id) {
-      savedOrder = await airtableCreateRecord({
-        token: env.AIRTABLE_TOKEN,
-        baseId: env.AIRTABLE_BASE_ID,
-        table: ORDERS_TABLE,
-        fields: { ...orderFields, "Tracking Number": "" },
-      });
-    } else {
-      savedOrder = await airtableUpdateRecord({
-        token: env.AIRTABLE_TOKEN,
-        baseId: env.AIRTABLE_BASE_ID,
-        table: ORDERS_TABLE,
-        recordId: existing.id,
-        fields: orderFields,
-      });
+    try {
+      if (!existing?.id) {
+        savedOrder = await airtableCreateRecord({
+          token: env.AIRTABLE_TOKEN,
+          baseId: env.AIRTABLE_BASE_ID,
+          table: ORDERS_TABLE,
+          fields: { ...orderFields, "Tracking Number": "" },
+        });
+      } else {
+        savedOrder = await airtableUpdateRecord({
+          token: env.AIRTABLE_TOKEN,
+          baseId: env.AIRTABLE_BASE_ID,
+          table: ORDERS_TABLE,
+          recordId: existing.id,
+          fields: orderFields,
+        });
+      }
+    } catch (orderSaveError) {
+      // Safety fallback: if the new Airtable Language field has not been created
+      // yet, never block a paid Stripe order. Save without it and use EN emails.
+      if (!languageField || !isUnknownAirtableFieldError(orderSaveError, languageField)) throw orderSaveError;
+
+      console.warn(`Airtable field "${languageField}" is missing; Stripe order saved without language.`);
+      delete orderFields[languageField];
+
+      if (!existing?.id) {
+        savedOrder = await airtableCreateRecord({
+          token: env.AIRTABLE_TOKEN,
+          baseId: env.AIRTABLE_BASE_ID,
+          table: ORDERS_TABLE,
+          fields: { ...orderFields, "Tracking Number": "" },
+        });
+      } else {
+        savedOrder = await airtableUpdateRecord({
+          token: env.AIRTABLE_TOKEN,
+          baseId: env.AIRTABLE_BASE_ID,
+          table: ORDERS_TABLE,
+          recordId: existing.id,
+          fields: orderFields,
+        });
+      }
     }
 
     // Save exact purchase-time product data for My Orders / Verified Purchase.
@@ -511,6 +541,17 @@ function safeEqual(a, b) {
   let res = 0;
   for (let i = 0; i < a.length; i++) res |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return res === 0;
+}
+
+function normalizeOrderLanguage(value) {
+  const lang = String(value || "").trim().toLowerCase().slice(0, 2);
+  return ["en", "de", "ru", "fr"].includes(lang) ? lang : "en";
+}
+
+function isUnknownAirtableFieldError(error, fieldName) {
+  const msg = String(error?.message || error || "");
+  return msg.includes("UNKNOWN_FIELD_NAME") ||
+    (msg.toLowerCase().includes("unknown field") && msg.includes(String(fieldName || "")));
 }
 
 // ✅ one single json helper (no duplicates)
