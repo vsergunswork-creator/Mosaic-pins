@@ -1056,6 +1056,13 @@
     if (!trimmed) return text;
     if (dict[trimmed]) return text.replace(trimmed, dict[trimmed]);
 
+    // Cart buttons keep the shopping-cart emoji in the same text node
+    // (for example: "🛒 Cart"), so translate the label while preserving the icon.
+    let cartMatch = trimmed.match(/^(🛒\s*)Cart$/i);
+    if (cartMatch && dict["Cart"]) {
+      return text.replace(trimmed, `${cartMatch[1]}${dict["Cart"]}`);
+    }
+
     // Static page copy is sometimes line-wrapped in HTML. Match the same text
     // after collapsing whitespace so translations are not broken by formatting.
     const compact = trimmed.replace(/\s+/g, " ");
