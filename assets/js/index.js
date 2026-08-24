@@ -833,7 +833,7 @@ function removeFromCart(pin){
         if (inStockOnly && !(Number(p.stock||0) > 0)) return false;
 
         if (!q) return true;
-        const hay = `${p.pin} ${p.title} ${(p.materials||[]).join(" ")} ${(p.diameterRaw||"")}`.toLowerCase();
+        const hay = `${p.pin} ${p.title} ${(p.materials||[]).join(" ")} ${(p.color||"")} ${(p.diameterRaw||"")}`.toLowerCase();
         return hay.includes(q);
       });
 
@@ -854,11 +854,14 @@ function removeFromCart(pin){
           </div>
           <div class="meta">
             <p class="name">${escapeHtml(p.title)} <span style="color:var(--muted); font-weight:700;">• ${escapeHtml(p.pin)}</span></p>
-            <p class="desc">${escapeHtml((p.description || "").trim())}</p>
+            <div class="card-chips">
+              ${(p.materials || []).map(m => `<span class="card-chip">${escapeHtml(m)}</span>`).join("")}
+              ${p.color ? `<span class="card-chip">Color: ${escapeHtml(p.color)}</span>` : ""}
+              ${diaText && diaText !== "—" ? `<span class="card-chip">Ø ${escapeHtml(diaText)} mm</span>` : ""}
+            </div>
             <div class="row">
               <div>
                 <div class="price">${priceText(p.price)}</div>
-                <div style="color:var(--muted); font-size:12px; margin-top:2px;">Ø ${escapeHtml(diaText)}</div>
               </div>
               <div style="display:flex; gap:8px;">
                 <button class="btn2" ${soldOut ? "disabled" : ""} data-add="${escapeHtml(p.pin)}" title="Add to cart" type="button">＋</button>
@@ -923,6 +926,7 @@ function removeFromCart(pin){
           diameterNote: dia.note,
 
           materials: x.materials || x["Materials"] || [],
+          color: x.color || x["Color"] || "",
           stock: (x.stock ?? x["Stock"] ?? 0),
           images: x.images || x["Images"] || [],
           price: x.price || { EUR: x.price_eur, USD: x.price_usd },

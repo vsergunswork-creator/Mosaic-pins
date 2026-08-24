@@ -379,6 +379,28 @@
       min-height: 32px;
       white-space: pre-line;
     }
+    .card-chips{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-top:8px;
+      min-height:28px;
+      align-content:flex-start;
+    }
+    .card-chip{
+      display:inline-flex;
+      align-items:center;
+      min-height:24px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.045);
+      color:var(--muted);
+      font-size:11px;
+      line-height:1.15;
+      font-weight:700;
+      white-space:nowrap;
+    }
     .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px}
     .price{font-weight:900}
     .btn{
