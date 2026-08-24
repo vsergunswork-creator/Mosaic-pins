@@ -840,6 +840,23 @@ function removeFromCart(pin){
       render();
     }
 
+    function localizedColorBadge(color){
+      const raw = String(color || "").trim();
+      if (!raw) return "";
+
+      if (raw.toLowerCase() === "multicolor") {
+        return ({
+          en: "Color: Multicolor",
+          de: "Farbe: Mehrfarbig",
+          ru: "Цвет: Многоцветный",
+          fr: "Couleur : Multicolore"
+        }[shopLanguage]) || "Color: Multicolor";
+      }
+
+      const prefix = ({ en: "Color", de: "Farbe", ru: "Цвет", fr: "Couleur" }[shopLanguage]) || "Color";
+      return `${prefix}: ${raw}`;
+    }
+
     function cardTemplate(p){
       const img = (p.images && p.images[0]) ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.title)}" />` : "";
       const soldOut = !(Number(p.stock||0) > 0);
@@ -856,7 +873,7 @@ function removeFromCart(pin){
             <p class="name">${escapeHtml(p.title)} <span style="color:var(--muted); font-weight:700;">• ${escapeHtml(p.pin)}</span></p>
             <div class="card-chips">
               ${(p.materialsDisplay || p.materials || []).map(m => `<span class="card-chip">${escapeHtml(m)}</span>`).join("")}
-              ${p.color ? `<span class="card-chip">Color: ${escapeHtml(p.color)}</span>` : ""}
+              ${p.color ? `<span class="card-chip">${escapeHtml(localizedColorBadge(p.color))}</span>` : ""}
               ${diaText && diaText !== "—" ? `<span class="card-chip">Ø ${escapeHtml(diaText)} mm</span>` : ""}
             </div>
             <div class="row">

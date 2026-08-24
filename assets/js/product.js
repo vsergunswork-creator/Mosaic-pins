@@ -3209,9 +3209,17 @@ async function loadProduct(){
     );
 
   if (p.color){
-    chips.push(
-      `Color: ${p.color}`
-    );
+    const rawColor = String(p.color || "").trim();
+    const colorBadge = rawColor.toLowerCase() === "multicolor"
+      ? (({
+          en: "Color: Multicolor",
+          de: "Farbe: Mehrfarbig",
+          ru: "Цвет: Многоцветный",
+          fr: "Couleur : Multicolore"
+        }[productLanguage]) || "Color: Multicolor")
+      : `${({ en: "Color", de: "Farbe", ru: "Цвет", fr: "Couleur" }[productLanguage]) || "Color"}: ${rawColor}`;
+
+    chips.push(colorBadge);
   }
 
   if (p.diameter != null){
