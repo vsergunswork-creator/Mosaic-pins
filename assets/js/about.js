@@ -4,7 +4,7 @@
     if (y) y.textContent = new Date().getFullYear();
   })();
 
-  const API_CONTENT  = "/api/content?v=4&key=";
+  const API_CONTENT  = "/api/content?v=5&key=";
   const API_CHECKOUT = "/api/checkout";
 
   // PayPal endpoints (как в index)

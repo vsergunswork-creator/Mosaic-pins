@@ -1,11 +1,12 @@
 // GET /api/content?key=about
 // Airtable SiteContent remains the source of truth.
-// Fast path: shared KV cache. When fresh cache expires, serve stale content
-// immediately and refresh Airtable/R2 in the background.
+// Fast path: shared KV cache. Fresh content lives for 60 seconds.
+// After that, refresh Airtable synchronously so edits become visible quickly.
+// The stale copy is used only as a fallback if Airtable is temporarily unavailable.
 
 import { cacheGet, cacheSet } from "./_cache.js";
 
-const FRESH_TTL = 10 * 60;          // 10 minutes
+const FRESH_TTL = 60;               // 60 seconds
 const STALE_TTL = 7 * 24 * 60 * 60; // 7 days
 const IMAGE_CONCURRENCY = 4;
 
@@ -22,25 +23,24 @@ export async function onRequestGet({ env, request, waitUntil }) {
     const key = String(new URL(request.url).searchParams.get("key") || "").trim();
     if (!key) return json({ ok:false, error:"Missing key" }, 400);
 
-    const cacheKey = `cache:sitecontent:airtable:v4:${key}`;
+    const cacheKey = `cache:sitecontent:airtable:v5:${key}`;
     const staleKey = `${cacheKey}:stale`;
 
     const fresh = await cacheGet(env, cacheKey);
     if (fresh) return contentResponse(fresh, "HIT");
 
     const stale = await cacheGet(env, staleKey);
-    if (stale) {
-      const refresh = refreshContent(env, { token, baseId, table, key, cacheKey, staleKey });
-      if (typeof waitUntil === "function") {
-        waitUntil(refresh.catch((e) => console.error("content background refresh:", e)));
-      } else {
-        refresh.catch((e) => console.error("content background refresh:", e));
-      }
-      return contentResponse(stale, "STALE");
-    }
 
-    const body = await refreshContent(env, { token, baseId, table, key, cacheKey, staleKey });
-    return contentResponse(body, "MISS");
+    try {
+      const body = await refreshContent(env, { token, baseId, table, key, cacheKey, staleKey });
+      return contentResponse(body, stale ? "REFRESH" : "MISS");
+    } catch (e) {
+      if (stale) {
+        console.error("content refresh failed; serving stale fallback:", e);
+        return contentResponse(stale, "STALE-FALLBACK");
+      }
+      throw e;
+    }
   } catch (e) {
     return json({ ok:false, error:String(e?.message || e) }, 500);
   }
@@ -161,8 +161,9 @@ function contentResponse(body, cacheState) {
   return new Response(body, {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      // Browser can reuse About briefly; shared caches may keep it longer.
-      "Cache-Control": "public, max-age=120, s-maxage=600, stale-while-revalidate=86400",
+      // Revalidate in the browser; shared edge caches may reuse for 60 seconds.
+      // Old content is allowed only as an error fallback, never as normal SWR.
+      "Cache-Control": "public, max-age=0, s-maxage=60, stale-if-error=86400",
       "X-Cache": cacheState,
     },
   });
