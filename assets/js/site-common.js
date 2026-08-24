@@ -60,7 +60,10 @@
       "Filters":"Filter","Cart":"Warenkorb","In stock":"Auf Lager","Selected":"Ausgewählt","Clear":"Löschen",
       "Diameter (Ø)":"Durchmesser (Ø)","Shipping country":"Versandland","Subtotal":"Zwischensumme","Total":"Gesamt",
       "Checkout":"Mit Karte zahlen","Clear cart":"Warenkorb leeren","PayPal is loading…":"PayPal wird geladen…",
-      "Your cart is empty.":"Dein Warenkorb ist leer.","Add to cart":"In den Warenkorb","Buy now":"Jetzt kaufen","View":"Ansehen","Pay by card":"Mit Karte zahlen",
+      "Your cart is empty.":"Dein Warenkorb ist leer.","Cart is empty":"Warenkorb ist leer","Stock":"Lagerbestand","Cleared":"Geleert","Added ✅":"Hinzugefügt ✅","Redirecting…":"Weiterleitung…",
+      "Calculating…":"Wird berechnet…","Checking DHL rate… Country detected automatically — change if needed.":"DHL-Tarif wird geprüft… Land automatisch erkannt — bei Bedarf ändern.","Checking current DHL tracked rate…":"Aktueller DHL-Tarif mit Sendungsverfolgung wird geprüft…","DHL shipping rate unavailable":"DHL-Versandtarif nicht verfügbar","Unavailable":"Nicht verfügbar",
+      "Payment success ✅":"Zahlung erfolgreich ✅","Canceled":"Abgebrochen","PayPal error":"PayPal-Fehler","PayPal config error":"PayPal-Konfigurationsfehler","PayPal SDK timeout":"Zeitüberschreitung beim Laden von PayPal","PayPal SDK failed to load":"PayPal konnte nicht geladen werden","PayPal create order failed":"PayPal-Bestellung konnte nicht erstellt werden","Checkout failed":"Checkout fehlgeschlagen","Confirm your shipping country, then continue with PayPal.":"Bestätige dein Versandland und fahre dann mit PayPal fort.",
+      "Add to cart":"In den Warenkorb","Buy now":"Jetzt kaufen","View":"Ansehen","Pay by card":"Mit Karte zahlen",
       "Quantity":"Menge","Loading…":"Wird geladen…","No image":"Kein Bild","Product":"Produkt","Notice":"Hinweis",
       "Sold out":"Ausverkauft","Buy":"Kaufen","All":"Alle","Any size":"Alle Größen","Exact":"Exakt",
       "Privacy Policy":"Datenschutz","Impressum":"Impressum","Support":"Support",
@@ -217,7 +220,10 @@
       "Filters":"Фильтры","Cart":"Корзина","In stock":"В наличии","Selected":"Выбрано","Clear":"Очистить",
       "Diameter (Ø)":"Диаметр (Ø)","Shipping country":"Страна доставки","Subtotal":"Товары","Total":"Итого",
       "Checkout":"Оплатить картой","Clear cart":"Очистить корзину","PayPal is loading…":"PayPal загружается…",
-      "Your cart is empty.":"Корзина пуста.","Add to cart":"Добавить в корзину","Buy now":"Купить сейчас","View":"Подробнее","Pay by card":"Оплатить картой",
+      "Your cart is empty.":"Корзина пуста.","Cart is empty":"Корзина пуста","Stock":"Остаток","Cleared":"Корзина очищена","Added ✅":"Добавлено ✅","Redirecting…":"Переходим к оплате…",
+      "Calculating…":"Рассчитываем…","Checking DHL rate… Country detected automatically — change if needed.":"Проверяем тариф DHL… Страна определена автоматически — при необходимости измените.","Checking current DHL tracked rate…":"Проверяем актуальный тариф DHL с отслеживанием…","DHL shipping rate unavailable":"Тариф DHL недоступен","Unavailable":"Недоступно",
+      "Payment success ✅":"Оплата прошла успешно ✅","Canceled":"Отменено","PayPal error":"Ошибка PayPal","PayPal config error":"Ошибка настройки PayPal","PayPal SDK timeout":"PayPal загружается слишком долго","PayPal SDK failed to load":"Не удалось загрузить PayPal","PayPal create order failed":"Не удалось создать заказ PayPal","Checkout failed":"Не удалось перейти к оплате","Confirm your shipping country, then continue with PayPal.":"Подтвердите страну доставки, затем продолжите оплату через PayPal.",
+      "Add to cart":"Добавить в корзину","Buy now":"Купить сейчас","View":"Подробнее","Pay by card":"Оплатить картой",
       "Quantity":"Количество","Loading…":"Загрузка…","No image":"Нет изображения","Product":"Товар","Notice":"Сообщение",
       "Sold out":"Нет в наличии","Buy":"Купить","All":"Все","Any size":"Любой размер","Exact":"Точно",
       "Privacy Policy":"Конфиденциальность","Impressum":"Реквизиты","Support":"Поддержка",
@@ -374,7 +380,10 @@
       "Filters":"Filtres","Cart":"Panier","In stock":"En stock","Selected":"Sélectionné","Clear":"Effacer",
       "Diameter (Ø)":"Diamètre (Ø)","Shipping country":"Pays de livraison","Subtotal":"Sous-total","Total":"Total",
       "Checkout":"Payer par carte","Clear cart":"Vider le panier","PayPal is loading…":"Chargement de PayPal…",
-      "Your cart is empty.":"Votre panier est vide.","Add to cart":"Ajouter au panier","Buy now":"Acheter maintenant","View":"Voir","Pay by card":"Payer par carte",
+      "Your cart is empty.":"Votre panier est vide.","Cart is empty":"Le panier est vide","Stock":"Stock","Cleared":"Panier vidé","Added ✅":"Ajouté ✅","Redirecting…":"Redirection…",
+      "Calculating…":"Calcul…","Checking DHL rate… Country detected automatically — change if needed.":"Vérification du tarif DHL… Pays détecté automatiquement — modifiez-le si nécessaire.","Checking current DHL tracked rate…":"Vérification du tarif DHL actuel avec suivi…","DHL shipping rate unavailable":"Tarif de livraison DHL indisponible","Unavailable":"Indisponible",
+      "Payment success ✅":"Paiement réussi ✅","Canceled":"Annulé","PayPal error":"Erreur PayPal","PayPal config error":"Erreur de configuration PayPal","PayPal SDK timeout":"Délai de chargement PayPal dépassé","PayPal SDK failed to load":"Impossible de charger PayPal","PayPal create order failed":"Impossible de créer la commande PayPal","Checkout failed":"Échec du paiement","Confirm your shipping country, then continue with PayPal.":"Confirmez votre pays de livraison, puis continuez avec PayPal.",
+      "Add to cart":"Ajouter au panier","Buy now":"Acheter maintenant","View":"Voir","Pay by card":"Payer par carte",
       "Quantity":"Quantité","Loading…":"Chargement…","No image":"Aucune image","Product":"Produit","Notice":"Information",
       "Sold out":"Épuisé","Buy":"Acheter","All":"Tous","Any size":"Toutes tailles","Exact":"Exact",
       "Privacy Policy":"Confidentialité","Impressum":"Mentions légales","Support":"Support",
@@ -1055,6 +1064,21 @@
     let m = trimmed.match(/^In stock:\s*(\d+)$/i);
     if (m) {
       const base = lang === "de" ? "Auf Lager" : lang === "ru" ? "В наличии" : "En stock";
+      return text.replace(trimmed, `${base}: ${m[1]}`);
+    }
+    m = trimmed.match(/^Stock:\s*(.+)$/i);
+    if (m) {
+      const base = lang === "de" ? "Lagerbestand" : lang === "ru" ? "Остаток" : "Stock";
+      return text.replace(trimmed, `${base}: ${m[1]}`);
+    }
+    m = trimmed.match(/^(.+?)\s*·\s*tracked\s*·\s*up to\s*([0-9.,]+)\s*kg$/i);
+    if (m) {
+      const middle = lang === "de" ? "mit Sendungsverfolgung · bis" : lang === "ru" ? "с отслеживанием · до" : "avec suivi · jusqu’à";
+      return text.replace(trimmed, `${m[1]} · ${middle} ${m[2]} kg`);
+    }
+    m = trimmed.match(/^PayPal unavailable:\s*(.+)$/i);
+    if (m) {
+      const base = lang === "de" ? "PayPal nicht verfügbar" : lang === "ru" ? "PayPal недоступен" : "PayPal indisponible";
       return text.replace(trimmed, `${base}: ${m[1]}`);
     }
     m = trimmed.match(/^(\d+)\s+items?$/i);
