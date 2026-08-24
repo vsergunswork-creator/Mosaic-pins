@@ -4,7 +4,7 @@
     if (y) y.textContent = new Date().getFullYear();
   })();
 
-  const API_CONTENT  = "/api/content?key=";
+  const API_CONTENT  = "/api/content?v=4&key=";
   const API_CHECKOUT = "/api/checkout";
 
   // PayPal endpoints (как в index)
@@ -718,7 +718,7 @@
   let index = 0;
   let stepPx = 0;
 
-  const ABOUT_LOCAL_CACHE = "mp_about_content_v1";
+  const ABOUT_LOCAL_CACHE = "mp_about_content_v2";
   const ABOUT_LOCAL_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
   function setHeroBg(url){
@@ -772,6 +772,23 @@
     return data?.content || null;
   }
 
+  function getAboutLanguage(){
+    try{
+      const value = String(localStorage.getItem("mp_language") || "en").toLowerCase();
+      return ["en", "de", "ru", "fr"].includes(value) ? value : "en";
+    }catch(_){
+      return "en";
+    }
+  }
+
+  function localizedAboutBody(c){
+    const language = getAboutLanguage();
+    if (language === "de") return c.aboutBodyDe || c.aboutBody || "";
+    if (language === "ru") return c.aboutBodyRu || c.aboutBody || "";
+    if (language === "fr") return c.aboutBodyFr || c.aboutBody || "";
+    return c.aboutBody || "";
+  }
+
   function applyAboutContent(c){
     if (!c) return;
 
@@ -780,7 +797,7 @@
 
     heroTitle.textContent = c.heroTitle || "Mosaic Pins Space";
     heroSubtitle.textContent = c.heroSubtitle || "";
-    aboutBody.textContent = c.aboutBody || "";
+    aboutBody.textContent = localizedAboutBody(c);
 
     setHeroBg(c.heroImage);
 

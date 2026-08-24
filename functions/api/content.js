@@ -22,7 +22,7 @@ export async function onRequestGet({ env, request, waitUntil }) {
     const key = String(new URL(request.url).searchParams.get("key") || "").trim();
     if (!key) return json({ ok:false, error:"Missing key" }, 400);
 
-    const cacheKey = `cache:sitecontent:airtable:v3:${key}`;
+    const cacheKey = `cache:sitecontent:airtable:v4:${key}`;
     const staleKey = `${cacheKey}:stale`;
 
     const fresh = await cacheGet(env, cacheKey);
@@ -86,6 +86,9 @@ async function refreshContent(env, { token, baseId, table, key, cacheKey, staleK
       heroTitle: String(f["Hero Title"] || ""),
       heroSubtitle: String(f["Hero Subtitle"] || ""),
       aboutBody: String(f["About Body"] || ""),
+      aboutBodyDe: String(f["About Body DE"] || ""),
+      aboutBodyRu: String(f["About Body RU"] || ""),
+      aboutBodyFr: String(f["About Body FR"] || ""),
       gallery: gallery.filter(Boolean),
     },
   });
