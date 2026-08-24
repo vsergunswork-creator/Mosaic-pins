@@ -3152,8 +3152,26 @@ async function loadProduct(){
   el("title").textContent =
     p.title;
 
+  let productLanguage = "en";
+
+  try{
+    const savedLanguage =
+      String(localStorage.getItem("mp_language") || "en")
+        .toLowerCase();
+
+    if (["en", "de", "ru", "fr"].includes(savedLanguage)){
+      productLanguage = savedLanguage;
+    }
+  }catch(_){}
+
+  const localizedDescription = {
+    de: p.descriptionDE,
+    ru: p.descriptionRU,
+    fr: p.descriptionFR
+  }[productLanguage];
+
   const d =
-    (p.description || "")
+    String(localizedDescription || p.description || "")
       .trim();
 
   const descEl =
