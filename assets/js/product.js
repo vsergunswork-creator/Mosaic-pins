@@ -3144,11 +3144,6 @@ async function loadProduct(){
   el("hSub").textContent =
     `${p.pin} • Ø ${p.diameter ?? "—"} mm`;
 
-  el("kicker").textContent =
-    p.type
-      ? String(p.type)
-      : "";
-
   el("title").textContent =
     p.title;
 
