@@ -3164,6 +3164,16 @@ async function loadProduct(){
     }
   }catch(_){}
 
+  const specTitleEl = el("specTitle");
+  if (specTitleEl){
+    specTitleEl.textContent = ({
+      en: "SPECIFICATIONS",
+      de: "SPEZIFIKATIONEN",
+      ru: "ХАРАКТЕРИСТИКИ",
+      fr: "CARACTÉRISTIQUES"
+    }[productLanguage]) || "SPECIFICATIONS";
+  }
+
   const localizedDescription = {
     de: p.descriptionDE,
     ru: p.descriptionRU,
