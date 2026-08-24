@@ -844,16 +844,22 @@ function removeFromCart(pin){
       const raw = String(color || "").trim();
       if (!raw) return "";
 
+      let lang = "en";
+      try {
+        const saved = String(localStorage.getItem("mp_language") || "en").toLowerCase();
+        if (["en","de","ru","fr"].includes(saved)) lang = saved;
+      } catch (_) {}
+
       if (raw.toLowerCase() === "multicolor") {
         return ({
           en: "Color: Multicolor",
           de: "Farbe: Mehrfarbig",
           ru: "Цвет: Многоцветный",
           fr: "Couleur : Multicolore"
-        }[shopLanguage]) || "Color: Multicolor";
+        }[lang]) || "Color: Multicolor";
       }
 
-      const prefix = ({ en: "Color", de: "Farbe", ru: "Цвет", fr: "Couleur" }[shopLanguage]) || "Color";
+      const prefix = ({ en: "Color", de: "Farbe", ru: "Цвет", fr: "Couleur" }[lang]) || "Color";
       return `${prefix}: ${raw}`;
     }
 
