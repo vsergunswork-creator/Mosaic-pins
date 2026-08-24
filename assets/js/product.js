@@ -3173,12 +3173,6 @@ async function loadProduct(){
 
   const chips = [];
 
-  if (p.diameter != null){
-    chips.push(
-      `Ø ${p.diameter} mm`
-    );
-  }
-
   (p.materials || [])
     .forEach(
       m =>
@@ -3188,6 +3182,12 @@ async function loadProduct(){
   if (p.color){
     chips.push(
       `Color: ${p.color}`
+    );
+  }
+
+  if (p.diameter != null){
+    chips.push(
+      `Ø ${p.diameter} mm`
     );
   }
 
