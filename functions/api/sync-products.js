@@ -98,7 +98,7 @@ export async function onRequestGet({ env, request }) {
       }
 
       const title = String(f["Title"] ?? pin);
-      const description = String(f["Description"] ?? "");
+      const description = String(f["Description"] ?? "").trim() || String(f["Auto Description EN"] ?? "").trim();
 
       const type = valueOrNull(f["Type"]);
       const diameter = toNumberOrNull(f["Diameter"]);
