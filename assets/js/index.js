@@ -914,14 +914,14 @@ function removeFromCart(pin){
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
           const pin = btn.getAttribute("data-openbuy");
-          window.location.href = `/product?pin=${encodeURIComponent(pin)}`;
+          window.location.href = `/p/${encodeURIComponent(pin)}`;
         });
       });
 
       [...document.querySelectorAll(".card[data-open]")].forEach(card => {
         card.addEventListener("click", () => {
           const pin = card.getAttribute("data-open");
-          window.location.href = `/product?pin=${encodeURIComponent(pin)}`;
+          window.location.href = `/p/${encodeURIComponent(pin)}`;
         });
       });
     }

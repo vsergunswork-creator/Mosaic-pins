@@ -3,6 +3,7 @@
   "include": [
     "/api/*",
     "/p/*",
+    "/product",
     "/sitemap.xml",
     "/robots.txt"
   ],

@@ -3064,6 +3064,181 @@ async function buyNowOneItemStripe(
     data.url;
 }
 
+function updateProductSeo(p){
+
+  const pin =
+    String(p?.pin || "")
+      .trim();
+
+  const title =
+    `${String(p?.title || pin || "Mosaic Pin").trim()}${pin && !String(p?.title || "").toLowerCase().includes(pin.toLowerCase()) ? ` ${pin}` : ""} | Handmade Knife Handle Pin | Mosaic Pins Space`;
+
+  const canonical =
+    `https://mosaicpins.space/p/${encodeURIComponent(pin)}`;
+
+  const plainDescription =
+    String(p?.description || "")
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\*\*/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const productTitle =
+    String(p?.title || "mosaic pin")
+      .trim();
+
+  const diameterNeedle =
+    p?.diameter != null
+      ? String(p.diameter).replace(/,/g, ".")
+      : "";
+
+  const normalizedTitle =
+    productTitle.toLowerCase().replace(/,/g, ".");
+
+  const titleHasDiameter =
+    diameterNeedle && (
+      normalizedTitle.includes(`ø${diameterNeedle}`) ||
+      normalizedTitle.includes(`ø ${diameterNeedle}`) ||
+      normalizedTitle.includes(`${diameterNeedle}mm`) ||
+      normalizedTitle.includes(`${diameterNeedle} mm`)
+    );
+
+  const diameter =
+    p?.diameter != null && !titleHasDiameter
+      ? `Ø${p.diameter} mm `
+      : "";
+
+  const intro =
+    `Handmade ${diameter}${productTitle}${pin ? ` (${pin})` : ""} for custom knife handles.`;
+
+  let description =
+    `${intro}${plainDescription ? ` ${plainDescription}` : " Small-batch mosaic, lanyard and glow pins by Mosaic Pins Space."}`
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (description.length > 160){
+    description =
+      description
+        .slice(0, 159)
+        .replace(/\s+\S*$/, "")
+        .trim() + "…";
+  }
+
+  document.title = title.slice(0, 90);
+
+  setSeoMeta("seoRobots", "name", "robots", "index,follow,max-image-preview:large");
+  setSeoMeta("seoDescription", "name", "description", description);
+
+  let canonicalEl =
+    document.getElementById("seoCanonical") ||
+    document.querySelector('link[rel="canonical"]');
+
+  if (!canonicalEl){
+    canonicalEl = document.createElement("link");
+    canonicalEl.rel = "canonical";
+    canonicalEl.id = "seoCanonical";
+    document.head.appendChild(canonicalEl);
+  }
+
+  canonicalEl.href = canonical;
+
+  const image =
+    Array.isArray(p?.images) && p.images.length
+      ? String(p.images[0] || "")
+      : "";
+
+  setSeoProperty("og:type", "product");
+  setSeoProperty("og:site_name", "Mosaic Pins Space");
+  setSeoProperty("og:title", document.title);
+  setSeoProperty("og:description", description);
+  setSeoProperty("og:url", canonical);
+  if (image) setSeoProperty("og:image", image);
+
+  setSeoMetaByName("twitter:card", "summary_large_image");
+  setSeoMetaByName("twitter:title", document.title);
+  setSeoMetaByName("twitter:description", description);
+  if (image) setSeoMetaByName("twitter:image", image);
+
+  const price = Number(p?.price?.USD);
+
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: String(p?.title || pin || "Mosaic Pin"),
+    sku: pin,
+    url: canonical,
+    description,
+    image: Array.isArray(p?.images) ? p.images.filter(Boolean) : [],
+    brand: { "@type": "Brand", name: "Mosaic Pins Space" }
+  };
+
+  if (p?.color) structuredData.color = String(p.color);
+  if (Array.isArray(p?.materials) && p.materials.length){
+    structuredData.material = p.materials.join(", ");
+  }
+  if (p?.diameter != null){
+    structuredData.size = `Ø${p.diameter} mm`;
+  }
+  if (Number.isFinite(price) && price >= 0){
+    structuredData.offers = {
+      "@type": "Offer",
+      url: canonical,
+      priceCurrency: "USD",
+      price: price.toFixed(2),
+      availability: Number(p?.stock || 0) > 0
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+      seller: { "@type": "Organization", name: "Mosaic Pins Space" }
+    };
+  }
+
+  let structuredEl =
+    document.getElementById("productStructuredData");
+
+  if (!structuredEl){
+    structuredEl = document.createElement("script");
+    structuredEl.type = "application/ld+json";
+    structuredEl.id = "productStructuredData";
+    document.head.appendChild(structuredEl);
+  }
+
+  structuredEl.textContent =
+    JSON.stringify(structuredData);
+}
+
+function setSeoMeta(id, attr, key, content){
+  let node = document.getElementById(id) || document.querySelector(`meta[${attr}="${key}"]`);
+  if (!node){
+    node = document.createElement("meta");
+    node.setAttribute(attr, key);
+    node.id = id;
+    document.head.appendChild(node);
+  }
+  node.setAttribute("content", content);
+}
+
+function setSeoProperty(property, content){
+  let node = document.querySelector(`meta[property="${property}"]`);
+  if (!node){
+    node = document.createElement("meta");
+    node.setAttribute("property", property);
+    document.head.appendChild(node);
+  }
+  node.setAttribute("content", content);
+}
+
+function setSeoMetaByName(name, content){
+  let node = document.querySelector(`meta[name="${name}"]`);
+  if (!node){
+    node = document.createElement("meta");
+    node.setAttribute("name", name);
+    document.head.appendChild(node);
+  }
+  node.setAttribute("content", content);
+}
+
 async function loadProduct(){
 
   updateCartBadge();
@@ -3135,8 +3310,7 @@ async function loadProduct(){
   currentProduct =
     p;
 
-  document.title =
-    `${p.title} • Mosaic Pins`;
+  updateProductSeo(p);
 
   el("hTitle").textContent =
     p.title;
