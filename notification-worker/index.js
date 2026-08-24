@@ -429,19 +429,29 @@ function getStoreName(env) {
 }
 
 function shell(store, subtitle, body, footerText) {
-  return `<div style="background:#0b0d11;padding:24px;font-family:Arial,sans-serif;color:#e9eef7;">
-  <div style="max-width:520px;margin:0 auto;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));box-shadow:0 12px 30px rgba(0,0,0,.45);overflow:hidden;">
-    <div style="padding:18px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(34,197,94,.14),rgba(0,0,0,0));">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr>
-        <td style="vertical-align:middle;padding-right:10px;"><img src="${BRAND_LOGO_URL}" width="30" height="30" alt="Mosaic Pins Space" style="display:block;width:30px;height:30px;border:0;border-radius:50%;"/></td>
-        <td style="vertical-align:middle;font-weight:900;font-size:16px;letter-spacing:.2px;color:#e9eef7;">${escapeHtml(store)}</td>
-      </tr></table>
-      <div style="color:#a8b3c7;font-size:13px;margin-top:6px;">${escapeHtml(subtitle)}</div>
-    </div>
-    <div style="padding:20px;">${body}</div>
-    <div style="padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.25);color:#a8b3c7;font-size:12px;text-align:center;">${escapeHtml(footerText)}</div>
-  </div>
-</div>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;margin:0;background:#ffffff;border-collapse:collapse;">
+  <tr>
+    <td align="center" style="padding:32px 14px 40px;background:#ffffff;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:520px;border-collapse:separate;background:#11151b;border:1px solid #252c36;border-radius:18px;box-shadow:0 12px 30px rgba(15,23,42,.18);overflow:hidden;font-family:Arial,sans-serif;color:#e9eef7;text-align:left;">
+        <tr>
+          <td style="padding:18px;border-bottom:1px solid #252c36;background:linear-gradient(180deg,rgba(34,197,94,.14),rgba(17,21,27,0));border-radius:18px 18px 0 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr>
+              <td style="vertical-align:middle;padding-right:10px;"><img src="${BRAND_LOGO_URL}" width="30" height="30" alt="Mosaic Pins Space" style="display:block;width:30px;height:30px;border:0;border-radius:50%;"/></td>
+              <td style="vertical-align:middle;font-weight:900;font-size:16px;letter-spacing:.2px;color:#e9eef7;">${escapeHtml(store)}</td>
+            </tr></table>
+            <div style="color:#a8b3c7;font-size:13px;margin-top:6px;">${escapeHtml(subtitle)}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px;background:#11151b;color:#e9eef7;">${body}</td>
+        </tr>
+        <tr>
+          <td style="padding:14px 18px;border-top:1px solid #252c36;background:#0d1117;color:#a8b3c7;font-size:12px;text-align:center;border-radius:0 0 18px 18px;">${escapeHtml(footerText)}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
 }
 
 function escapeHtml(s) {
