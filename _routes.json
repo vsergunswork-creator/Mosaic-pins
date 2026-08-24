@@ -5,7 +5,11 @@
     "/p/*",
     "/product",
     "/sitemap.xml",
-    "/robots.txt"
+    "/robots.txt",
+    "/mosaic-pins-for-knives",
+    "/knife-handle-mosaic-pins",
+    "/lanyard-pins-for-knives",
+    "/glow-mosaic-pins"
   ],
   "exclude": []
 }
