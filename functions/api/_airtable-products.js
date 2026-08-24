@@ -4,9 +4,9 @@
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
 import { eurToUsd, getEurUsdRate } from "./_fx.js";
 
-export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v7";
+export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v8-material-i18n";
 export const PRODUCTS_CACHE_TTL = 60; // keep catalog fresh while avoiding per-visit Airtable reads
-export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v7";
+export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v8-material-i18n";
 export const PRODUCTS_FALLBACK_TTL = 7 * 86400;
 
 export function requireAirtableEnv(env) {
@@ -33,10 +33,11 @@ export async function getProductsCatalog(env, { bypassCache = false } = {}) {
     const knownR2Urls = await getKnownR2Urls(env);
 
     const records = await listAllProductRecords(env);
+    const materialTranslations = await listMaterialTranslations(env);
     const eurUsdRate = await getEurUsdRate(env);
     const products = [];
     for (const rec of records) {
-      const p = await normalizeAirtableProduct(env, rec, { knownR2Urls, eurUsdRate });
+      const p = await normalizeAirtableProduct(env, rec, { knownR2Urls, eurUsdRate, materialTranslations });
       if (p) products.push(p);
     }
     products.sort((a, b) => String(a.pin).localeCompare(String(b.pin)));
@@ -67,7 +68,8 @@ export async function getProductByPin(env, pin, { fresh = false } = {}) {
 
   const records = await findProductRecordsByPins(env, [pin]);
   if (!records.length) return null;
-  return await normalizeAirtableProduct(env, records[0]);
+  const materialTranslations = await listMaterialTranslations(env);
+  return await normalizeAirtableProduct(env, records[0], { materialTranslations });
 }
 
 export async function findProductRecordsByPins(env, pins) {
@@ -119,7 +121,7 @@ export async function listAllProductRecords(env) {
   return records;
 }
 
-export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, eurUsdRate = null } = {}) {
+export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, eurUsdRate = null, materialTranslations = null } = {}) {
   const f = rec?.fields || {};
   const PIN_FIELD = String(env.AIRTABLE_PIN_FIELD || "PIN Code").trim();
   const pin = String(f[PIN_FIELD] ?? "").trim();
@@ -128,6 +130,7 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, e
   const active = f["Active"] === true;
   const images = await durableImages(env, pin, f["Images"], knownR2Urls);
   const priceEUR = toNumberOrNull(f["Price_EUR"]);
+  const materials = normalizeMaterials(f["Materials"]);
   const fxRate = Number.isFinite(Number(eurUsdRate)) && Number(eurUsdRate) > 0
     ? Number(eurUsdRate)
     : await getEurUsdRate(env);
@@ -150,7 +153,10 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, e
     diameterRaw: f["Diameter"] ?? null,
     diameter: toNumberOrNull(f["Diameter"]),
     color: valueOrNull(f["Color"]),
-    materials: normalizeMaterials(f["Materials"]),
+    materials,
+    materialsDE: localizeMaterials(materials, materialTranslations, "DE"),
+    materialsRU: localizeMaterials(materials, materialTranslations, "RU"),
+    materialsFR: localizeMaterials(materials, materialTranslations, "FR"),
     stock: Math.max(0, toInt(f["Stock"], 0)),
     price: {
       EUR: priceEUR,
@@ -267,6 +273,55 @@ async function getKnownR2Urls(env) {
     }
   } catch (_) {}
   return set;
+}
+
+async function listMaterialTranslations(env) {
+  const { token, baseId } = requireAirtableEnv(env);
+  const table = String(env.AIRTABLE_MATERIAL_TRANSLATIONS_TABLE || "MaterialTranslations").trim();
+  const out = new Map();
+  let offset = null;
+  let guard = 0;
+
+  try {
+    do {
+      const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
+      url.searchParams.set("pageSize", "100");
+      if (offset) url.searchParams.set("offset", offset);
+
+      const r = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(`Airtable material translations failed: ${r.status} ${safeJson(data)}`);
+
+      for (const rec of (Array.isArray(data.records) ? data.records : [])) {
+        const f = rec?.fields || {};
+        const material = String(f["Material"] ?? "").trim();
+        if (!material) continue;
+        out.set(material, {
+          DE: String(f["DE"] ?? "").trim(),
+          RU: String(f["RU"] ?? "").trim(),
+          FR: String(f["FR"] ?? "").trim(),
+        });
+      }
+
+      offset = data.offset || null;
+      guard++;
+      if (guard > 20) break;
+    } while (offset);
+  } catch (e) {
+    // Never break the catalog if the optional translation dictionary is unavailable.
+    console.warn("MaterialTranslations unavailable; using English material labels", e);
+  }
+
+  return out;
+}
+
+function localizeMaterials(materials, translations, language) {
+  const map = translations instanceof Map ? translations : new Map();
+  return (Array.isArray(materials) ? materials : []).map((material) => {
+    const fallback = String(material || "");
+    const translated = map.get(fallback)?.[language];
+    return String(translated || fallback);
+  });
 }
 
 function normalizeMaterials(v) {

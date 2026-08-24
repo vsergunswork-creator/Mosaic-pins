@@ -833,7 +833,7 @@ function removeFromCart(pin){
         if (inStockOnly && !(Number(p.stock||0) > 0)) return false;
 
         if (!q) return true;
-        const hay = `${p.pin} ${p.title} ${(p.materials||[]).join(" ")} ${(p.color||"")} ${(p.diameterRaw||"")}`.toLowerCase();
+        const hay = `${p.pin} ${p.title} ${(p.materials||[]).join(" ")} ${(p.materialsDisplay||[]).join(" ")} ${(p.color||"")} ${(p.diameterRaw||"")}`.toLowerCase();
         return hay.includes(q);
       });
 
@@ -855,7 +855,7 @@ function removeFromCart(pin){
           <div class="meta">
             <p class="name">${escapeHtml(p.title)} <span style="color:var(--muted); font-weight:700;">• ${escapeHtml(p.pin)}</span></p>
             <div class="card-chips">
-              ${(p.materials || []).map(m => `<span class="card-chip">${escapeHtml(m)}</span>`).join("")}
+              ${(p.materialsDisplay || p.materials || []).map(m => `<span class="card-chip">${escapeHtml(m)}</span>`).join("")}
               ${p.color ? `<span class="card-chip">Color: ${escapeHtml(p.color)}</span>` : ""}
               ${diaText && diaText !== "—" ? `<span class="card-chip">Ø ${escapeHtml(diaText)} mm</span>` : ""}
             </div>
@@ -904,6 +904,12 @@ function removeFromCart(pin){
     }
 
     function normalizeProducts(data){
+      let shopLanguage = "en";
+      try{
+        const saved = String(localStorage.getItem("mp_language") || "en").toLowerCase();
+        if (["en","de","ru","fr"].includes(saved)) shopLanguage = saved;
+      }catch(_){}
+
       const arr = Array.isArray(data) ? data : (data.products || []);
       return arr.map(x => {
         const pin = x.pin || x.pin_code || x.PIN || x["PIN Code"] || "—";
@@ -926,6 +932,11 @@ function removeFromCart(pin){
           diameterNote: dia.note,
 
           materials: x.materials || x["Materials"] || [],
+          materialsDisplay: ({
+            de: x.materialsDE,
+            ru: x.materialsRU,
+            fr: x.materialsFR
+          }[shopLanguage]) || x.materials || x["Materials"] || [],
           color: x.color || x["Color"] || "",
           stock: (x.stock ?? x["Stock"] ?? 0),
           images: x.images || x["Images"] || [],

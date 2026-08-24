@@ -3191,7 +3191,18 @@ async function loadProduct(){
 
   const chips = [];
 
-  (p.materials || [])
+  const localizedMaterials = {
+    de: p.materialsDE,
+    ru: p.materialsRU,
+    fr: p.materialsFR
+  }[productLanguage];
+
+  const displayMaterials =
+    Array.isArray(localizedMaterials) && localizedMaterials.length
+      ? localizedMaterials
+      : (p.materials || []);
+
+  displayMaterials
     .forEach(
       m =>
         chips.push(m)
