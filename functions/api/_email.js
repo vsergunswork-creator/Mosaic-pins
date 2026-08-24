@@ -4,13 +4,23 @@ export async function sendStoreEmail(env, { to, subject, text, html }) {
   const from = String(env.MAIL_FROM || "support@mosaicpins.space").trim();
   const replyTo = String(env.MAIL_REPLY_TO || "mosaicpinsspace@gmail.com").trim();
   const bcc = String(env.MAIL_BCC || "").trim();
+  const dkimPrivateKey = String(env.DKIM_PRIVATE_KEY || "").replace(/\s+/g, "");
+  const dkimDomain = String(env.DKIM_DOMAIN || "mosaicpins.space").trim();
+  const dkimSelector = String(env.DKIM_SELECTOR || "mailchannels").trim();
   if (!from) throw new Error("MAIL_FROM is not set");
   if (!to) throw new Error("Recipient email is missing");
+
+  const dkim = dkimPrivateKey && dkimDomain && dkimSelector ? {
+    dkim_domain: dkimDomain,
+    dkim_selector: dkimSelector,
+    dkim_private_key: dkimPrivateKey,
+  } : {};
 
   const payload = {
     personalizations: [{
       to: [{ email: to }],
       ...(bcc ? { bcc: [{ email: bcc }] } : {}),
+      ...dkim,
     }],
     from: { email: from, name: getStoreName(env) },
     ...(replyTo ? { reply_to: { email: replyTo } } : {}),
