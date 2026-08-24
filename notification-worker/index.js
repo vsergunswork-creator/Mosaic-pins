@@ -529,13 +529,32 @@ async function sendShippedEmailForRecord(env, rec, { recheck = true } = {}) {
   return { sent: true, to, orderId: niceOrderId(rec, env), tracking };
 }
 
+function paidFallbackReady(rec, env) {
+  // The payment webhook sends the confirmation immediately.
+  // The hourly worker is only a fallback, so ignore very fresh orders to avoid
+  // racing the webhook and sending the same confirmation twice.
+  const f = rec?.fields || {};
+  const createdField = String(env.AIRTABLE_CREATED_AT_FIELD || "Created At");
+  const raw = f[createdField];
+  if (!raw) return true;
+
+  const createdMs = Date.parse(String(raw));
+  if (!Number.isFinite(createdMs)) return true;
+
+  const graceMinutes = Math.max(1, Number(env.PAID_EMAIL_FALLBACK_GRACE_MINUTES || 10));
+  return Date.now() - createdMs >= graceMinutes * 60 * 1000;
+}
+
 async function runPaidSweep(env, { maxRecords = 20 } = {}) {
   const statusField = String(env.AIRTABLE_ORDER_STATUS_FIELD || "Order Status");
   const sentField = String(env.AIRTABLE_PAID_SENT_FIELD || "Paid Email Sent");
   const paidValue = String(env.PAID_STATUS_VALUE || "paid").replace(/'/g, "\\'");
   const formula = `AND({${statusField}}='${paidValue}', NOT({${sentField}}))`;
   const list = await listOrderRecords(env, { filterByFormula: formula, maxRecords });
-  return process(list.records || [], (rec) => sendPaidEmailForRecord(env, rec));
+  return process(
+    (list.records || []).filter((rec) => paidFallbackReady(rec, env)),
+    (rec) => sendPaidEmailForRecord(env, rec)
+  );
 }
 
 async function runShippedSweep(env, { maxRecords = 20 } = {}) {
@@ -562,7 +581,10 @@ async function runNotificationSweep(env, { maxRecords = 25 } = {}) {
 
   for (const rec of list.records || []) {
     const f = rec.fields || {};
-    const paidPending = String(f[statusField] || "").toLowerCase() === String(env.PAID_STATUS_VALUE || "paid").toLowerCase() && f[paidSentField] !== true;
+    const paidPending =
+      String(f[statusField] || "").toLowerCase() === String(env.PAID_STATUS_VALUE || "paid").toLowerCase() &&
+      f[paidSentField] !== true &&
+      paidFallbackReady(rec, env);
     const shippedPending = Boolean(String(f[trackingField] || "").trim()) && f[shippedSentField] !== true;
 
     if (paidPending) {
