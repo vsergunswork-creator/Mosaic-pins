@@ -4,9 +4,9 @@
 import { cacheGet, cacheSet, cacheDel } from "./_cache.js";
 import { eurToUsd, getEurUsdRate } from "./_fx.js";
 
-export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v5";
+export const PRODUCTS_CACHE_KEY = "cache:products:airtable:v7";
 export const PRODUCTS_CACHE_TTL = 60; // keep catalog fresh while avoiding per-visit Airtable reads
-export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v5";
+export const PRODUCTS_FALLBACK_KEY = "cache:products:airtable:last_good:v7";
 export const PRODUCTS_FALLBACK_TTL = 7 * 86400;
 
 export function requireAirtableEnv(env) {
@@ -136,7 +136,13 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, e
     recordId: String(rec.id || ""),
     pin,
     title: String(f["Title"] ?? pin),
-    description: String(f["Description"] ?? ""),
+    // Manual descriptions remain an override for special products.
+    // Standard products can leave them empty: Airtable formula fields generate
+    // EN/DE/RU/FR automatically from the Moonglow checkbox.
+    description: firstNonEmptyText(f["Description"], f["Auto Description EN"]),
+    descriptionDE: firstNonEmptyText(f["Description DE"], f["Auto Description DE"]),
+    descriptionRU: firstNonEmptyText(f["Description RU"], f["Auto Description RU"]),
+    descriptionFR: firstNonEmptyText(f["Description FR"], f["Auto Description FR"]),
     type: valueOrNull(f["Type"]),
     // Keep both the exact Airtable value and a normalized number. The storefront
     // prefers diameterRaw, so values such as 6,35 / Ø6,35 / 10 are never
@@ -153,6 +159,14 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, e
     images,
     active,
   };
+}
+
+function firstNonEmptyText(...values) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+  return "";
 }
 
 export async function decrementAirtableStock(env, recordId, qty) {
