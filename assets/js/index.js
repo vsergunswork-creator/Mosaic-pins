@@ -942,6 +942,79 @@ function removeFromCart(pin){
       cardImageBackgroundTimer = setTimeout(warmBatch, 450);
     }
 
+    // Chrome can restore the Shop from its back/forward cache without doing a
+    // fresh layout pass for every catalog image. In that case a few visible
+    // thumbnails may stay blank until the first real scroll. Proactively resume
+    // only images in/near the viewport and force a lightweight repaint on
+    // pageshow, so returning About -> Shop never needs a wheel/touch nudge.
+    let cardImageRecoveryTimers = [];
+
+    function recoverVisibleCardImages(){
+      if (!elGrid) return;
+
+      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+      const images = [...elGrid.querySelectorAll(".thumb img")];
+
+      for (const img of images){
+        const rect = img.getBoundingClientRect();
+        const nearViewport =
+          rect.bottom >= -600 &&
+          rect.top <= vh + 1400 &&
+          rect.right >= 0 &&
+          rect.left <= vw;
+
+        if (!nearViewport) continue;
+
+        const deferredSrc = img.getAttribute("data-card-src");
+        if (deferredSrc){
+          img.src = deferredSrc;
+          img.removeAttribute("data-card-src");
+        }
+
+        img.loading = "eager";
+        if (rect.top <= vh + 250) img.fetchPriority = "high";
+
+        const src = String(img.currentSrc || img.src || "").trim();
+        if (!src) continue;
+
+        if (!img.complete || !img.naturalWidth){
+          // A detached preloader wakes a request that Chrome may have left
+          // suspended after a BFCache restore. The real <img> then reuses cache.
+          const probe = new Image();
+          probe.decoding = "async";
+          probe.onload = () => {
+            if (!img.complete || !img.naturalWidth){
+              img.src = src;
+            }
+          };
+          probe.src = src;
+        } else {
+          // Resource is already decoded/cached: make sure the restored page is
+          // repainted without waiting for a physical scroll event.
+          img.style.willChange = "transform";
+          void img.offsetHeight;
+          requestAnimationFrame(() => { img.style.willChange = ""; });
+        }
+      }
+    }
+
+    function scheduleCardImageRecovery(){
+      cardImageRecoveryTimers.forEach((id) => clearTimeout(id));
+      cardImageRecoveryTimers = [];
+
+      for (const delay of [0, 90, 320, 900]){
+        cardImageRecoveryTimers.push(setTimeout(() => {
+          requestAnimationFrame(recoverVisibleCardImages);
+        }, delay));
+      }
+    }
+
+    window.addEventListener("pageshow", scheduleCardImageRecovery);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) scheduleCardImageRecovery();
+    });
+
     function cardTemplate(p, index){
       const img = cardImageMarkup(p, index);
       const soldOut = !(Number(p.stock||0) > 0);
@@ -979,6 +1052,7 @@ function removeFromCart(pin){
       elSbCount.textContent = `${filtered.length} items`;
       elGrid.innerHTML = filtered.map((p, index) => cardTemplate(p, index)).join("");
       armCardImagePrefetch();
+      scheduleCardImageRecovery();
 
       [...document.querySelectorAll("button[data-add]")].forEach(btn => {
         btn.addEventListener("click", (e) => {
