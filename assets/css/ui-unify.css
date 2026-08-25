@@ -73,6 +73,18 @@
 }
 
 /* =========================================================
+   STEP 47 — REMOVE REDUNDANT MOBILE “BACK TO SHOP” BUTTONS
+   The shared mobile drawer already provides Shop navigation,
+   so Back to Shop controls are unnecessary on compact layouts.
+   ========================================================= */
+@media (max-width:980px){
+  .backBtn,
+  body.mp-page-account .back-link{
+    display:none !important;
+  }
+}
+
+/* =========================================================
    STEP 23 — MOBILE NAVIGATION
    Compact sticky mobile header + slide-out navigation drawer.
    Desktop layout remains unchanged.
@@ -95,9 +107,18 @@
     display:none !important;
   }
 
+  /* STEP 46 — keep the shared mobile header permanently reachable
+     while the page/content scrolls underneath it. */
+  body{
+    padding-top:calc(56px + env(safe-area-inset-top, 0px));
+  }
+
   .mp-mobile-shell{
-    position:sticky;
+    position:fixed;
     top:0;
+    left:0;
+    right:0;
+    width:100%;
     z-index:1080;
     display:grid;
     grid-template-columns:46px minmax(0,1fr) 46px;
@@ -111,6 +132,12 @@
     box-shadow:0 10px 28px rgba(0,0,0,.20);
     backdrop-filter:blur(15px);
     -webkit-backdrop-filter:blur(15px);
+  }
+
+  /* Product page uses a viewport-height app with an internal scroll area.
+     Reduce that viewport by the fixed header so the bottom is never clipped. */
+  body.mp-page-product .app{
+    height:calc(100vh - 56px - env(safe-area-inset-top, 0px)) !important;
   }
 
   .mp-mobile-menu-btn,
@@ -532,4 +559,17 @@ body.mp-page-shop .sidebar .sb-scroll::before,
 body.mp-page-shop .sidebar .sb-scroll::after{
   content:none !important;
   display:none !important;
+}
+
+/* =========================================================
+   STEP 47B — FINAL MOBILE BACK-TO-SHOP OVERRIDE
+   Must stay at the end of this shared stylesheet because the
+   mobile drawer rules above intentionally set .backBtn to flex.
+   ========================================================= */
+@media (max-width:980px){
+  .backBtn,
+  .mp-mobile-menu-tools .backBtn,
+  body.mp-page-account .back-link{
+    display:none !important;
+  }
 }
