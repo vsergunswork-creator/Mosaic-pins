@@ -863,11 +863,12 @@ function removeFromCart(pin){
       return `${prefix}: ${raw}`;
     }
 
-    // Keep several screens of product photos ready, but do not download the
-    // whole catalog at once on mobile. Images farther down are requested well
-    // before they enter the viewport, so normal scrolling still looks complete.
+    // Desktop: request every visible catalog photo immediately. On mobile we
+    // still protect the first paint, but the rest are also prefetched in the
+    // background automatically — scrolling is never required to start them.
     const CARD_EAGER_IMAGES = 16;
     let cardImageObserver = null;
+    let cardImageBackgroundTimer = null;
 
     function cardImageMarkup(p, index){
       const src = (p.images && p.images[0]) ? String(p.images[0]) : "";
@@ -875,8 +876,9 @@ function removeFromCart(pin){
 
       const safeSrc = escapeHtml(src);
       const safeAlt = escapeHtml(p.title);
+      const desktop = window.matchMedia && window.matchMedia("(min-width: 981px)").matches;
 
-      if (index < CARD_EAGER_IMAGES){
+      if (desktop || index < CARD_EAGER_IMAGES){
         const priority = index < 4 ? ` fetchpriority="high"` : "";
         return `<img src="${safeSrc}" alt="${safeAlt}" decoding="async"${priority} />`;
       }
@@ -889,6 +891,10 @@ function removeFromCart(pin){
         cardImageObserver.disconnect();
         cardImageObserver = null;
       }
+      if (cardImageBackgroundTimer){
+        clearTimeout(cardImageBackgroundTimer);
+        cardImageBackgroundTimer = null;
+      }
 
       const pending = [...elGrid.querySelectorAll("img[data-card-src]")];
       if (!pending.length) return;
@@ -900,20 +906,40 @@ function removeFromCart(pin){
         img.removeAttribute("data-card-src");
       };
 
-      if (!("IntersectionObserver" in window)){
-        pending.forEach(load);
-        return;
+      // If the user scrolls quickly, request images several screens ahead.
+      if ("IntersectionObserver" in window){
+        cardImageObserver = new IntersectionObserver((entries, observer) => {
+          for (const entry of entries){
+            if (!entry.isIntersecting) continue;
+            load(entry.target);
+            observer.unobserve(entry.target);
+          }
+        }, { root: null, rootMargin: "3000px 0px", threshold: 0.01 });
+
+        pending.forEach((img) => cardImageObserver.observe(img));
       }
 
-      cardImageObserver = new IntersectionObserver((entries, observer) => {
-        for (const entry of entries){
-          if (!entry.isIntersecting) continue;
-          load(entry.target);
-          observer.unobserve(entry.target);
+      // Also warm the remaining catalog automatically in small batches. This
+      // fixes the case where images stayed blank until the first wheel/touch
+      // scroll while avoiding one huge burst of 100+ mobile requests.
+      let cursor = 0;
+      const warmBatch = () => {
+        let loaded = 0;
+        while (cursor < pending.length && loaded < 6){
+          const img = pending[cursor++];
+          if (img && img.hasAttribute("data-card-src")){
+            load(img);
+            loaded++;
+          }
         }
-      }, { root: null, rootMargin: "3000px 0px", threshold: 0.01 });
+        if (cursor < pending.length){
+          cardImageBackgroundTimer = setTimeout(warmBatch, 180);
+        } else {
+          cardImageBackgroundTimer = null;
+        }
+      };
 
-      pending.forEach((img) => cardImageObserver.observe(img));
+      cardImageBackgroundTimer = setTimeout(warmBatch, 450);
     }
 
     function cardTemplate(p, index){
