@@ -881,7 +881,7 @@ function buildHtml({ slug, lang, copy, common, canonical, products, diameters })
       "@type":"ItemList",
       itemListElement: products.map((p,idx) => ({
         "@type":"ListItem", position:idx+1,
-        url:`${SITE_ORIGIN}/p/${encodeURIComponent(String(p.pin || ""))}`,
+        url:`${SITE_ORIGIN}/p/${encodeURIComponent(String(p.pin || "")).replace(/%2C/gi, ",")}`,
         name:String(p.title || p.pin || "Mosaic Pin")
       }))
     }
@@ -1009,7 +1009,7 @@ function buildHtml({ slug, lang, copy, common, canonical, products, diameters })
 function renderProductCard(p, lang, common, index) {
   const pin = String(p?.pin || "");
   const title = String(p?.title || pin || "Mosaic Pin");
-  const url = `/p/${encodeURIComponent(pin)}`;
+  const url = `/p/${encodeURIComponent(pin).replace(/%2C/gi, ",")}`;
   const image = Array.isArray(p?.images) && p.images[0] ? String(p.images[0]) : "";
   const diameter = cleanDiameter(p?.diameterRaw ?? p?.diameter);
   const materials = productMaterials(p, lang).filter(Boolean).slice(0,4).join(" · ");

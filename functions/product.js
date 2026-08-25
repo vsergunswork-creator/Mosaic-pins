@@ -5,7 +5,7 @@ export function onRequestGet({ request }) {
     const url = new URL(request.url);
     const pin = String(url.searchParams.get("pin") || "").trim();
     if (!pin) return Response.redirect(`${url.origin}/`, 302);
-    return Response.redirect(`${url.origin}/p/${encodeURIComponent(pin)}`, 301);
+    return Response.redirect(`${url.origin}/p/${encodeURIComponent(pin).replace(/%2C/gi, ",")}`, 301);
   } catch (_) {
     return Response.redirect("/", 302);
   }

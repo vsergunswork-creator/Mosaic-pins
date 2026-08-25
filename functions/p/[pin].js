@@ -8,7 +8,8 @@ const SEO_END = "<!-- MP_PRODUCT_SEO_END -->";
 
 export async function onRequestGet({ params, env, request }) {
   try {
-    const pin = String(params?.pin ?? "").trim();
+    const rawPin = String(params?.pin ?? "").trim();
+    const pin = decodePinPath(rawPin);
     if (!pin) return notFound();
 
     const product = await getProductByPin(env, pin);
@@ -23,7 +24,7 @@ export async function onRequestGet({ params, env, request }) {
     }
 
     const template = await templateResponse.text();
-    const canonical = `${SITE_ORIGIN}/p/${encodeURIComponent(product.pin)}`;
+    const canonical = `${SITE_ORIGIN}/p/${productPathSegment(product.pin)}`;
     const title = buildTitle(product);
     const description = buildDescription(product);
     const image = Array.isArray(product.images) ? String(product.images[0] || "") : "";
@@ -46,6 +47,20 @@ export async function onRequestGet({ params, env, request }) {
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
+}
+
+function decodePinPath(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch (_) {
+    return raw;
+  }
+}
+
+function productPathSegment(value) {
+  return encodeURIComponent(String(value ?? "").trim()).replace(/%2C/gi, ",");
 }
 
 async function fetchProductTemplate(env, request) {

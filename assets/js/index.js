@@ -1048,6 +1048,12 @@ function removeFromCart(pin){
       `;
     }
 
+    function productPath(pin){
+      // Comma is a valid URL path character and is used in PINs such as M6,35N21r.
+      // Keep it readable instead of turning it into %2C, while still escaping unsafe characters.
+      return `/p/${encodeURIComponent(String(pin || "").trim()).replace(/%2C/gi, ",")}`;
+    }
+
     function render(){
       elSbCount.textContent = `${filtered.length} items`;
       elGrid.innerHTML = filtered.map((p, index) => cardTemplate(p, index)).join("");
@@ -1068,14 +1074,14 @@ function removeFromCart(pin){
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
           const pin = btn.getAttribute("data-openbuy");
-          window.location.href = `/p/${encodeURIComponent(pin)}`;
+          window.location.href = productPath(pin);
         });
       });
 
       [...document.querySelectorAll(".card[data-open]")].forEach(card => {
         card.addEventListener("click", () => {
           const pin = card.getAttribute("data-open");
-          window.location.href = `/p/${encodeURIComponent(pin)}`;
+          window.location.href = productPath(pin);
         });
       });
     }

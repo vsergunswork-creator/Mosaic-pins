@@ -3074,7 +3074,7 @@ function updateProductSeo(p){
     `${String(p?.title || pin || "Mosaic Pin").trim()}${pin && !String(p?.title || "").toLowerCase().includes(pin.toLowerCase()) ? ` ${pin}` : ""} | Handmade Knife Handle Pin | Mosaic Pins Space`;
 
   const canonical =
-    `https://mosaicpins.space/p/${encodeURIComponent(pin)}`;
+    `https://mosaicpins.space/p/${encodeURIComponent(pin).replace(/%2C/gi, ",")}`;
 
   const plainDescription =
     String(p?.description || "")

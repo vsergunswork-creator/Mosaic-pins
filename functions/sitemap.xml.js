@@ -20,7 +20,7 @@ export async function onRequestGet({env,request}){
       "glow-mosaic-pins"
     ].map(slug=>({loc:`${origin}/${slug}`,changefreq:"weekly",priority:"0.85"}));
     const {products}=await getProductsCatalog(env);
-    const productPages=products.filter(p=>p.active).map(p=>({loc:`${origin}/p/${encodeURIComponent(p.pin)}`,changefreq:"weekly",priority:"0.7"}));
+    const productPages=products.filter(p=>p.active).map(p=>({loc:`${origin}/p/${encodeURIComponent(p.pin).replace(/%2C/gi, ",")}`,changefreq:"weekly",priority:"0.7"}));
     const all=[...staticPages,...guidePages,...productPages];
     const body=`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${all.map(x=>`  <url>\n    <loc>${escapeXml(x.loc)}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${x.changefreq}</changefreq>\n    <priority>${x.priority}</priority>\n  </url>`).join('\n')}\n</urlset>\n`;
     return new Response(body,{headers:{'Content-Type':'application/xml; charset=utf-8','Cache-Control':'public, max-age=60'}});
