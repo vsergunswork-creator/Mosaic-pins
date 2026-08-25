@@ -1,5 +1,5 @@
 // Mosaic Pins notification worker — self-contained Cloudflare Worker.
-// Keeps paid/shipped email sweeps and also triggers Etsy review sync.
+// Keeps paid/shipped email sweeps, Telegram paid-order fallback, and Etsy review sync.
 
 
 export default {
@@ -35,6 +35,24 @@ export default {
 
 async function runScheduledJobs(env) {
   const notifications = await runNotificationSweep(env, { maxRecords: 25 });
+
+  // Telegram is sent immediately by Stripe/PayPal on mosaicpins.space.
+  // This authenticated site call is only the cron fallback for a failed immediate send.
+  let telegramAlerts = { ok: false, skipped: true };
+  try {
+    const secret = String(env.TELEGRAM_ALERTS_SECRET || env.ETSY_SYNC_SECRET || env.CRON_SECRET || "").trim();
+    const alertsUrl = String(env.TELEGRAM_ALERTS_URL || "https://mosaicpins.space/api/telegram-order-alerts").trim();
+    if (!secret) throw new Error("TELEGRAM_ALERTS_SECRET/ETSY_SYNC_SECRET/CRON_SECRET is not set");
+    const r = await fetch(alertsUrl, {
+      method: "POST",
+      headers: { "x-telegram-alerts-secret": secret },
+    });
+    const data = await r.json().catch(() => ({}));
+    telegramAlerts = { ok: r.ok, httpStatus: r.status, ...data };
+  } catch (e) {
+    telegramAlerts = { ok: false, error: String(e?.message || e) };
+  }
+
   let etsySync = { ok: false, skipped: true };
   try {
     const secret = String(env.ETSY_SYNC_SECRET || "").trim();
@@ -50,7 +68,7 @@ async function runScheduledJobs(env) {
   } catch (e) {
     etsySync = { ok: false, error: String(e?.message || e) };
   }
-  return { notifications, etsySync };
+  return { notifications, telegramAlerts, etsySync };
 }
 
 function json(obj, status = 200) {

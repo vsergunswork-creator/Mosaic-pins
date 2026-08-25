@@ -1,6 +1,7 @@
 import { decrementAirtableStock } from "./_airtable-products.js";
 import { runShippedSweep, sendPaidEmailForRecord } from "./_notifications.js";
 import { upsertOrderItemSnapshots } from "./_order-snapshots.js";
+import { sendTelegramOrderAlertForRecord } from "./_telegram.js";
 
 // functions/api/stripe-webhook.js
 // POST /api/stripe-webhook
@@ -314,19 +315,25 @@ export async function onRequestPost(ctx) {
 
     // Customer confirmation is sent immediately when possible.
     // The notification worker is the fallback if this attempt fails.
-    const queuePaidEmail = () => {
-      const job = sendPaidEmailForRecord(env, savedOrder).catch((e) =>
+    const queuePostPaymentNotifications = () => {
+      const telegramJob = sendTelegramOrderAlertForRecord(env, savedOrder, { provider: "stripe" }).catch((e) =>
+        console.error("Immediate Stripe Telegram alert failed; cron will retry", e)
+      );
+      const emailJob = sendPaidEmailForRecord(env, savedOrder).catch((e) =>
         console.error("Immediate paid-email failed; cron will retry", e)
       );
-      if (ctx.waitUntil) ctx.waitUntil(job);
+      if (ctx.waitUntil) {
+        ctx.waitUntil(telegramJob);
+        ctx.waitUntil(emailJob);
+      }
     };
 
     // ---------- decrement stock ONLY ONCE ----------
     const alreadyStockDone = prev === "stock_done";
     if (alreadyStockDone) {
       await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
-      queuePaidEmail();
-      return json({ received: true, upserted: true, stock: "skipped_already_done", email: "queued" });
+      queuePostPaymentNotifications();
+      return json({ received: true, upserted: true, stock: "skipped_already_done", email: "queued", telegram: "queued" });
     }
 
     for (const it of normalized) {
@@ -362,8 +369,8 @@ export async function onRequestPost(ctx) {
 
     await env.STRIPE_EVENTS_KV.put(EVT_KEY, "stock_done", { expirationTtl: 30 * 24 * 60 * 60 });
     if (cartKey) await env.STRIPE_EVENTS_KV.delete(cartKey).catch(() => {});
-    queuePaidEmail();
-    return json({ received: true, upserted: true, stock: "decremented", email: "queued" });
+    queuePostPaymentNotifications();
+    return json({ received: true, upserted: true, stock: "decremented", email: "queued", telegram: "queued" });
   } catch (e) {
     return json({ error: "Webhook error", details: String(e?.message || e) }, 500);
   }

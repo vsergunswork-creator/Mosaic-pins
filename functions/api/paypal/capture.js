@@ -4,6 +4,7 @@
 import { findProductRecordsByPins, decrementAirtableStock, invalidateProductCache } from "../_airtable-products.js";
 import { sendPaidEmailForRecord } from "../_notifications.js";
 import { upsertOrderItemSnapshots } from "../_order-snapshots.js";
+import { sendTelegramOrderAlertForRecord } from "../_telegram.js";
 
 export function onRequestOptions({ request }) {
   return new Response(null, {
@@ -80,6 +81,24 @@ export async function onRequestPost(ctx) {
     const DONE_KEY = `paypal_order_finalized:${orderID}`;
 
     if (await env.STRIPE_EVENTS_KV.get(DONE_KEY)) {
+      // A browser retry after successful capture can also recover a Telegram alert
+      // that failed after the payment itself was already finalized. Dedupe prevents
+      // a second message when the first alert was delivered successfully.
+      try {
+        const ordersTable = String(
+          env.AIRTABLE_ORDERS_TABLE_NAME || env.AIRTABLE_ORDERS_TABLE || "Orders"
+        );
+        const finalizedOrder = await findOrderByOrderId(env, ordersTable, orderID);
+        if (finalizedOrder?.id) {
+          const telegramJob = sendTelegramOrderAlertForRecord(env, finalizedOrder, { provider: "paypal" }).catch((e) =>
+            console.error("PayPal retry Telegram alert failed; cron will retry", e)
+          );
+          if (ctx.waitUntil) ctx.waitUntil(telegramJob);
+        }
+      } catch (e) {
+        console.error("PayPal retry Telegram recovery lookup failed", e);
+      }
+
       return json(
         {
           ok: true,
@@ -663,6 +682,18 @@ export async function onRequestPost(ctx) {
         }
       );
 
+      const telegramJob =
+        sendTelegramOrderAlertForRecord(
+          env,
+          savedOrder,
+          { provider: "paypal" }
+        ).catch((e) =>
+          console.error(
+            "Immediate PayPal Telegram alert failed; cron will retry",
+            e
+          )
+        );
+
       const emailJob =
         sendPaidEmailForRecord(
           env,
@@ -675,6 +706,7 @@ export async function onRequestPost(ctx) {
         );
 
       if (ctx.waitUntil) {
+        ctx.waitUntil(telegramJob);
         ctx.waitUntil(emailJob);
       }
 
@@ -689,6 +721,7 @@ export async function onRequestPost(ctx) {
           orderSaved: true,
           stockUpdated: true,
           email: "queued",
+          telegram: "queued",
         },
         200,
         headers
