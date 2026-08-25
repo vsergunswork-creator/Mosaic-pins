@@ -863,8 +863,61 @@ function removeFromCart(pin){
       return `${prefix}: ${raw}`;
     }
 
-    function cardTemplate(p){
-      const img = (p.images && p.images[0]) ? `<img src="${escapeHtml(p.images[0])}" alt="${escapeHtml(p.title)}" />` : "";
+    // Keep several screens of product photos ready, but do not download the
+    // whole catalog at once on mobile. Images farther down are requested well
+    // before they enter the viewport, so normal scrolling still looks complete.
+    const CARD_EAGER_IMAGES = 16;
+    let cardImageObserver = null;
+
+    function cardImageMarkup(p, index){
+      const src = (p.images && p.images[0]) ? String(p.images[0]) : "";
+      if (!src) return "";
+
+      const safeSrc = escapeHtml(src);
+      const safeAlt = escapeHtml(p.title);
+
+      if (index < CARD_EAGER_IMAGES){
+        const priority = index < 4 ? ` fetchpriority="high"` : "";
+        return `<img src="${safeSrc}" alt="${safeAlt}" decoding="async"${priority} />`;
+      }
+
+      return `<img data-card-src="${safeSrc}" alt="${safeAlt}" decoding="async" fetchpriority="low" />`;
+    }
+
+    function armCardImagePrefetch(){
+      if (cardImageObserver){
+        cardImageObserver.disconnect();
+        cardImageObserver = null;
+      }
+
+      const pending = [...elGrid.querySelectorAll("img[data-card-src]")];
+      if (!pending.length) return;
+
+      const load = (img) => {
+        const src = img.getAttribute("data-card-src");
+        if (!src) return;
+        img.src = src;
+        img.removeAttribute("data-card-src");
+      };
+
+      if (!("IntersectionObserver" in window)){
+        pending.forEach(load);
+        return;
+      }
+
+      cardImageObserver = new IntersectionObserver((entries, observer) => {
+        for (const entry of entries){
+          if (!entry.isIntersecting) continue;
+          load(entry.target);
+          observer.unobserve(entry.target);
+        }
+      }, { root: null, rootMargin: "3000px 0px", threshold: 0.01 });
+
+      pending.forEach((img) => cardImageObserver.observe(img));
+    }
+
+    function cardTemplate(p, index){
+      const img = cardImageMarkup(p, index);
       const soldOut = !(Number(p.stock||0) > 0);
 
       const diaText = p.diameterDisplay ? p.diameterDisplay : (p.diameterNum != null ? String(p.diameterNum).replace(".",",") : "—");
@@ -898,7 +951,8 @@ function removeFromCart(pin){
 
     function render(){
       elSbCount.textContent = `${filtered.length} items`;
-      elGrid.innerHTML = filtered.map(cardTemplate).join("");
+      elGrid.innerHTML = filtered.map((p, index) => cardTemplate(p, index)).join("");
+      armCardImagePrefetch();
 
       [...document.querySelectorAll("button[data-add]")].forEach(btn => {
         btn.addEventListener("click", (e) => {

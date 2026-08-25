@@ -28,18 +28,27 @@ export async function getProductsCatalog(env, { bypassCache = false } = {}) {
   }
 
   try {
-    // Reuse the last healthy catalog as a lightweight manifest of images already
-    // mirrored to R2. This avoids an R2 HEAD for every image on every 60s refresh.
-    const knownR2Urls = await getKnownR2Urls(env);
+    // These reads are independent, so run them in parallel. This shortens the
+    // cold-cache path without relaxing freshness: Airtable is still queried
+    // normally whenever the 60-second catalog cache expires.
+    //
+    // Reuse the last healthy catalog only as a manifest of images already
+    // mirrored to R2. It is NOT returned as current price/stock data here.
+    const [knownR2Urls, records, materialTranslations, eurUsdRate] = await Promise.all([
+      getKnownR2Urls(env),
+      listAllProductRecords(env),
+      listMaterialTranslations(env),
+      getEurUsdRate(env),
+    ]);
 
-    const records = await listAllProductRecords(env);
-    const materialTranslations = await listMaterialTranslations(env);
-    const eurUsdRate = await getEurUsdRate(env);
-    const products = [];
-    for (const rec of records) {
-      const p = await normalizeAirtableProduct(env, rec, { knownR2Urls, eurUsdRate, materialTranslations });
-      if (p) products.push(p);
-    }
+    // Normalization is mostly synchronous for already mirrored images, but a new
+    // Airtable attachment may need an R2 HEAD/fetch/put. Use a small bounded pool
+    // so one new image cannot serialize the whole catalog, while avoiding a burst
+    // of hundreds of R2 operations.
+    const normalized = await mapWithConcurrency(records, 8, (rec) =>
+      normalizeAirtableProduct(env, rec, { knownR2Urls, eurUsdRate, materialTranslations })
+    );
+    const products = normalized.filter(Boolean);
     products.sort((a, b) => String(a.pin).localeCompare(String(b.pin)));
 
     const raw = JSON.stringify(products);
@@ -165,6 +174,24 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, e
     images,
     active,
   };
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const list = Array.isArray(items) ? items : [];
+  const out = new Array(list.length);
+  let next = 0;
+  const count = Math.max(1, Math.min(Number(limit) || 1, list.length || 1));
+
+  async function run() {
+    while (true) {
+      const i = next++;
+      if (i >= list.length) return;
+      out[i] = await worker(list[i], i);
+    }
+  }
+
+  await Promise.all(Array.from({ length: count }, () => run()));
+  return out;
 }
 
 function firstNonEmptyText(...values) {
