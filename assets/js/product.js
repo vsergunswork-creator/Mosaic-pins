@@ -3358,14 +3358,60 @@ async function loadProduct(){
 
   if (descEl){
 
+    let descriptionHtml = "";
+
     if (
       /<[a-z][\s\S]*>/i.test(d)
     ){
-      descEl.innerHTML = d;
+      descriptionHtml = d;
     }else{
-      descEl.innerHTML =
+      descriptionHtml =
         airtableTextToHtml(d);
     }
+
+    if (p.knifePhotoExample === true){
+      const examplePhotoCopy = ({
+        en: {
+          title: "Example photo",
+          text: "The knife shown in the product photos is for illustration only and demonstrates how this mosaic pin can look when installed in a finished knife handle. The knife itself is not included."
+        },
+        de: {
+          title: "Beispielfoto",
+          text: "Das in den Produktfotos gezeigte Messer dient nur zur Veranschaulichung und zeigt, wie dieser Mosaik-Pin in einem fertigen Messergriff wirken kann. Das Messer selbst ist nicht im Lieferumfang enthalten."
+        },
+        ru: {
+          title: "Фото-пример",
+          text: "Нож на фотографиях товара показан только для наглядности и демонстрирует, как этот мозаичный пин может выглядеть в готовой рукояти. Сам нож в комплект не входит."
+        },
+        fr: {
+          title: "Photo d’exemple",
+          text: "Le couteau présenté dans les photos du produit sert uniquement d’illustration et montre à quoi peut ressembler ce pin mosaïque une fois installé dans un manche fini. Le couteau lui-même n’est pas inclus."
+        }
+      }[productLanguage]) || {
+        title: "Example photo",
+        text: "The knife shown in the product photos is for illustration only and demonstrates how this mosaic pin can look when installed in a finished knife handle. The knife itself is not included."
+      };
+
+      descriptionHtml += `
+        <div style="
+          margin-top:14px;
+          padding:12px 14px;
+          border:1px solid rgba(34,197,94,.22);
+          background:rgba(34,197,94,.07);
+          border-radius:12px;
+          color:var(--muted);
+          font-size:13px;
+          line-height:1.55;
+        ">
+          <div style="color:var(--text);font-weight:800;margin-bottom:4px;">
+            ℹ️ ${escapeHtml(examplePhotoCopy.title)}
+          </div>
+          <div>${escapeHtml(examplePhotoCopy.text)}</div>
+        </div>
+      `;
+    }
+
+    descEl.innerHTML = descriptionHtml;
   }
 
   const chips = [];
