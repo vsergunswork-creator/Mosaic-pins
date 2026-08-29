@@ -10,12 +10,18 @@ export default {
         ok: true,
         service: "mosaic-marketing-bot",
         openaiConfigured: Boolean(String(env.OPENAI_API_KEY || "").trim()),
-        adminSecretConfigured: Boolean(String(env.BOT_ADMIN_SECRET || "").trim())
+        adminSecretConfigured: Boolean(String(env.BOT_ADMIN_SECRET || "").trim()),
+        telegramConfigured: Boolean(String(env.TELEGRAM_BOT_TOKEN || "").trim()),
+        telegramChatConfigured: Boolean(String(env.TELEGRAM_CHAT_ID || "").trim())
       });
     }
 
     if (url.pathname === "/ai-test") {
       return handleAiTest(request, env, url);
+    }
+
+    if (url.pathname === "/telegram-test") {
+      return handleTelegramTest(request, env, url);
     }
 
     return new Response("Mosaic Pins Marketing Bot is online ✅", {
@@ -27,7 +33,7 @@ export default {
   }
 };
 
-async function handleAiTest(request, env, url) {
+function isAuthorized(request, env, url) {
   const requiredSecret = String(env.BOT_ADMIN_SECRET || "").trim();
   const providedSecret = String(
     request.headers.get("x-admin-secret") ||
@@ -35,7 +41,11 @@ async function handleAiTest(request, env, url) {
     ""
   ).trim();
 
-  if (!requiredSecret || providedSecret !== requiredSecret) {
+  return Boolean(requiredSecret) && providedSecret === requiredSecret;
+}
+
+async function handleAiTest(request, env, url) {
+  if (!isAuthorized(request, env, url)) {
     return json({ ok: false, error: "Unauthorized" }, 401);
   }
 
@@ -95,6 +105,61 @@ async function handleAiTest(request, env, url) {
   });
 }
 
+async function handleTelegramTest(request, env, url) {
+  if (!isAuthorized(request, env, url)) {
+    return json({ ok: false, error: "Unauthorized" }, 401);
+  }
+
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(env.TELEGRAM_CHAT_ID || "").trim();
+
+  if (!token) {
+    return json({ ok: false, error: "TELEGRAM_BOT_TOKEN is not configured" }, 500);
+  }
+
+  if (!chatId) {
+    return json({ ok: false, error: "TELEGRAM_CHAT_ID is not configured" }, 500);
+  }
+
+  const telegramUrl = `https://api.telegram.org/bot${token}/sendMessage`;
+
+  const response = await fetch(telegramUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text:
+        "🧪 Mosaic Pins Marketing Bot\n\n" +
+        "✅ Cloudflare Worker connected\n" +
+        "✅ Telegram connected\n" +
+        "🤖 Ready for content workflow"
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data?.ok !== true) {
+    return json({
+      ok: false,
+      error: "Telegram request failed",
+      status: response.status,
+      details: {
+        description: data?.description || "Unknown Telegram API error",
+        error_code: data?.error_code || null
+      }
+    }, 502);
+  }
+
+  return json({
+    ok: true,
+    sent: true,
+    chatId,
+    messageId: data?.result?.message_id || null
+  });
+}
+
 function extractOutputText(data) {
   if (typeof data?.output_text === "string" && data.output_text.trim()) {
     return data.output_text.trim();
@@ -114,6 +179,7 @@ function extractOutputText(data) {
 function safeApiError(data) {
   const err = data?.error;
   if (!err) return "Unknown OpenAI API error";
+
   return {
     message: String(err.message || "Unknown OpenAI API error"),
     type: err.type || null,
