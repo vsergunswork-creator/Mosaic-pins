@@ -314,6 +314,7 @@ async function generateAndSendCandidate(env, meta = {}) {
             type: "object",
             properties: {
               topic: { type: "string" },
+              topic_ru: { type: "string" },
               scope: {
                 type: "string",
                 enum: ["general", "mosaic_pin", "solid_pin", "fastener", "lanyard_tube", "other"]
@@ -322,7 +323,7 @@ async function generateAndSendCandidate(env, meta = {}) {
               en: { type: "string" },
               ru: { type: "string" }
             },
-            required: ["topic", "scope", "research_summary_ru", "en", "ru"],
+            required: ["topic", "topic_ru", "scope", "research_summary_ru", "en", "ru"],
             additionalProperties: false
           }
         }
@@ -367,7 +368,7 @@ async function generateAndSendCandidate(env, meta = {}) {
     rotation.theme,
     candidate.topic,
     cleanPublicText(candidate.en),
-    cleanPublicText(candidate.ru),
+    composeRuPayload(candidate.topic_ru, candidate.ru),
     `Scope: ${candidate.scope}\n${cleanPublicText(candidate.research_summary_ru)}`,
     JSON.stringify(sources),
     String(data.id || ""),
@@ -463,8 +464,9 @@ function buildResearchPrompt(rotation, recentTopics) {
     "For a Technical Tip, target roughly 80-130 English words. For other short formats, stay concise unless the format genuinely needs more. " +
     "If the theme concerns pins or installation, explicitly choose the correct hardware scope (mosaic pin, solid pin, fastener, lanyard tube, or general) and never blur them together. " +
     "Do not add hashtags unless they genuinely help. Do not add a shop link. Do not include any source links or citations in the post or translation. " +
-    "Return a short topic label, a brief Russian research summary explaining the signal you found, " +
-    "the final English post, and its faithful Russian translation."
+    "Return a short English topic label, its natural Russian translation in topic_ru, " +
+    "a brief Russian research summary explaining the signal you found, the final English post, " +
+    "and its faithful Russian translation. The Russian version must preserve the meaning and tone, not be a word-for-word machine translation."
   );
 }
 
@@ -506,7 +508,8 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
             text:
               "Rewrite a knife-making community post into a clearly different, stronger version while preserving the same researched topic. " +
               "Do not perform or claim new web research. Do not add new factual claims that are not supported by the supplied research summary. " +
-              "Write natural American English and provide a faithful Russian translation. Return structured JSON only."
+              "Write natural American English, provide a faithful Russian translation, and provide a natural Russian translation of the topic in topic_ru. " +
+              "Return structured JSON only."
           }]
         },
         {
@@ -520,7 +523,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
               `Scope: ${extractScopeFromSummary(row.research_summary_ru)}\n` +
               `Research summary (RU): ${row.research_summary_ru || ""}\n\n` +
               `Current EN:\n${row.en_text}\n\n` +
-              `Current RU:\n${row.ru_text}\n\n` +
+              `Current RU:\n${splitRuPayload(row.ru_text).body}\n\n` +
               "Create a substantially different phrasing/structure, not a cosmetic word swap. Keep it concise and useful."
           }]
         }
@@ -535,6 +538,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
             type: "object",
             properties: {
               topic: { type: "string" },
+              topic_ru: { type: "string" },
               scope: {
                 type: "string",
                 enum: ["general", "mosaic_pin", "solid_pin", "fastener", "lanyard_tube", "other"]
@@ -542,7 +546,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
               en: { type: "string" },
               ru: { type: "string" }
             },
-            required: ["topic", "scope", "en", "ru"],
+            required: ["topic", "topic_ru", "scope", "en", "ru"],
             additionalProperties: false
           }
         }
@@ -581,7 +585,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
   `).bind(
     cleanPublicText(rewritten.topic),
     cleanPublicText(rewritten.en),
-    cleanPublicText(rewritten.ru),
+    composeRuPayload(rewritten.topic_ru, rewritten.ru),
     `Scope: ${rewritten.scope || extractScopeFromSummary(row.research_summary_ru)}\n${stripScopePrefix(row.research_summary_ru)}`,
     now,
     String(data.id || ""),
@@ -744,17 +748,29 @@ function formatCandidateMessage(row, includeStatus = true) {
     ? `Research: ${domains.map(prettyDomain).join(" · ")}`
     : "Research: sources stored in D1";
 
+  const scope = extractScopeFromSummary(row.research_summary_ru);
+  const ruPayload = splitRuPayload(row.ru_text);
+
   return (
     `💡 POST CANDIDATE #${row.id}` +
     (includeStatus ? `\nStatus: ${row.status || "candidate"}` : "") +
     `\nType: ${humanize(row.content_type)}` +
     `\nTheme: ${humanize(row.theme)}` +
     `\nRewrites: ${Number(row.rewrite_count || 0)}` +
-    `\nScope: ${humanize(extractScopeFromSummary(row.research_summary_ru))}` +
+    `\nScope: ${humanize(scope)}` +
     `\n\n🧩 Topic: ${row.topic || ""}` +
     `\n\n🇺🇸 EN — Facebook post\n${row.en_text || ""}` +
-    `\n\n🇷🇺 RU — перевод для проверки\n${row.ru_text || ""}` +
-    `\n\n🔎 Research note\n${row.research_summary_ru || ""}` +
+
+    `\n\n🇷🇺 RU` +
+    `\nСтатус: ${statusRu(row.status || "candidate")}` +
+    `\nТип: ${contentTypeRu(row.content_type)}` +
+    `\nТематика: ${themeRu(row.theme)}` +
+    `\nПереписано: ${Number(row.rewrite_count || 0)}` +
+    `\nОбласть: ${scopeRu(scope)}` +
+    `\n\n🧩 Тема: ${ruPayload.topic || "—"}` +
+    `\n\n${ruPayload.body || ""}` +
+
+    `\n\n🔎 Заметка по исследованию\n${stripScopePrefix(row.research_summary_ru) || ""}` +
     `\n\n${sourceLine}`
   );
 }
@@ -856,6 +872,10 @@ function parseStructuredOutput(data) {
     ) {
       return {
         topic: cleanPublicText(parsed.topic),
+        topic_ru:
+          typeof parsed.topic_ru === "string"
+            ? cleanPublicText(parsed.topic_ru)
+            : "",
         scope:
           typeof parsed.scope === "string"
             ? parsed.scope.trim()
@@ -954,6 +974,94 @@ function uniqueDomains(sources) {
   return result;
 }
 
+
+function composeRuPayload(topicRu, body) {
+  const topic = cleanPublicText(topicRu);
+  const cleanBody = cleanPublicText(body);
+  return `__TOPIC_RU__${topic}\n${cleanBody}`;
+}
+
+function splitRuPayload(value) {
+  const text = String(value || "");
+  const match = text.match(/^__TOPIC_RU__(.*)\n([\s\S]*)$/);
+  if (match) {
+    return {
+      topic: match[1].trim(),
+      body: match[2].trim()
+    };
+  }
+
+  // Backward compatibility with candidates created before Step7.
+  const visibleMatch = text.match(/^Тема:\s*(.+)\n+([\s\S]*)$/i);
+  if (visibleMatch) {
+    return {
+      topic: visibleMatch[1].trim(),
+      body: visibleMatch[2].trim()
+    };
+  }
+
+  return {
+    topic: "",
+    body: text.trim()
+  };
+}
+
+function statusRu(status) {
+  const map = {
+    candidate: "Кандидат",
+    approved: "Одобрено",
+    skipped: "Пропущено",
+    published: "Опубликовано"
+  };
+  return map[String(status || "").toLowerCase()] || status || "Кандидат";
+}
+
+function contentTypeRu(value) {
+  const map = {
+    technical_tip: "Технический совет",
+    interesting_fact: "Интересный факт / наблюдение",
+    common_mistake: "Распространённая ошибка",
+    workshop_idea: "Идея для мастерской",
+    mini_guide: "Мини-гайд",
+    maker_spotlight: "Мастер в фокусе",
+    community_recap: "Обзор сообщества",
+    discussion: "Обсуждение",
+    poll: "Опрос",
+    show_your_work: "Покажите свою работу",
+    mosaic_pins: "Мозаичные пины"
+  };
+  return map[value] || humanize(value);
+}
+
+function themeRu(value) {
+  const map = {
+    pins_installation: "Установка пинов",
+    handle_materials: "Материалы рукояти",
+    epoxy_adhesives: "Эпоксидные клеи",
+    drilling_and_fit: "Сверление и посадка",
+    finishing_and_polishing: "Финишная обработка и полировка",
+    lanyards: "Темляки",
+    glow_materials: "Светящиеся материалы",
+    handle_design: "Дизайн рукояти",
+    workshop_process: "Процесс в мастерской",
+    finished_knives: "Готовые ножи",
+    tool_setup: "Настройка инструмента",
+    maker_business: "Бизнес ножедела"
+  };
+  return map[value] || humanize(value);
+}
+
+function scopeRu(value) {
+  const map = {
+    general: "Общая",
+    mosaic_pin: "Мозаичный пин",
+    solid_pin: "Цельный металлический пин",
+    fastener: "Крепёж",
+    lanyard_tube: "Темлячная трубка",
+    other: "Другое"
+  };
+  return map[value] || humanize(value);
+}
 
 function cleanPublicText(value) {
   return String(value || "")
