@@ -288,6 +288,11 @@ async function generateAndSendCandidate(env, meta = {}) {
               "American Bladesmith Society discussions, Bushcraft USA maker discussions and other relevant public sources when useful. " +
               "Write natural American English. The Russian version is for the owner to review and must faithfully match the English meaning. " +
               "Do not fabricate sources, consensus, statistics, expert claims, or safety facts. " +
+              "IMPORTANT: distinguish mosaic pins, solid metal pins, Corby/Loveless-style fasteners and lanyard tubes. " +
+              "Never transfer peening, expansion or installation advice from solid pins to mosaic pins unless the research specifically supports it. " +
+              "If a post is about one pin type, name that type clearly in the post so readers cannot confuse it with another. " +
+              "The final EN post, RU translation and research_summary_ru must contain NO URLs, markdown links, source citations or source names. " +
+              "Sources are for internal research only and are stored separately. " +
               "If the research signal is weak, create a timeless useful post inspired by the broader subject and say so in research_summary_ru."
           }]
         },
@@ -309,11 +314,15 @@ async function generateAndSendCandidate(env, meta = {}) {
             type: "object",
             properties: {
               topic: { type: "string" },
+              scope: {
+                type: "string",
+                enum: ["general", "mosaic_pin", "solid_pin", "fastener", "lanyard_tube", "other"]
+              },
               research_summary_ru: { type: "string" },
               en: { type: "string" },
               ru: { type: "string" }
             },
-            required: ["topic", "research_summary_ru", "en", "ru"],
+            required: ["topic", "scope", "research_summary_ru", "en", "ru"],
             additionalProperties: false
           }
         }
@@ -357,9 +366,9 @@ async function generateAndSendCandidate(env, meta = {}) {
     rotation.contentType,
     rotation.theme,
     candidate.topic,
-    candidate.en,
-    candidate.ru,
-    candidate.research_summary_ru,
+    cleanPublicText(candidate.en),
+    cleanPublicText(candidate.ru),
+    `Scope: ${candidate.scope}\n${cleanPublicText(candidate.research_summary_ru)}`,
     JSON.stringify(sources),
     String(data.id || ""),
     String(meta.trigger || "unknown")
@@ -451,8 +460,9 @@ function buildResearchPrompt(rotation, recentTopics) {
     "The final post must stand on its own as an original contribution to our future community.\n\n" +
     "Avoid repeating or closely recreating any of these recent topics:\n" +
     recent + "\n\n" +
-    "The English post should usually be about 60-180 words unless the selected type naturally needs less. " +
-    "Do not add hashtags unless they genuinely help. Do not add a shop link. " +
+    "For a Technical Tip, target roughly 80-130 English words. For other short formats, stay concise unless the format genuinely needs more. " +
+    "If the theme concerns pins or installation, explicitly choose the correct hardware scope (mosaic pin, solid pin, fastener, lanyard tube, or general) and never blur them together. " +
+    "Do not add hashtags unless they genuinely help. Do not add a shop link. Do not include any source links or citations in the post or translation. " +
     "Return a short topic label, a brief Russian research summary explaining the signal you found, " +
     "the final English post, and its faithful Russian translation."
   );
@@ -507,6 +517,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
               `Content type: ${row.content_type}\n` +
               `Theme: ${row.theme}\n` +
               `Topic: ${row.topic}\n` +
+              `Scope: ${extractScopeFromSummary(row.research_summary_ru)}\n` +
               `Research summary (RU): ${row.research_summary_ru || ""}\n\n` +
               `Current EN:\n${row.en_text}\n\n` +
               `Current RU:\n${row.ru_text}\n\n` +
@@ -524,10 +535,14 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
             type: "object",
             properties: {
               topic: { type: "string" },
+              scope: {
+                type: "string",
+                enum: ["general", "mosaic_pin", "solid_pin", "fastener", "lanyard_tube", "other"]
+              },
               en: { type: "string" },
               ru: { type: "string" }
             },
-            required: ["topic", "en", "ru"],
+            required: ["topic", "scope", "en", "ru"],
             additionalProperties: false
           }
         }
@@ -560,13 +575,14 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
   const now = new Date().toISOString();
   await db.prepare(`
     UPDATE content_posts
-    SET topic = ?, en_text = ?, ru_text = ?, rewrite_count = rewrite_count + 1,
+    SET topic = ?, en_text = ?, ru_text = ?, research_summary_ru = ?, rewrite_count = rewrite_count + 1,
         updated_at = ?, openai_response_id = ?
     WHERE id = ?
   `).bind(
-    rewritten.topic,
-    rewritten.en,
-    rewritten.ru,
+    cleanPublicText(rewritten.topic),
+    cleanPublicText(rewritten.en),
+    cleanPublicText(rewritten.ru),
+    `Scope: ${rewritten.scope || extractScopeFromSummary(row.research_summary_ru)}\n${stripScopePrefix(row.research_summary_ru)}`,
     now,
     String(data.id || ""),
     postId
@@ -725,8 +741,8 @@ function formatCandidateMessage(row, includeStatus = true) {
   const sources = safeJsonArray(row.source_json);
   const domains = uniqueDomains(sources).slice(0, 6);
   const sourceLine = domains.length
-    ? `Research signal: ${sources.length} source${sources.length === 1 ? "" : "s"} / ${domains.join(", ")}`
-    : "Research signal: sources stored in D1";
+    ? `Research: ${domains.map(prettyDomain).join(" · ")}`
+    : "Research: sources stored in D1";
 
   return (
     `💡 POST CANDIDATE #${row.id}` +
@@ -734,6 +750,7 @@ function formatCandidateMessage(row, includeStatus = true) {
     `\nType: ${humanize(row.content_type)}` +
     `\nTheme: ${humanize(row.theme)}` +
     `\nRewrites: ${Number(row.rewrite_count || 0)}` +
+    `\nScope: ${humanize(extractScopeFromSummary(row.research_summary_ru))}` +
     `\n\n🧩 Topic: ${row.topic || ""}` +
     `\n\n🇺🇸 EN — Facebook post\n${row.en_text || ""}` +
     `\n\n🇷🇺 RU — перевод для проверки\n${row.ru_text || ""}` +
@@ -838,12 +855,16 @@ function parseStructuredOutput(data) {
       typeof parsed?.ru === "string"
     ) {
       return {
-        topic: parsed.topic.trim(),
-        en: parsed.en.trim(),
-        ru: parsed.ru.trim(),
+        topic: cleanPublicText(parsed.topic),
+        scope:
+          typeof parsed.scope === "string"
+            ? parsed.scope.trim()
+            : "general",
+        en: cleanPublicText(parsed.en),
+        ru: cleanPublicText(parsed.ru),
         research_summary_ru:
           typeof parsed.research_summary_ru === "string"
-            ? parsed.research_summary_ru.trim()
+            ? cleanPublicText(parsed.research_summary_ru)
             : ""
       };
     }
@@ -921,7 +942,8 @@ function uniqueDomains(sources) {
 
   for (const source of sources) {
     try {
-      const domain = new URL(source.url).hostname.replace(/^www\./, "");
+      let domain = new URL(source.url).hostname.replace(/^www\./, "");
+      if (domain === "en.reddit.com" || domain.endsWith(".reddit.com")) domain = "reddit.com";
       if (!seen.has(domain)) {
         seen.add(domain);
         result.push(domain);
@@ -930,6 +952,40 @@ function uniqueDomains(sources) {
   }
 
   return result;
+}
+
+
+function cleanPublicText(value) {
+  return String(value || "")
+    // Markdown links: [label](https://example.com) -> label
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi, "$1")
+    // Bare URLs
+    .replace(/https?:\/\/\S+/gi, "")
+    // Common citation remnants
+    .replace(/\(\s*(?:source|sources|reddit|bladeforums|knifedogs)[^)]*\)/gi, "")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractScopeFromSummary(summary) {
+  const match = String(summary || "").match(/^Scope:\s*([a-z_]+)/i);
+  return match ? match[1].toLowerCase() : "general";
+}
+
+function stripScopePrefix(summary) {
+  return String(summary || "").replace(/^Scope:\s*[a-z_]+\s*\n?/i, "").trim();
+}
+
+function prettyDomain(domain) {
+  const key = String(domain || "").toLowerCase();
+  if (key === "reddit.com" || key === "en.reddit.com" || key.endsWith(".reddit.com")) return "Reddit";
+  if (key === "bladeforums.com" || key.endsWith(".bladeforums.com")) return "BladeForums";
+  if (key === "knifedogs.com" || key.endsWith(".knifedogs.com")) return "KnifeDogs";
+  if (key.includes("americanbladesmith")) return "American Bladesmith Society";
+  if (key.includes("bushcraftusa")) return "Bushcraft USA";
+  return domain;
 }
 
 function humanize(value) {
