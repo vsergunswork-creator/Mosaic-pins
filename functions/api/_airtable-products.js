@@ -155,6 +155,9 @@ export async function normalizeAirtableProduct(env, rec, { knownR2Urls = null, e
     descriptionDE: firstNonEmptyText(f["Description DE"], f["Auto Description DE"]),
     descriptionRU: firstNonEmptyText(f["Description RU"], f["Auto Description RU"]),
     descriptionFR: firstNonEmptyText(f["Description FR"], f["Auto Description FR"]),
+    // Optional storefront notice for products that include a finished-knife example photo.
+    // Independent from Moonglow and from manual/automatic descriptions.
+    knifePhotoExample: f["Knife Photo Example"] === true,
     type: valueOrNull(f["Type"]),
     // Keep both the exact Airtable value and a normalized number. The storefront
     // prefers diameterRaw, so values such as 6,35 / Ø6,35 / 10 are never
