@@ -62,6 +62,8 @@ export default {
         adminSecretConfigured: has(env.BOT_ADMIN_SECRET),
         telegramConfigured: has(env.TELEGRAM_BOT_TOKEN),
         telegramChatConfigured: has(env.TELEGRAM_CHAT_ID),
+        facebookPageConfigured: has(env.FACEBOOK_PAGE_ID),
+        facebookTokenConfigured: has(env.FACEBOOK_PAGE_ACCESS_TOKEN),
         d1Configured: Boolean(env.mosaic_marketing_bot_db)
       });
     }
@@ -139,7 +141,7 @@ async function handleTelegramWebhook(request, env, ctx) {
     if (command === "/new") {
       await sendTelegramText(
         env,
-        "🔎 Research started.\nI’m checking current knife-making discussions and preparing one original EN/RU candidate."
+        "🔎 Поиск и анализ начаты.\nПроверяю актуальные обсуждения среди ножеделов, сравниваю несколько источников и готовлю один оригинальный кандидат EN/RU."
       );
       ctx.waitUntil(generateAndSendCandidate(env, {
         trigger: "telegram_new",
@@ -153,13 +155,18 @@ async function handleTelegramWebhook(request, env, ctx) {
       await sendTelegramText(
         env,
         "Mosaic Pins Marketing Bot\n\n" +
-        "/new: research + create one new candidate\n" +
-        "/rotation: show the next planned content type/theme (free)\n" +
-        "/history: show recent candidates (free)\n\n" +
-        "Buttons under a candidate:\n" +
+        "/new: поиск, анализ и создание одного нового кандидата\n" +
+        "/rotation: показать следующую ротацию типа и тематики, бесплатно\n" +
+        "/history: показать последние кандидаты, бесплатно\n\n" +
+        "Кнопки под кандидатом:\n" +
         "✅ Принять: отметить готовым\n" +
-        "🔄 Переписать: переписать EN + RU без нового web search\n" +
-        "❌ Пропустить: архивировать кандидата"
+        "🔄 Переписать: переписать EN + RU без нового поиска\n" +
+        "❌ Пропустить: архивировать кандидата\n\n" +
+        "После принятия:\n" +
+        "📷 Фото товара: предложить реальное фото из mosaicpins.space без OpenAI\n" +
+        "🚫 Без фото: подготовить текстовую публикацию\n" +
+        "🖼 AI позже: резерв под генерацию, сейчас ничего не списывает\n" +
+        "🚀 Facebook: публикует только когда Page ID и Page Access Token подключены"
       );
     }
 
@@ -170,18 +177,23 @@ async function handleTelegramWebhook(request, env, ctx) {
     const callback = update.callback_query;
     const chatId = String(callback?.message?.chat?.id || "");
     if (!configuredChatId || chatId !== configuredChatId) {
-      await answerCallback(env, callback.id, "Not allowed");
+      await answerCallback(env, callback.id, "Нет доступа");
       return new Response("ok");
     }
 
-    const match = String(callback.data || "").match(/^(approve|rewrite|skip):(\d+)$/);
-    if (!match) {
-      await answerCallback(env, callback.id, "Unknown action");
+    const parts = String(callback.data || "").split(":");
+    const action = parts[0];
+    const postId = Number(parts[1]);
+    const arg = Number(parts[2] || 0);
+    const allowed = new Set([
+      "approve", "rewrite", "skip",
+      "photo", "photo_next", "photo_select", "no_photo", "ai_image", "facebook_publish"
+    ]);
+
+    if (!allowed.has(action) || !Number.isInteger(postId) || postId <= 0) {
+      await answerCallback(env, callback.id, "Неизвестное действие");
       return new Response("ok");
     }
-
-    const action = match[1];
-    const postId = Number(match[2]);
 
     if (action === "approve") {
       await answerCallback(env, callback.id, "Принято ✅");
@@ -190,8 +202,24 @@ async function handleTelegramWebhook(request, env, ctx) {
       await answerCallback(env, callback.id, "Пропущено");
       ctx.waitUntil(skipCandidate(env, postId, callback.message?.message_id));
     } else if (action === "rewrite") {
-      await answerCallback(env, callback.id, "Переписываю…");
+      await answerCallback(env, callback.id, "Переписываю...");
       ctx.waitUntil(rewriteCandidate(env, postId, callback.message?.message_id));
+    } else if (action === "photo") {
+      await answerCallback(env, callback.id, "Ищу реальное фото...");
+      ctx.waitUntil(showRealPhotoPreview(env, postId, 0));
+    } else if (action === "photo_next") {
+      await answerCallback(env, callback.id, "Следующее фото");
+      ctx.waitUntil(showRealPhotoPreview(env, postId, arg + 1, callback.message?.message_id));
+    } else if (action === "photo_select") {
+      await answerCallback(env, callback.id, "Фото выбрано ✅");
+      ctx.waitUntil(selectRealPhoto(env, postId, arg, callback.message?.message_id));
+    } else if (action === "no_photo") {
+      await answerCallback(env, callback.id, "Без фото ✅");
+      ctx.waitUntil(selectNoPhoto(env, postId));
+    } else if (action === "ai_image") {
+      await answerCallback(env, callback.id, "AI-картинки пока выключены, списаний нет", true);
+    } else if (action === "facebook_publish") {
+      ctx.waitUntil(handleFacebookPublish(env, postId, callback.id));
     }
 
     return new Response("ok");
@@ -340,14 +368,14 @@ async function generateAndSendCandidate(env, meta = {}) {
       upstreamStatus: response.status,
       details: safeApiError(data)
     };
-    await sendTelegramText(env, `⚠️ Research failed\n${body.details?.message || "Unknown OpenAI error"}`);
+    await sendTelegramText(env, `⚠️ Ошибка поиска и анализа\n${body.details?.message || "Неизвестная ошибка OpenAI"}`);
     return { status: 502, body };
   }
 
   const candidate = parseStructuredOutput(data);
   if (!candidate) {
     const body = { ok: false, error: "Could not parse structured AI output" };
-    await sendTelegramText(env, "⚠️ Research completed, but the candidate format could not be parsed.");
+    await sendTelegramText(env, "⚠️ Поиск и анализ завершены, но не удалось разобрать формат кандидата.");
     return { status: 502, body };
   }
 
@@ -476,13 +504,13 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
   const db = env.mosaic_marketing_bot_db;
   const row = await getPost(env, postId);
   if (!row) {
-    await sendTelegramText(env, `⚠️ Candidate #${postId} was not found.`);
+    await sendTelegramText(env, `⚠️ Кандидат #${postId} не найден.`);
     return;
   }
 
   const apiKey = String(env.OPENAI_API_KEY || "").trim();
   if (!apiKey) {
-    await sendTelegramText(env, "⚠️ OPENAI_API_KEY is not configured.");
+    await sendTelegramText(env, "⚠️ OPENAI_API_KEY не настроен.");
     return;
   }
 
@@ -562,7 +590,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
     await editTelegramText(
       env,
       telegramMessageId,
-      formatCandidateMessage(row) + "\n\n⚠️ Rewrite failed.",
+      formatCandidateMessage(row) + "\n\n⚠️ Не удалось переписать текст.",
       candidateKeyboard(postId)
     );
     return;
@@ -573,7 +601,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
     await editTelegramText(
       env,
       telegramMessageId,
-      formatCandidateMessage(row) + "\n\n⚠️ Rewrite format error.",
+      formatCandidateMessage(row) + "\n\n⚠️ Ошибка формата после переписывания.",
       candidateKeyboard(postId)
     );
     return;
@@ -610,6 +638,8 @@ async function approveCandidate(env, postId, telegramMessageId) {
   const current = await getPost(env, postId);
   if (!current) return;
 
+  await ensurePublishingTables(env);
+
   // Normalize older candidates too when they are approved, without rewriting wording.
   const currentRu = splitRuPayload(current.ru_text);
   await db.prepare(`
@@ -627,13 +657,323 @@ async function approveCandidate(env, postId, telegramMessageId) {
 
   const row = await getPost(env, postId);
   if (!row) return;
+  const media = await getMediaSelection(env, postId);
 
   await editTelegramText(
     env,
     telegramMessageId,
-    "✅ ПРИНЯТО: готово для Facebook\n\n" + formatCandidateMessage(row, false),
+    formatApprovedMessage(row, media),
+    approvedKeyboard(postId)
+  );
+}
+
+async function ensurePublishingTables(env) {
+  const db = env.mosaic_marketing_bot_db;
+  if (!db) return;
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS content_media (
+      post_id INTEGER PRIMARY KEY,
+      mode TEXT NOT NULL DEFAULT 'unset',
+      image_url TEXT,
+      image_pin TEXT,
+      image_title TEXT,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS facebook_publications (
+      post_id INTEGER PRIMARY KEY,
+      status TEXT NOT NULL DEFAULT 'not_published',
+      facebook_post_id TEXT,
+      facebook_page_id TEXT,
+      published_at TEXT,
+      last_error TEXT,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+}
+
+async function getMediaSelection(env, postId) {
+  await ensurePublishingTables(env);
+  return env.mosaic_marketing_bot_db.prepare(`
+    SELECT post_id, mode, image_url, image_pin, image_title, updated_at
+    FROM content_media
+    WHERE post_id = ?
+  `).bind(postId).first();
+}
+
+async function saveMediaSelection(env, postId, media) {
+  await ensurePublishingTables(env);
+  const now = new Date().toISOString();
+  await env.mosaic_marketing_bot_db.prepare(`
+    INSERT INTO content_media (post_id, mode, image_url, image_pin, image_title, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(post_id) DO UPDATE SET
+      mode = excluded.mode,
+      image_url = excluded.image_url,
+      image_pin = excluded.image_pin,
+      image_title = excluded.image_title,
+      updated_at = excluded.updated_at
+  `).bind(
+    postId,
+    String(media?.mode || "unset"),
+    String(media?.imageUrl || ""),
+    String(media?.pin || ""),
+    String(media?.title || ""),
+    now
+  ).run();
+}
+
+async function showRealPhotoPreview(env, postId, requestedIndex = 0, previewMessageId = null) {
+  const row = await getPost(env, postId);
+  if (!row || row.status !== "approved") {
+    await sendTelegramText(env, `⚠️ Post #${postId} must be approved first.`);
+    return;
+  }
+
+  const candidates = await getRealPhotoCandidates(row);
+  if (!candidates.length) {
+    await sendTelegramText(env, "⚠️ Не нашёл доступных фотографий товаров на mosaicpins.space.");
+    return;
+  }
+
+  const index = ((Number(requestedIndex) || 0) % candidates.length + candidates.length) % candidates.length;
+  const product = candidates[index];
+  const imageUrl = String(product?.images?.[0] || "").trim();
+  if (!imageUrl) return;
+
+  const caption =
+    `📷 Реальное фото из магазина\n` +
+    `${product.title || product.pin}\n` +
+    `PIN: ${product.pin}\n` +
+    `В наличии: ${Number(product.stock || 0)}\n\n` +
+    `Вариант ${index + 1} из ${candidates.length}. OpenAI не используется.`;
+
+  const keyboard = realPhotoKeyboard(postId, index);
+  if (previewMessageId) {
+    await editTelegramPhoto(env, previewMessageId, imageUrl, caption, keyboard);
+  } else {
+    await sendTelegramPhoto(env, imageUrl, caption, keyboard);
+  }
+}
+
+async function selectRealPhoto(env, postId, index, previewMessageId) {
+  const row = await getPost(env, postId);
+  if (!row || row.status !== "approved") return;
+
+  const candidates = await getRealPhotoCandidates(row);
+  if (!candidates.length) return;
+  const normalizedIndex = ((Number(index) || 0) % candidates.length + candidates.length) % candidates.length;
+  const product = candidates[normalizedIndex];
+  const imageUrl = String(product?.images?.[0] || "").trim();
+  if (!imageUrl) return;
+
+  await saveMediaSelection(env, postId, {
+    mode: "product",
+    imageUrl,
+    pin: product.pin,
+    title: product.title || product.pin
+  });
+
+  if (previewMessageId) {
+    await editTelegramPhoto(
+      env,
+      previewMessageId,
+      imageUrl,
+      `✅ Фото выбрано\n${product.title || product.pin}\nPIN: ${product.pin}`,
+      null
+    );
+  }
+
+  await refreshApprovedTelegramMessage(env, postId);
+}
+
+async function selectNoPhoto(env, postId) {
+  const row = await getPost(env, postId);
+  if (!row || row.status !== "approved") return;
+  await saveMediaSelection(env, postId, { mode: "none" });
+  await refreshApprovedTelegramMessage(env, postId);
+}
+
+async function refreshApprovedTelegramMessage(env, postId) {
+  const row = await getPost(env, postId);
+  if (!row || !row.telegram_message_id) return;
+  const media = await getMediaSelection(env, postId);
+  await editTelegramText(
+    env,
+    row.telegram_message_id,
+    formatApprovedMessage(row, media),
+    approvedKeyboard(postId)
+  );
+}
+
+async function getRealPhotoCandidates(row) {
+  const response = await fetch("https://mosaicpins.space/api/products", {
+    headers: { "accept": "application/json" }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) return [];
+
+  let products = (Array.isArray(data?.products) ? data.products : [])
+    .filter(p => Array.isArray(p?.images) && p.images.some(Boolean));
+  if (!products.length) return [];
+
+  products = products.map(product => ({
+    ...product,
+    _score: scoreProductForPost(row, product)
+  }));
+
+  products.sort((a, b) =>
+    Number(b._score || 0) - Number(a._score || 0) ||
+    String(a.pin || "").localeCompare(String(b.pin || ""))
+  );
+
+  // Rotate equal-quality choices per post so different posts do not always show the same first product.
+  const top = products.slice(0, Math.min(12, products.length));
+  if (top.length > 1) {
+    const shift = Number(row?.id || 0) % top.length;
+    return top.slice(shift).concat(top.slice(0, shift));
+  }
+  return top;
+}
+
+function scoreProductForPost(row, product) {
+  const haystack = [
+    product?.pin,
+    product?.title,
+    product?.description,
+    product?.type,
+    product?.color,
+    ...(Array.isArray(product?.materials) ? product.materials : [])
+  ].join(" ").toLowerCase();
+
+  let score = Number(product?.stock || 0) > 0 ? 20 : 0;
+  const theme = String(row?.theme || "");
+  const type = String(row?.content_type || "");
+  const topic = String(row?.topic || "").toLowerCase();
+
+  const themeKeywords = {
+    glow_materials: ["glow", "moonglow", "luminous", "powder"],
+    lanyards: ["lanyard", "tube"],
+    pins_installation: ["mosaic", "pin"],
+    drilling_and_fit: ["mosaic", "pin"],
+    handle_design: ["mosaic", "pin"],
+    finished_knives: ["mosaic", "pin"]
+  }[theme] || [];
+
+  for (const keyword of themeKeywords) {
+    if (haystack.includes(keyword)) score += 12;
+  }
+
+  if (type === "mosaic_pins") score += 10;
+  for (const token of topic.split(/[^a-z0-9]+/).filter(x => x.length >= 5)) {
+    if (haystack.includes(token)) score += 2;
+  }
+  return score;
+}
+
+async function handleFacebookPublish(env, postId, callbackId) {
+  const row = await getPost(env, postId);
+  if (!row || row.status !== "approved") {
+    await answerCallback(env, callbackId, "Сначала нужно принять пост", true);
+    return;
+  }
+
+  await ensurePublishingTables(env);
+  const previous = await env.mosaic_marketing_bot_db.prepare(`
+    SELECT status, facebook_post_id, published_at
+    FROM facebook_publications
+    WHERE post_id = ?
+  `).bind(postId).first();
+
+  if (previous?.status === "published") {
+    await answerCallback(env, callbackId, "Этот пост уже опубликован", true);
+    return;
+  }
+
+  const pageId = String(env.FACEBOOK_PAGE_ID || "").trim();
+  const token = String(env.FACEBOOK_PAGE_ACCESS_TOKEN || "").trim();
+  if (!pageId || !token) {
+    await answerCallback(env, callbackId, "Facebook пока не подключен. Ничего не опубликовано.", true);
+    return;
+  }
+
+  const media = await getMediaSelection(env, postId);
+  if (!media || media.mode === "unset") {
+    await answerCallback(env, callbackId, "Сначала выбери фото или Без фото", true);
+    return;
+  }
+
+  await answerCallback(env, callbackId, "Публикую...");
+  const result = await publishToFacebookPage(env, row, media);
+  const now = new Date().toISOString();
+
+  await env.mosaic_marketing_bot_db.prepare(`
+    INSERT INTO facebook_publications (
+      post_id, status, facebook_post_id, facebook_page_id, published_at, last_error, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(post_id) DO UPDATE SET
+      status = excluded.status,
+      facebook_post_id = excluded.facebook_post_id,
+      facebook_page_id = excluded.facebook_page_id,
+      published_at = excluded.published_at,
+      last_error = excluded.last_error,
+      updated_at = excluded.updated_at
+  `).bind(
+    postId,
+    result.ok ? "published" : "failed",
+    String(result.postId || ""),
+    pageId,
+    result.ok ? now : "",
+    result.ok ? "" : String(result.error || "Unknown Facebook error"),
+    now
+  ).run();
+
+  if (!result.ok) {
+    await sendTelegramText(env, `⚠️ Facebook publish failed for #${postId}\n${result.error || "Unknown error"}`);
+    return;
+  }
+
+  await editTelegramText(
+    env,
+    row.telegram_message_id,
+    `✅ ОПУБЛИКОВАНО В FACEBOOK\nPublished: ${now}\nFacebook ID: ${result.postId || ""}\n\n` + formatCandidateMessage(row, false),
     null
   );
+}
+
+async function publishToFacebookPage(env, row, media) {
+  const pageId = String(env.FACEBOOK_PAGE_ID || "").trim();
+  const token = String(env.FACEBOOK_PAGE_ACCESS_TOKEN || "").trim();
+  const isPhoto = media?.mode === "product" && String(media?.image_url || "").trim();
+  const endpoint = isPhoto
+    ? `https://graph.facebook.com/${encodeURIComponent(pageId)}/photos`
+    : `https://graph.facebook.com/${encodeURIComponent(pageId)}/feed`;
+
+  const body = new URLSearchParams();
+  body.set("access_token", token);
+  if (isPhoto) {
+    body.set("url", String(media.image_url));
+    body.set("caption", String(row.en_text || ""));
+  } else {
+    body.set("message", String(row.en_text || ""));
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: body.toString()
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) {
+    return {
+      ok: false,
+      error: String(data?.error?.message || `Facebook HTTP ${response.status}`)
+    };
+  }
+  return { ok: true, postId: String(data?.post_id || data?.id || "") };
 }
 
 async function skipCandidate(env, postId, telegramMessageId) {
@@ -759,8 +1099,8 @@ function formatCandidateMessage(row, includeStatus = true) {
   const sources = safeJsonArray(row.source_json);
   const domains = uniqueDomains(sources).slice(0, 6);
   const sourceLine = domains.length
-    ? `Research: ${domains.map(prettyDomain).join(" · ")}`
-    : "Research: sources stored in D1";
+    ? `Исследование: ${domains.map(prettyDomain).join(" · ")}`
+    : "Исследование: источники сохранены в D1";
 
   const scope = extractScopeFromSummary(row.research_summary_ru);
   const ruPayload = splitRuPayload(row.ru_text);
@@ -787,6 +1127,47 @@ function formatCandidateMessage(row, includeStatus = true) {
     `\n\n🔎 Заметка по исследованию\n${stripScopePrefix(row.research_summary_ru) || ""}` +
     `\n\n${sourceLine}`
   );
+}
+
+function formatApprovedMessage(row, media) {
+  let mediaLine = "📷 Медиа: не выбрано";
+  if (media?.mode === "product") {
+    mediaLine = `📷 Медиа: ${media.image_title || media.image_pin || "фото товара"}${media.image_pin ? ` · ${media.image_pin}` : ""}`;
+  } else if (media?.mode === "none") {
+    mediaLine = "📷 Медиа: без фото";
+  } else if (media?.mode === "ai") {
+    mediaLine = "📷 Медиа: AI-картинка";
+  }
+
+  return "✅ ПРИНЯТО: готово для Facebook\n" + mediaLine + "\n\n" + formatCandidateMessage(row, false);
+}
+
+function approvedKeyboard(postId) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "📷 Фото товара", callback_data: `photo:${postId}` },
+        { text: "🖼 AI позже", callback_data: `ai_image:${postId}` }
+      ],
+      [
+        { text: "🚫 Без фото", callback_data: `no_photo:${postId}` }
+      ],
+      [
+        { text: "🚀 Facebook", callback_data: `facebook_publish:${postId}` }
+      ]
+    ]
+  };
+}
+
+function realPhotoKeyboard(postId, index) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "✅ Выбрать", callback_data: `photo_select:${postId}:${index}` },
+        { text: "➡️ Другое", callback_data: `photo_next:${postId}:${index}` }
+      ]
+    ]
+  };
 }
 
 function candidateKeyboard(postId) {
@@ -831,6 +1212,57 @@ async function sendTelegramText(env, text, replyMarkup = undefined) {
   };
 }
 
+async function sendTelegramPhoto(env, photoUrl, caption, replyMarkup = undefined) {
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(env.TELEGRAM_CHAT_ID || "").trim();
+  if (!token || !chatId || !photoUrl) return { ok: false };
+
+  const payload = {
+    chat_id: chatId,
+    photo: photoUrl,
+    caption: truncateTelegram(caption)
+  };
+  if (replyMarkup) payload.reply_markup = replyMarkup;
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  return {
+    ok: response.ok && data?.ok === true,
+    messageId: data?.result?.message_id || null,
+    data
+  };
+}
+
+async function editTelegramPhoto(env, messageId, photoUrl, caption, replyMarkup = undefined) {
+  if (!messageId || !photoUrl) return { ok: false };
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(env.TELEGRAM_CHAT_ID || "").trim();
+  if (!token || !chatId) return { ok: false };
+
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId,
+    media: {
+      type: "photo",
+      media: photoUrl,
+      caption: truncateTelegram(caption)
+    }
+  };
+  if (replyMarkup !== undefined) payload.reply_markup = replyMarkup || { inline_keyboard: [] };
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/editMessageMedia`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok && data?.ok === true, data };
+}
+
 async function editTelegramText(env, messageId, text, replyMarkup = undefined) {
   if (!messageId) return { ok: false };
 
@@ -858,7 +1290,7 @@ async function editTelegramText(env, messageId, text, replyMarkup = undefined) {
   return { ok: response.ok && data?.ok === true, data };
 }
 
-async function answerCallback(env, callbackId, text) {
+async function answerCallback(env, callbackId, text, showAlert = false) {
   const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
   if (!token || !callbackId) return;
 
@@ -868,7 +1300,7 @@ async function answerCallback(env, callbackId, text) {
     body: JSON.stringify({
       callback_query_id: callbackId,
       text,
-      show_alert: false
+      show_alert: Boolean(showAlert)
     })
   });
 }
