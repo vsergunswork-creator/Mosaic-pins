@@ -157,9 +157,9 @@ async function handleTelegramWebhook(request, env, ctx) {
         "/rotation — show the next planned content type/theme (free)\n" +
         "/history — show recent candidates (free)\n\n" +
         "Buttons under a candidate:\n" +
-        "✅ Approve — mark ready\n" +
-        "🔄 Rewrite — rewrite EN + RU without another web search\n" +
-        "❌ Skip — archive candidate"
+        "✅ Принять — отметить готовым\n" +
+        "🔄 Переписать — переписать EN + RU без нового web search\n" +
+        "❌ Пропустить — архивировать кандидата"
       );
     }
 
@@ -184,13 +184,13 @@ async function handleTelegramWebhook(request, env, ctx) {
     const postId = Number(match[2]);
 
     if (action === "approve") {
-      await answerCallback(env, callback.id, "Approved ✅");
+      await answerCallback(env, callback.id, "Принято ✅");
       ctx.waitUntil(approveCandidate(env, postId, callback.message?.message_id));
     } else if (action === "skip") {
-      await answerCallback(env, callback.id, "Skipped");
+      await answerCallback(env, callback.id, "Пропущено");
       ctx.waitUntil(skipCandidate(env, postId, callback.message?.message_id));
     } else if (action === "rewrite") {
-      await answerCallback(env, callback.id, "Rewriting…");
+      await answerCallback(env, callback.id, "Переписываю…");
       ctx.waitUntil(rewriteCandidate(env, postId, callback.message?.message_id));
     }
 
@@ -487,7 +487,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
   await editTelegramText(
     env,
     telegramMessageId,
-    formatCandidateMessage(row) + "\n\n🔄 Rewriting…",
+    formatCandidateMessage(row) + "\n\n🔄 Переписываю…",
     null
   );
 
@@ -617,7 +617,7 @@ async function approveCandidate(env, postId, telegramMessageId) {
   await editTelegramText(
     env,
     telegramMessageId,
-    "✅ APPROVED — ready for Facebook\n\n" + formatCandidateMessage(row, false),
+    "✅ ПРИНЯТО — готово для Facebook\n\n" + formatCandidateMessage(row, false),
     null
   );
 }
@@ -638,7 +638,7 @@ async function skipCandidate(env, postId, telegramMessageId) {
   await editTelegramText(
     env,
     telegramMessageId,
-    "❌ SKIPPED\n\n" + formatCandidateMessage(row, false),
+    "❌ ПРОПУЩЕНО\n\n" + formatCandidateMessage(row, false),
     null
   );
 }
@@ -778,9 +778,9 @@ function formatCandidateMessage(row, includeStatus = true) {
 function candidateKeyboard(postId) {
   return {
     inline_keyboard: [[
-      { text: "✅ Approve", callback_data: `approve:${postId}` },
-      { text: "🔄 Rewrite", callback_data: `rewrite:${postId}` },
-      { text: "❌ Skip", callback_data: `skip:${postId}` }
+      { text: "✅ Принять", callback_data: `approve:${postId}` },
+      { text: "🔄 Переписать", callback_data: `rewrite:${postId}` },
+      { text: "❌ Пропустить", callback_data: `skip:${postId}` }
     ]]
   };
 }
