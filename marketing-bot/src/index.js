@@ -390,9 +390,9 @@ async function generateAndSendCandidate(env, meta = {}) {
     content_type: rotation.contentType,
     theme: rotation.theme,
     topic: candidate.topic,
-    en_text: candidate.en,
-    ru_text: candidate.ru,
-    research_summary_ru: candidate.research_summary_ru,
+    en_text: cleanPublicText(candidate.en),
+    ru_text: composeRuPayload(candidate.topic_ru, candidate.ru),
+    research_summary_ru: `Scope: ${candidate.scope}\n${cleanPublicText(candidate.research_summary_ru)}`,
     source_json: JSON.stringify(sources),
     rewrite_count: 0
   });
