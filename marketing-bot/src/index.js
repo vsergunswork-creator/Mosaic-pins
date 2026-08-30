@@ -1,5 +1,7 @@
 const OPENAI_URL = "https://api.openai.com/v1/responses";
+const OPENAI_IMAGE_URL = "https://api.openai.com/v1/images/generations";
 const MODEL = "gpt-5.6-luna";
+const IMAGE_MODEL = "gpt-image-2";
 
 const CONTENT_TYPES = {
   utility: [
@@ -165,7 +167,7 @@ async function handleTelegramWebhook(request, env, ctx) {
         "После принятия:\n" +
         "📷 Фото товара: предложить реальное фото из mosaicpins.space без OpenAI\n" +
         "🚫 Без фото: подготовить текстовую публикацию\n" +
-        "🖼 AI позже: резерв под генерацию, сейчас ничего не списывает\n" +
+        "🖼 AI фото: сгенерировать одно тематическое изображение GPT Image 2 после принятия\n" +
         "🚀 Facebook: публикует только когда Page ID и Page Access Token подключены"
       );
     }
@@ -187,7 +189,7 @@ async function handleTelegramWebhook(request, env, ctx) {
     const arg = Number(parts[2] || 0);
     const allowed = new Set([
       "approve", "rewrite", "skip",
-      "photo", "photo_next", "photo_select", "no_photo", "ai_image", "facebook_publish"
+      "photo", "photo_next", "photo_select", "no_photo", "ai_image", "ai_select", "facebook_publish"
     ]);
 
     if (!allowed.has(action) || !Number.isInteger(postId) || postId <= 0) {
@@ -217,7 +219,11 @@ async function handleTelegramWebhook(request, env, ctx) {
       await answerCallback(env, callback.id, "Без фото ✅");
       ctx.waitUntil(selectNoPhoto(env, postId));
     } else if (action === "ai_image") {
-      await answerCallback(env, callback.id, "AI-картинки пока выключены, списаний нет", true);
+      await answerCallback(env, callback.id, "Генерирую AI-изображение...");
+      ctx.waitUntil(generateAiImagePreview(env, postId));
+    } else if (action === "ai_select") {
+      await answerCallback(env, callback.id, "AI-изображение выбрано ✅");
+      ctx.waitUntil(selectAiImage(env, postId, callback.message?.message_id));
     } else if (action === "facebook_publish") {
       ctx.waitUntil(handleFacebookPublish(env, postId, callback.id));
     }
@@ -874,6 +880,223 @@ function scoreProductForPost(row, product) {
   return score;
 }
 
+async function generateAiImagePreview(env, postId) {
+  const row = await getPost(env, postId);
+  if (!row || row.status !== "approved") {
+    await sendTelegramText(env, `⚠️ Кандидат #${postId} сначала нужно принять.`);
+    return;
+  }
+
+  const apiKey = String(env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) {
+    await sendTelegramText(env, "⚠️ OPENAI_API_KEY не настроен.");
+    return;
+  }
+
+  const prompt = buildAiImagePrompt(row);
+  const response = await fetch(OPENAI_IMAGE_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: IMAGE_MODEL,
+      prompt,
+      size: "1536x1024",
+      quality: "low",
+      n: 1
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = safeApiError(data);
+    await sendTelegramText(
+      env,
+      `⚠️ Не удалось создать AI-изображение для #${postId}.\n${err.message || `OpenAI HTTP ${response.status}`}`
+    );
+    return;
+  }
+
+  const b64 = String(data?.data?.[0]?.b64_json || "").trim();
+  if (!b64) {
+    await sendTelegramText(env, `⚠️ OpenAI не вернул изображение для #${postId}.`);
+    return;
+  }
+
+  let bytes;
+  try {
+    bytes = base64ToUint8Array(b64);
+  } catch (_) {
+    await sendTelegramText(env, `⚠️ Не удалось декодировать AI-изображение для #${postId}.`);
+    return;
+  }
+
+  const caption =
+    `🖼 AI-изображение для кандидата #${postId}\n` +
+    `Тема: ${row.topic || ""}\n` +
+    `Тематика: ${themeRu(row.theme)}\n` +
+    `Область: ${scopeRu(extractScopeFromSummary(row.research_summary_ru))}\n\n` +
+    `GPT Image 2, черновое качество low. Генерация выполняется только по нажатию кнопки.`;
+
+  const sent = await sendTelegramPhotoBytes(
+    env,
+    bytes,
+    `mosaic-post-${postId}.png`,
+    caption,
+    aiPhotoKeyboard(postId)
+  );
+
+  if (!sent.ok || !sent.fileId) {
+    await sendTelegramText(env, `⚠️ Картинка создана, но Telegram не смог её принять для #${postId}.`);
+    return;
+  }
+
+  await saveMediaSelection(env, postId, {
+    mode: "ai_preview",
+    imageUrl: `tgfile:${sent.fileId}`,
+    pin: "",
+    title: `AI: ${row.topic || `Post ${postId}`}`
+  });
+  await refreshApprovedTelegramMessage(env, postId);
+}
+
+async function selectAiImage(env, postId, previewMessageId) {
+  const row = await getPost(env, postId);
+  if (!row || row.status !== "approved") return;
+
+  const media = await getMediaSelection(env, postId);
+  if (!media || media.mode !== "ai_preview" || !String(media.image_url || "").startsWith("tgfile:")) {
+    await sendTelegramText(env, `⚠️ Для #${postId} сначала создай AI-изображение.`);
+    return;
+  }
+
+  await saveMediaSelection(env, postId, {
+    mode: "ai",
+    imageUrl: String(media.image_url || ""),
+    pin: "",
+    title: String(media.image_title || `AI: ${row.topic || ""}`)
+  });
+
+  if (previewMessageId) {
+    await editTelegramPhotoCaption(
+      env,
+      previewMessageId,
+      `✅ AI-изображение выбрано для кандидата #${postId}\nТема: ${row.topic || ""}`,
+      null
+    );
+  }
+  await refreshApprovedTelegramMessage(env, postId);
+}
+
+function buildAiImagePrompt(row) {
+  const scope = extractScopeFromSummary(row.research_summary_ru);
+  const scopeInstruction = {
+    mosaic_pin:
+      "The hardware shown must clearly be a decorative mosaic pin used in a custom knife handle. Do not depict hammering, peening, mushrooming, or expanding the mosaic pin.",
+    solid_pin:
+      "The hardware shown must clearly be a plain solid metal pin, not a mosaic pin, not a Corby fastener, and not a lanyard tube.",
+    fastener:
+      "The hardware shown must clearly be a mechanical knife-handle fastener such as a Corby or Loveless-style fastener, and must not be confused with a mosaic pin.",
+    lanyard_tube:
+      "The hardware shown must clearly be a hollow lanyard tube in a knife handle, not a solid pin and not a mosaic pin.",
+    general:
+      "Keep any knife-handle hardware visually generic and do not imply a specific installation technique that the post does not discuss.",
+    other:
+      "Keep the visual tightly connected to the stated topic without inventing unsupported technical details."
+  }[scope] || "Keep the visual tightly connected to the stated topic without inventing unsupported technical details.";
+
+  return (
+    "Create a realistic editorial social-media image for an English-language custom knife-making community. " +
+    `The exact post topic is: ${cleanPublicText(row.topic)}. ` +
+    `The thematic area is: ${humanize(row.theme)}. ` +
+    `The post says: ${cleanPublicText(row.en_text)}\n\n` +
+    scopeInstruction + " " +
+    "Show a believable professional knife-maker workshop or finished custom-knife context that visually supports the post's main idea. " +
+    "Do not add any words, captions, labels, logos, watermarks, brand marks, charts, arrows, UI, or fake instructional text inside the image. " +
+    "Do not copy a recognizable commercial product design. Do not make the image look like an advertisement. " +
+    "Prefer one clear visual idea over a collage. Natural workshop materials, realistic metal, wood, Micarta or G10 textures are welcome when relevant. " +
+    "If the post discusses fit, drilling, epoxy, finishing or another process, illustrate the concept visually without inventing measurements or unsupported claims. " +
+    "Landscape composition, clean focal point, photorealistic workshop photography, suitable for a Facebook post."
+  );
+}
+
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function sendTelegramPhotoBytes(env, bytes, filename, caption, replyMarkup = undefined) {
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(env.TELEGRAM_CHAT_ID || "").trim();
+  if (!token || !chatId || !bytes?.byteLength) return { ok: false };
+
+  const form = new FormData();
+  form.set("chat_id", chatId);
+  form.set("caption", truncateTelegram(caption));
+  if (replyMarkup) form.set("reply_markup", JSON.stringify(replyMarkup));
+  form.set("photo", new Blob([bytes], { type: "image/png" }), filename || "image.png");
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: "POST",
+    body: form
+  });
+  const data = await response.json().catch(() => ({}));
+  const sizes = Array.isArray(data?.result?.photo) ? data.result.photo : [];
+  const fileId = sizes.length ? String(sizes[sizes.length - 1]?.file_id || "") : "";
+  return {
+    ok: response.ok && data?.ok === true,
+    messageId: data?.result?.message_id || null,
+    fileId,
+    data
+  };
+}
+
+async function editTelegramPhotoCaption(env, messageId, caption, replyMarkup = undefined) {
+  if (!messageId) return { ok: false };
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(env.TELEGRAM_CHAT_ID || "").trim();
+  if (!token || !chatId) return { ok: false };
+
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId,
+    caption: truncateTelegram(caption)
+  };
+  if (replyMarkup !== undefined) payload.reply_markup = replyMarkup || { inline_keyboard: [] };
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/editMessageCaption`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok && data?.ok === true, data };
+}
+
+async function fetchTelegramStoredImage(env, fileId) {
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  if (!token || !fileId) throw new Error("Telegram file storage is unavailable");
+
+  const metaResponse = await fetch(
+    `https://api.telegram.org/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`
+  );
+  const meta = await metaResponse.json().catch(() => ({}));
+  const filePath = String(meta?.result?.file_path || "").trim();
+  if (!metaResponse.ok || meta?.ok !== true || !filePath) {
+    throw new Error("Telegram could not resolve generated image file");
+  }
+
+  const fileResponse = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+  if (!fileResponse.ok) throw new Error(`Telegram image download failed (HTTP ${fileResponse.status})`);
+  return await fileResponse.blob();
+}
+
 async function handleFacebookPublish(env, postId, callbackId) {
   const row = await getPost(env, postId);
   if (!row || row.status !== "approved") {
@@ -947,25 +1170,43 @@ async function handleFacebookPublish(env, postId, callbackId) {
 async function publishToFacebookPage(env, row, media) {
   const pageId = String(env.FACEBOOK_PAGE_ID || "").trim();
   const token = String(env.FACEBOOK_PAGE_ACCESS_TOKEN || "").trim();
-  const isPhoto = media?.mode === "product" && String(media?.image_url || "").trim();
-  const endpoint = isPhoto
-    ? `https://graph.facebook.com/${encodeURIComponent(pageId)}/photos`
-    : `https://graph.facebook.com/${encodeURIComponent(pageId)}/feed`;
+  const imageRef = String(media?.image_url || "").trim();
+  const isProductPhoto = media?.mode === "product" && imageRef;
+  const isAiPhoto = media?.mode === "ai" && imageRef.startsWith("tgfile:");
 
-  const body = new URLSearchParams();
-  body.set("access_token", token);
-  if (isPhoto) {
-    body.set("url", String(media.image_url));
+  let response;
+  if (isAiPhoto) {
+    const fileId = imageRef.slice("tgfile:".length);
+    const imageBlob = await fetchTelegramStoredImage(env, fileId);
+    const form = new FormData();
+    form.set("access_token", token);
+    form.set("caption", String(row.en_text || ""));
+    form.set("source", imageBlob, `mosaic-ai-post-${row.id}.png`);
+    response = await fetch(`https://graph.facebook.com/${encodeURIComponent(pageId)}/photos`, {
+      method: "POST",
+      body: form
+    });
+  } else if (isProductPhoto) {
+    const body = new URLSearchParams();
+    body.set("access_token", token);
+    body.set("url", imageRef);
     body.set("caption", String(row.en_text || ""));
+    response = await fetch(`https://graph.facebook.com/${encodeURIComponent(pageId)}/photos`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
   } else {
+    const body = new URLSearchParams();
+    body.set("access_token", token);
     body.set("message", String(row.en_text || ""));
+    response = await fetch(`https://graph.facebook.com/${encodeURIComponent(pageId)}/feed`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
   }
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: body.toString()
-  });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.error) {
     return {
@@ -1135,8 +1376,10 @@ function formatApprovedMessage(row, media) {
     mediaLine = `📷 Медиа: ${media.image_title || media.image_pin || "фото товара"}${media.image_pin ? ` · ${media.image_pin}` : ""}`;
   } else if (media?.mode === "none") {
     mediaLine = "📷 Медиа: без фото";
+  } else if (media?.mode === "ai_preview") {
+    mediaLine = "📷 Медиа: AI-картинка создана, нажми Выбрать";
   } else if (media?.mode === "ai") {
-    mediaLine = "📷 Медиа: AI-картинка";
+    mediaLine = "📷 Медиа: AI-картинка выбрана";
   }
 
   return "✅ ПРИНЯТО: готово для Facebook\n" + mediaLine + "\n\n" + formatCandidateMessage(row, false);
@@ -1147,7 +1390,7 @@ function approvedKeyboard(postId) {
     inline_keyboard: [
       [
         { text: "📷 Фото товара", callback_data: `photo:${postId}` },
-        { text: "🖼 AI позже", callback_data: `ai_image:${postId}` }
+        { text: "🖼 AI фото", callback_data: `ai_image:${postId}` }
       ],
       [
         { text: "🚫 Без фото", callback_data: `no_photo:${postId}` }
@@ -1165,6 +1408,17 @@ function realPhotoKeyboard(postId, index) {
       [
         { text: "✅ Выбрать", callback_data: `photo_select:${postId}:${index}` },
         { text: "➡️ Другое", callback_data: `photo_next:${postId}:${index}` }
+      ]
+    ]
+  };
+}
+
+function aiPhotoKeyboard(postId) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "✅ Выбрать", callback_data: `ai_select:${postId}` },
+        { text: "🔄 Другое AI", callback_data: `ai_image:${postId}` }
       ]
     ]
   };
