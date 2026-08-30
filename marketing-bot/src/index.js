@@ -757,9 +757,28 @@ async function ensurePublishingTables(env) {
       ai_image_title TEXT,
       product_message_id INTEGER,
       ai_message_id INTEGER,
+      product_index INTEGER,
+      product_image_url TEXT,
+      product_pin TEXT,
+      product_title TEXT,
       updated_at TEXT NOT NULL
     )
   `).run();
+
+  // Step8g migration for existing D1 databases: remember the exact product
+  // preview so "Без фото" can restore the choice buttons under that same
+  // Telegram card instead of forcing a new preview message.
+  await ensureD1Column(db, "content_media_previews", "product_index", "INTEGER");
+  await ensureD1Column(db, "content_media_previews", "product_image_url", "TEXT");
+  await ensureD1Column(db, "content_media_previews", "product_pin", "TEXT");
+  await ensureD1Column(db, "content_media_previews", "product_title", "TEXT");
+}
+
+async function ensureD1Column(db, table, column, definition) {
+  const info = await db.prepare(`PRAGMA table_info(${table})`).all();
+  const rows = Array.isArray(info?.results) ? info.results : [];
+  if (rows.some(row => String(row?.name || "") === column)) return;
+  await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
 }
 
 async function getMediaSelection(env, postId) {
@@ -796,7 +815,8 @@ async function saveMediaSelection(env, postId, media) {
 async function getMediaPreviewState(env, postId) {
   await ensurePublishingTables(env);
   return env.mosaic_marketing_bot_db.prepare(`
-    SELECT post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id, updated_at
+    SELECT post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id,
+           product_index, product_image_url, product_pin, product_title, updated_at
     FROM content_media_previews
     WHERE post_id = ?
   `).bind(postId).first();
@@ -809,21 +829,31 @@ async function saveMediaPreviewState(env, postId, patch = {}) {
     aiImageUrl: patch.aiImageUrl !== undefined ? String(patch.aiImageUrl || "") : String(current?.ai_image_url || ""),
     aiImageTitle: patch.aiImageTitle !== undefined ? String(patch.aiImageTitle || "") : String(current?.ai_image_title || ""),
     productMessageId: patch.productMessageId !== undefined ? (Number(patch.productMessageId) || null) : (Number(current?.product_message_id) || null),
-    aiMessageId: patch.aiMessageId !== undefined ? (Number(patch.aiMessageId) || null) : (Number(current?.ai_message_id) || null)
+    aiMessageId: patch.aiMessageId !== undefined ? (Number(patch.aiMessageId) || null) : (Number(current?.ai_message_id) || null),
+    productIndex: patch.productIndex !== undefined ? Math.max(0, Number(patch.productIndex) || 0) : Math.max(0, Number(current?.product_index) || 0),
+    productImageUrl: patch.productImageUrl !== undefined ? String(patch.productImageUrl || "") : String(current?.product_image_url || ""),
+    productPin: patch.productPin !== undefined ? String(patch.productPin || "") : String(current?.product_pin || ""),
+    productTitle: patch.productTitle !== undefined ? String(patch.productTitle || "") : String(current?.product_title || "")
   };
   const now = new Date().toISOString();
   await env.mosaic_marketing_bot_db.prepare(`
     INSERT INTO content_media_previews
-      (post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+      (post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id,
+       product_index, product_image_url, product_pin, product_title, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(post_id) DO UPDATE SET
       ai_image_url = excluded.ai_image_url,
       ai_image_title = excluded.ai_image_title,
       product_message_id = excluded.product_message_id,
       ai_message_id = excluded.ai_message_id,
+      product_index = excluded.product_index,
+      product_image_url = excluded.product_image_url,
+      product_pin = excluded.product_pin,
+      product_title = excluded.product_title,
       updated_at = excluded.updated_at
   `).bind(
-    postId, next.aiImageUrl, next.aiImageTitle, next.productMessageId, next.aiMessageId, now
+    postId, next.aiImageUrl, next.aiImageTitle, next.productMessageId, next.aiMessageId,
+    next.productIndex, next.productImageUrl, next.productPin, next.productTitle, now
   ).run();
 }
 
@@ -878,11 +908,23 @@ async function showRealPhotoPreview(env, postId, requestedIndex = 0, previewMess
   const keyboard = realPhotoKeyboard(postId, index);
   if (previewMessageId) {
     await editTelegramPhoto(env, previewMessageId, imageUrl, caption, keyboard);
-    await saveMediaPreviewState(env, postId, { productMessageId: previewMessageId });
+    await saveMediaPreviewState(env, postId, {
+      productMessageId: previewMessageId,
+      productIndex: index,
+      productImageUrl: imageUrl,
+      productPin: product.pin,
+      productTitle: product.title || product.pin
+    });
   } else {
     const sent = await sendTelegramPhoto(env, imageUrl, caption, keyboard);
     if (sent?.messageId) {
-      await saveMediaPreviewState(env, postId, { productMessageId: sent.messageId });
+      await saveMediaPreviewState(env, postId, {
+        productMessageId: sent.messageId,
+        productIndex: index,
+        productImageUrl: imageUrl,
+        productPin: product.pin,
+        productTitle: product.title || product.pin
+      });
     }
   }
 }
@@ -904,7 +946,13 @@ async function selectRealPhoto(env, postId, index, previewMessageId) {
     pin: product.pin,
     title: product.title || product.pin
   });
-  await saveMediaPreviewState(env, postId, { productMessageId: previewMessageId || undefined });
+  await saveMediaPreviewState(env, postId, {
+    productMessageId: previewMessageId || undefined,
+    productIndex: normalizedIndex,
+    productImageUrl: imageUrl,
+    productPin: product.pin,
+    productTitle: product.title || product.pin
+  });
   await visuallyDeselectOtherMedia(env, postId, "product");
 
   if (previewMessageId) {
@@ -923,9 +971,61 @@ async function selectRealPhoto(env, postId, index, previewMessageId) {
 async function selectNoPhoto(env, postId) {
   const row = await getPost(env, postId);
   if (!row || row.status !== "approved") return;
+
   await saveMediaSelection(env, postId, { mode: "none" });
-  await visuallyDeselectOtherMedia(env, postId, "none");
+
+  // "Без фото" means nothing is selected, not that the previews disappear.
+  // Remove the selected checkmarks but keep both preview cards reusable by
+  // restoring their choice buttons underneath.
+  await restoreMediaPreviewChoices(env, postId, row);
   await refreshApprovedTelegramMessage(env, postId);
+}
+
+async function restoreMediaPreviewChoices(env, postId, row = null) {
+  const state = await getMediaPreviewState(env, postId);
+  if (!state) return;
+  const post = row || await getPost(env, postId);
+
+  if (state.product_message_id) {
+    const index = Math.max(0, Number(state.product_index) || 0);
+    const imageUrl = String(state.product_image_url || "").trim();
+    const pin = String(state.product_pin || "").trim();
+    const title = String(state.product_title || pin || "Фото товара").trim();
+    const caption =
+      `⬜ Фото товара не выбрано\n${title}` +
+      (pin ? `\nPIN: ${pin}` : "") +
+      `\n\nМожно выбрать снова или посмотреть другой вариант.`;
+
+    if (imageUrl) {
+      await editTelegramPhoto(
+        env,
+        state.product_message_id,
+        imageUrl,
+        caption,
+        realPhotoKeyboard(postId, index)
+      ).catch(() => {});
+    } else {
+      // Compatibility for previews created before Step8g metadata existed.
+      await editTelegramPhotoCaption(
+        env,
+        state.product_message_id,
+        "⬜ Фото товара не выбрано\nМожно снова выбрать фото товара.",
+        { inline_keyboard: [[{ text: "📷 Выбрать фото", callback_data: `photo:${postId}` }]] }
+      ).catch(() => {});
+    }
+  }
+
+  if (state.ai_message_id) {
+    const topic = String(post?.topic || "").trim();
+    await editTelegramPhotoCaption(
+      env,
+      state.ai_message_id,
+      `⬜ AI-изображение не выбрано для кандидата #${postId}` +
+        (topic ? `\nТема: ${topic}` : "") +
+        `\n\nМожно выбрать его снова или создать другое AI.`,
+      aiPhotoKeyboard(postId)
+    ).catch(() => {});
+  }
 }
 
 async function refreshApprovedTelegramMessage(env, postId) {
