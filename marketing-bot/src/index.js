@@ -168,7 +168,8 @@ async function handleTelegramWebhook(request, env, ctx) {
         "📷 Фото товара: предложить реальное фото из mosaicpins.space без OpenAI\n" +
         "🚫 Без фото: подготовить текстовую публикацию\n" +
         "🖼 AI фото: сгенерировать одно тематическое изображение GPT Image 2 после принятия\n" +
-        "🚀 Facebook: публикует только когда Page ID и Page Access Token подключены"
+        "🚀 Facebook: публикует только когда Page ID и Page Access Token подключены\n" +
+        "📊 Poll: для Facebook Page оформляется как вопрос с 2-4 вариантами и голосованием цифрой в комментариях"
       );
     }
 
@@ -355,9 +356,19 @@ async function generateAndSendCandidate(env, meta = {}) {
               },
               research_summary_ru: { type: "string" },
               en: { type: "string" },
-              ru: { type: "string" }
+              ru: { type: "string" },
+              poll_options_en: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 4
+              },
+              poll_options_ru: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 4
+              }
             },
-            required: ["topic", "topic_ru", "scope", "research_summary_ru", "en", "ru"],
+            required: ["topic", "topic_ru", "scope", "research_summary_ru", "en", "ru", "poll_options_en", "poll_options_ru"],
             additionalProperties: false
           }
         }
@@ -401,8 +412,8 @@ async function generateAndSendCandidate(env, meta = {}) {
     rotation.contentType,
     rotation.theme,
     candidate.topic,
-    cleanPublicText(candidate.en),
-    composeRuPayload(candidate.topic_ru, candidate.ru),
+    finalizePollPostText(rotation.contentType, candidate.en, candidate.poll_options_en, "en"),
+    composeRuPayload(candidate.topic_ru, finalizePollPostText(rotation.contentType, candidate.ru, candidate.poll_options_ru, "ru")),
     `Scope: ${candidate.scope}\n${cleanPublicText(candidate.research_summary_ru)}`,
     JSON.stringify(sources),
     String(data.id || ""),
@@ -424,8 +435,8 @@ async function generateAndSendCandidate(env, meta = {}) {
     content_type: rotation.contentType,
     theme: rotation.theme,
     topic: candidate.topic,
-    en_text: cleanPublicText(candidate.en),
-    ru_text: composeRuPayload(candidate.topic_ru, candidate.ru),
+    en_text: finalizePollPostText(rotation.contentType, candidate.en, candidate.poll_options_en, "en"),
+    ru_text: composeRuPayload(candidate.topic_ru, finalizePollPostText(rotation.contentType, candidate.ru, candidate.poll_options_ru, "ru")),
     research_summary_ru: `Scope: ${candidate.scope}\n${cleanPublicText(candidate.research_summary_ru)}`,
     source_json: JSON.stringify(sources),
     rewrite_count: 0
@@ -454,6 +465,27 @@ async function generateAndSendCandidate(env, meta = {}) {
   };
 }
 
+function finalizePollPostText(contentType, baseText, options, lang = "en") {
+  const base = cleanPublicText(baseText);
+  if (String(contentType || "") !== "poll") return base;
+
+  const cleanOptions = (Array.isArray(options) ? options : [])
+    .map(cleanPublicText)
+    .map(x => x.replace(/^\s*\d+[.)]\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+
+  if (cleanOptions.length < 2) return base;
+
+  const optionLines = cleanOptions.map((option, index) => `${index + 1}. ${option}`);
+  const optionNumbers = cleanOptions.map((_, index) => index + 1).join(", ");
+  const voteLine = lang === "ru"
+    ? `Голосуйте в комментариях номером варианта (${optionNumbers}) и, если хотите, напишите почему.`
+    : `Vote in the comments with the option number (${optionNumbers}), and tell us why if you want.`;
+
+  return cleanPublicText([base, ...optionLines, voteLine].filter(Boolean).join("\n\n"));
+}
+
 function buildResearchPrompt(rotation, recentTopics) {
   const typeInstruction = {
     technical_tip:
@@ -473,7 +505,7 @@ function buildResearchPrompt(rotation, recentTopics) {
     discussion:
       "Create a discussion starter with enough technical/contextual substance before one natural question.",
     poll:
-      "Create a poll-style post with 3-4 clear options and a short invitation to explain why.",
+      "Create a Facebook Page poll-style engagement post. Keep the intro/question short and specific. Return 2-4 mutually distinct, easy-to-vote options in poll_options_en, plus faithful Russian equivalents in poll_options_ru. Do NOT embed the option list inside en or ru because the bot formats it consistently. For non-poll content, both poll option arrays must be empty.",
     show_your_work:
       "Create a show-your-work prompt around a specific craft detail. Invite photos or experiences without sounding generic.",
     mosaic_pins:
@@ -502,7 +534,9 @@ function buildResearchPrompt(rotation, recentTopics) {
     "Use commas, periods, colons or parentheses instead. For numeric ranges, use a normal hyphen, for example 80-130. " +
     "Return a short English topic label, its natural Russian translation in topic_ru, " +
     "a brief Russian research summary explaining the signal you found, the final English post, " +
-    "and its faithful Russian translation. The Russian version must preserve the meaning and tone, not be a word-for-word machine translation."
+    "and its faithful Russian translation. The Russian version must preserve the meaning and tone, not be a word-for-word machine translation. " +
+    "Always return poll_options_en and poll_options_ru arrays. They must contain 2-4 concise matching options only when content type is poll, otherwise both arrays must be empty. " +
+    "For polls, en and ru should contain only the short setup/question, not the numbered option list or voting instruction, because the bot adds those deterministically."
   );
 }
 
@@ -545,6 +579,8 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
               "Rewrite a knife-making community post into a clearly different, stronger version while preserving the same researched topic. " +
               "Do not perform or claim new web research. Do not add new factual claims that are not supported by the supplied research summary. " +
               "Write natural American English, provide a faithful Russian translation, and provide a natural Russian translation of the topic in topic_ru. " +
+              "If content type is poll, return a short setup/question in en and ru plus 2-4 concise matching choices in poll_options_en and poll_options_ru. Do not embed the option list inside en or ru. " +
+              "For every non-poll content type, return empty poll option arrays. " +
               "Never use em dash (\u2014) or en dash (\u2013) characters anywhere. Use commas, periods, colons or parentheses instead; use a normal hyphen only for ranges or compounds. " +
               "Return structured JSON only."
           }]
@@ -561,7 +597,8 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
               `Research summary (RU): ${row.research_summary_ru || ""}\n\n` +
               `Current EN:\n${row.en_text}\n\n` +
               `Current RU:\n${splitRuPayload(row.ru_text).body}\n\n` +
-              "Create a substantially different phrasing/structure, not a cosmetic word swap. Keep it concise and useful."
+              "Create a substantially different phrasing/structure, not a cosmetic word swap. Keep it concise and useful. " +
+              "If this is a poll, rebuild it as a short clear question with 2-4 genuinely distinct answer choices."
           }]
         }
       ],
@@ -581,9 +618,19 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
                 enum: ["general", "mosaic_pin", "solid_pin", "fastener", "lanyard_tube", "other"]
               },
               en: { type: "string" },
-              ru: { type: "string" }
+              ru: { type: "string" },
+              poll_options_en: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 4
+              },
+              poll_options_ru: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 4
+              }
             },
-            required: ["topic", "topic_ru", "scope", "en", "ru"],
+            required: ["topic", "topic_ru", "scope", "en", "ru", "poll_options_en", "poll_options_ru"],
             additionalProperties: false
           }
         }
@@ -621,8 +668,8 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
     WHERE id = ?
   `).bind(
     cleanPublicText(rewritten.topic),
-    cleanPublicText(rewritten.en),
-    composeRuPayload(rewritten.topic_ru, rewritten.ru),
+    finalizePollPostText(row.content_type, rewritten.en, rewritten.poll_options_en, "en"),
+    composeRuPayload(rewritten.topic_ru, finalizePollPostText(row.content_type, rewritten.ru, rewritten.poll_options_ru, "ru")),
     `Scope: ${rewritten.scope || extractScopeFromSummary(row.research_summary_ru)}\n${stripScopePrefix(row.research_summary_ru)}`,
     now,
     String(data.id || ""),
