@@ -699,6 +699,20 @@ async function ensurePublishingTables(env) {
       updated_at TEXT NOT NULL
     )
   `).run();
+
+  // Preview state is intentionally separate from the active media selection.
+  // This prevents generating an AI preview from silently replacing a currently
+  // selected product photo before the user presses "✅ Выбрать".
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS content_media_previews (
+      post_id INTEGER PRIMARY KEY,
+      ai_image_url TEXT,
+      ai_image_title TEXT,
+      product_message_id INTEGER,
+      ai_message_id INTEGER,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
 }
 
 async function getMediaSelection(env, postId) {
@@ -732,6 +746,63 @@ async function saveMediaSelection(env, postId, media) {
   ).run();
 }
 
+async function getMediaPreviewState(env, postId) {
+  await ensurePublishingTables(env);
+  return env.mosaic_marketing_bot_db.prepare(`
+    SELECT post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id, updated_at
+    FROM content_media_previews
+    WHERE post_id = ?
+  `).bind(postId).first();
+}
+
+async function saveMediaPreviewState(env, postId, patch = {}) {
+  await ensurePublishingTables(env);
+  const current = await getMediaPreviewState(env, postId);
+  const next = {
+    aiImageUrl: patch.aiImageUrl !== undefined ? String(patch.aiImageUrl || "") : String(current?.ai_image_url || ""),
+    aiImageTitle: patch.aiImageTitle !== undefined ? String(patch.aiImageTitle || "") : String(current?.ai_image_title || ""),
+    productMessageId: patch.productMessageId !== undefined ? (Number(patch.productMessageId) || null) : (Number(current?.product_message_id) || null),
+    aiMessageId: patch.aiMessageId !== undefined ? (Number(patch.aiMessageId) || null) : (Number(current?.ai_message_id) || null)
+  };
+  const now = new Date().toISOString();
+  await env.mosaic_marketing_bot_db.prepare(`
+    INSERT INTO content_media_previews
+      (post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(post_id) DO UPDATE SET
+      ai_image_url = excluded.ai_image_url,
+      ai_image_title = excluded.ai_image_title,
+      product_message_id = excluded.product_message_id,
+      ai_message_id = excluded.ai_message_id,
+      updated_at = excluded.updated_at
+  `).bind(
+    postId, next.aiImageUrl, next.aiImageTitle, next.productMessageId, next.aiMessageId, now
+  ).run();
+}
+
+async function visuallyDeselectOtherMedia(env, postId, keepKind) {
+  const state = await getMediaPreviewState(env, postId);
+  if (!state) return;
+
+  if (keepKind !== "product" && state.product_message_id) {
+    await editTelegramPhotoCaption(
+      env,
+      state.product_message_id,
+      "⬜ Фото товара не выбрано\nЗаменено другим вариантом медиа.",
+      null
+    ).catch(() => {});
+  }
+
+  if (keepKind !== "ai" && state.ai_message_id) {
+    await editTelegramPhotoCaption(
+      env,
+      state.ai_message_id,
+      "⬜ AI-изображение не выбрано\nЗаменено другим вариантом медиа.",
+      null
+    ).catch(() => {});
+  }
+}
+
 async function showRealPhotoPreview(env, postId, requestedIndex = 0, previewMessageId = null) {
   const row = await getPost(env, postId);
   if (!row || row.status !== "approved") {
@@ -760,8 +831,12 @@ async function showRealPhotoPreview(env, postId, requestedIndex = 0, previewMess
   const keyboard = realPhotoKeyboard(postId, index);
   if (previewMessageId) {
     await editTelegramPhoto(env, previewMessageId, imageUrl, caption, keyboard);
+    await saveMediaPreviewState(env, postId, { productMessageId: previewMessageId });
   } else {
-    await sendTelegramPhoto(env, imageUrl, caption, keyboard);
+    const sent = await sendTelegramPhoto(env, imageUrl, caption, keyboard);
+    if (sent?.messageId) {
+      await saveMediaPreviewState(env, postId, { productMessageId: sent.messageId });
+    }
   }
 }
 
@@ -782,6 +857,8 @@ async function selectRealPhoto(env, postId, index, previewMessageId) {
     pin: product.pin,
     title: product.title || product.pin
   });
+  await saveMediaPreviewState(env, postId, { productMessageId: previewMessageId || undefined });
+  await visuallyDeselectOtherMedia(env, postId, "product");
 
   if (previewMessageId) {
     await editTelegramPhoto(
@@ -800,6 +877,7 @@ async function selectNoPhoto(env, postId) {
   const row = await getPost(env, postId);
   if (!row || row.status !== "approved") return;
   await saveMediaSelection(env, postId, { mode: "none" });
+  await visuallyDeselectOtherMedia(env, postId, "none");
   await refreshApprovedTelegramMessage(env, postId);
 }
 
@@ -953,12 +1031,13 @@ async function generateAiImagePreview(env, postId) {
     return;
   }
 
-  await saveMediaSelection(env, postId, {
-    mode: "ai_preview",
-    imageUrl: `tgfile:${sent.fileId}`,
-    pin: "",
-    title: `AI: ${row.topic || `Post ${postId}`}`
+  await saveMediaPreviewState(env, postId, {
+    aiImageUrl: `tgfile:${sent.fileId}`,
+    aiImageTitle: `AI: ${row.topic || `Post ${postId}`}`,
+    aiMessageId: sent.messageId || undefined
   });
+  // Important: an AI preview is only a proposal. The currently selected media
+  // stays active until the user explicitly presses "✅ Выбрать".
   await refreshApprovedTelegramMessage(env, postId);
 }
 
@@ -966,18 +1045,20 @@ async function selectAiImage(env, postId, previewMessageId) {
   const row = await getPost(env, postId);
   if (!row || row.status !== "approved") return;
 
-  const media = await getMediaSelection(env, postId);
-  if (!media || media.mode !== "ai_preview" || !String(media.image_url || "").startsWith("tgfile:")) {
+  const preview = await getMediaPreviewState(env, postId);
+  if (!preview || !String(preview.ai_image_url || "").startsWith("tgfile:")) {
     await sendTelegramText(env, `⚠️ Для #${postId} сначала создай AI-изображение.`);
     return;
   }
 
   await saveMediaSelection(env, postId, {
     mode: "ai",
-    imageUrl: String(media.image_url || ""),
+    imageUrl: String(preview.ai_image_url || ""),
     pin: "",
-    title: String(media.image_title || `AI: ${row.topic || ""}`)
+    title: String(preview.ai_image_title || `AI: ${row.topic || ""}`)
   });
+  await saveMediaPreviewState(env, postId, { aiMessageId: previewMessageId || preview.ai_message_id || undefined });
+  await visuallyDeselectOtherMedia(env, postId, "ai");
 
   if (previewMessageId) {
     await editTelegramPhotoCaption(
@@ -1007,18 +1088,73 @@ function buildAiImagePrompt(row) {
       "Keep the visual tightly connected to the stated topic without inventing unsupported technical details."
   }[scope] || "Keep the visual tightly connected to the stated topic without inventing unsupported technical details.";
 
+  const visualInstruction = buildMainVisualInstruction(row);
+
   return (
     "Create a realistic editorial social-media image for an English-language custom knife-making community. " +
     `The exact post topic is: ${cleanPublicText(row.topic)}. ` +
     `The thematic area is: ${humanize(row.theme)}. ` +
     `The post says: ${cleanPublicText(row.en_text)}\n\n` +
     scopeInstruction + " " +
-    "Show a believable professional knife-maker workshop or finished custom-knife context that visually supports the post's main idea. " +
+    visualInstruction + " " +
+    "The MAIN CLAIM OR PROBLEM from the post must be immediately visible in the image without needing any text explanation. " +
+    "Do not settle for a generic knife-making scene merely related to the theme. Make the key visual evidence the dominant focal point. " +
+    "Show a believable professional knife-maker workshop or finished custom-knife context that supports that exact idea. " +
     "Do not add any words, captions, labels, logos, watermarks, brand marks, charts, arrows, UI, or fake instructional text inside the image. " +
     "Do not copy a recognizable commercial product design. Do not make the image look like an advertisement. " +
     "Prefer one clear visual idea over a collage. Natural workshop materials, realistic metal, wood, Micarta or G10 textures are welcome when relevant. " +
-    "If the post discusses fit, drilling, epoxy, finishing or another process, illustrate the concept visually without inventing measurements or unsupported claims. " +
-    "Landscape composition, clean focal point, photorealistic workshop photography, suitable for a Facebook post."
+    "If the post discusses fit, drilling, epoxy, finishing or another process, illustrate the actual cause, defect, fit, surface condition, or result discussed in the post instead of only showing the tool or process. " +
+    "Landscape composition, close enough to clearly read the relevant craft detail, clean focal point, photorealistic workshop photography, suitable for a Facebook post."
+  );
+}
+
+function buildMainVisualInstruction(row) {
+  const topic = cleanPublicText(row?.topic).toLowerCase();
+  const text = cleanPublicText(row?.en_text).toLowerCase();
+  const theme = String(row?.theme || "").toLowerCase();
+  const haystack = `${topic} ${text} ${theme}`;
+
+  if (/deep scratch|deep scratches|scratch pattern|scratches/.test(haystack) && /polish|polishing|finish|finishing|sand|sanding/.test(haystack)) {
+    return (
+      "For this post, use a close-up of a knife blade where one or two unmistakably deep scratches remain clearly visible while the surrounding steel is already refined or polished. " +
+      "A polishing wheel, abrasive setup, or workshop background may appear secondarily, but the persistent deep scratch itself must be the obvious focal point. " +
+      "Do not show a flawless blade, because that would contradict the post."
+    );
+  }
+
+  if (/drill|drilling|hole|fit|fitting|clearance|alignment/.test(haystack)) {
+    return (
+      "Make the fit or drilling issue visually explicit in a close-up: clearly show the relevant hole, pin, alignment, clearance, or dry-fit relationship that the post discusses. " +
+      "The viewer should understand the fit problem or controlled-fit idea from the geometry alone."
+    );
+  }
+
+  if (/epoxy|adhesive|glue|bond|joint/.test(haystack)) {
+    return (
+      "Make the adhesive-joint idea visually explicit. Show the real mating surfaces, joint line, or bonded handle assembly in close-up so the viewer can see the relationship between the parts, not merely a bottle of epoxy."
+    );
+  }
+
+  if (/glow|moonglow|luminous|luminescent/.test(haystack)) {
+    return (
+      "Make the glow behavior itself clearly visible. Use a believable low-light workshop or finished-handle view where the glowing material or pin is visibly luminous while the surrounding knife remains realistic and readable."
+    );
+  }
+
+  if (/lanyard/.test(haystack)) {
+    return (
+      "Use a close-up that makes the lanyard feature itself obvious in the knife handle. The hollow tube or lanyard opening must be clearly readable and not confused with a solid decorative pin."
+    );
+  }
+
+  if (/mosaic pin|mosaic pins/.test(haystack)) {
+    return (
+      "Make the mosaic pin itself visually important and technically plausible. Show its patterned face clearly in a knife-handle or fitting context, with enough detail to distinguish it from a plain solid pin or fastener."
+    );
+  }
+
+  return (
+    "Identify the single most important physical detail, defect, material relationship, or finished result described by the post and make that detail the dominant, clearly readable focal point."
   );
 }
 
@@ -1377,7 +1513,8 @@ function formatApprovedMessage(row, media) {
   } else if (media?.mode === "none") {
     mediaLine = "📷 Медиа: без фото";
   } else if (media?.mode === "ai_preview") {
-    mediaLine = "📷 Медиа: AI-картинка создана, нажми Выбрать";
+    // Compatibility with Step8c/8d rows created before previews were separated.
+    mediaLine = "📷 Медиа: AI-картинка пока только предложена";
   } else if (media?.mode === "ai") {
     mediaLine = "📷 Медиа: AI-картинка выбрана";
   }
