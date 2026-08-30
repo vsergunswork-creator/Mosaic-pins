@@ -153,13 +153,13 @@ async function handleTelegramWebhook(request, env, ctx) {
       await sendTelegramText(
         env,
         "Mosaic Pins Marketing Bot\n\n" +
-        "/new — research + create one new candidate\n" +
-        "/rotation — show the next planned content type/theme (free)\n" +
-        "/history — show recent candidates (free)\n\n" +
+        "/new: research + create one new candidate\n" +
+        "/rotation: show the next planned content type/theme (free)\n" +
+        "/history: show recent candidates (free)\n\n" +
         "Buttons under a candidate:\n" +
-        "✅ Принять — отметить готовым\n" +
-        "🔄 Переписать — переписать EN + RU без нового web search\n" +
-        "❌ Пропустить — архивировать кандидата"
+        "✅ Принять: отметить готовым\n" +
+        "🔄 Переписать: переписать EN + RU без нового web search\n" +
+        "❌ Пропустить: архивировать кандидата"
       );
     }
 
@@ -464,6 +464,8 @@ function buildResearchPrompt(rotation, recentTopics) {
     "For a Technical Tip, target roughly 80-130 English words. For other short formats, stay concise unless the format genuinely needs more. " +
     "If the theme concerns pins or installation, explicitly choose the correct hardware scope (mosaic pin, solid pin, fastener, lanyard tube, or general) and never blur them together. " +
     "Do not add hashtags unless they genuinely help. Do not add a shop link. Do not include any source links or citations in the post or translation. " +
+    "STYLE RULE: Never use em dash (\u2014) or en dash (\u2013) characters anywhere in topic, topic_ru, EN, RU or research summary. " +
+    "Use commas, periods, colons or parentheses instead. For numeric ranges, use a normal hyphen, for example 80-130. " +
     "Return a short English topic label, its natural Russian translation in topic_ru, " +
     "a brief Russian research summary explaining the signal you found, the final English post, " +
     "and its faithful Russian translation. The Russian version must preserve the meaning and tone, not be a word-for-word machine translation."
@@ -509,6 +511,7 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
               "Rewrite a knife-making community post into a clearly different, stronger version while preserving the same researched topic. " +
               "Do not perform or claim new web research. Do not add new factual claims that are not supported by the supplied research summary. " +
               "Write natural American English, provide a faithful Russian translation, and provide a natural Russian translation of the topic in topic_ru. " +
+              "Never use em dash (\u2014) or en dash (\u2013) characters anywhere. Use commas, periods, colons or parentheses instead; use a normal hyphen only for ranges or compounds. " +
               "Return structured JSON only."
           }]
         },
@@ -604,12 +607,23 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
 async function approveCandidate(env, postId, telegramMessageId) {
   const db = env.mosaic_marketing_bot_db;
   const now = new Date().toISOString();
+  const current = await getPost(env, postId);
+  if (!current) return;
 
+  // Normalize older candidates too when they are approved, without rewriting wording.
+  const currentRu = splitRuPayload(current.ru_text);
   await db.prepare(`
     UPDATE content_posts
-    SET status = 'approved', updated_at = ?
+    SET status = 'approved', topic = ?, en_text = ?, ru_text = ?, research_summary_ru = ?, updated_at = ?
     WHERE id = ?
-  `).bind(now, postId).run();
+  `).bind(
+    cleanPublicText(current.topic),
+    cleanPublicText(current.en_text),
+    composeRuPayload(currentRu.topic, currentRu.body),
+    cleanPublicText(current.research_summary_ru),
+    now,
+    postId
+  ).run();
 
   const row = await getPost(env, postId);
   if (!row) return;
@@ -617,7 +631,7 @@ async function approveCandidate(env, postId, telegramMessageId) {
   await editTelegramText(
     env,
     telegramMessageId,
-    "✅ ПРИНЯТО — готово для Facebook\n\n" + formatCandidateMessage(row, false),
+    "✅ ПРИНЯТО: готово для Facebook\n\n" + formatCandidateMessage(row, false),
     null
   );
 }
@@ -759,7 +773,7 @@ function formatCandidateMessage(row, includeStatus = true) {
     `\nRewrites: ${Number(row.rewrite_count || 0)}` +
     `\nScope: ${humanize(scope)}` +
     `\n\n🧩 Topic: ${row.topic || ""}` +
-    `\n\n🇺🇸 EN — Facebook post\n${row.en_text || ""}` +
+    `\n\n🇺🇸 EN: Facebook post\n${row.en_text || ""}` +
 
     `\n\n🇷🇺 RU` +
     `\nСтатус: ${statusRu(row.status || "candidate")}` +
@@ -767,7 +781,7 @@ function formatCandidateMessage(row, includeStatus = true) {
     `\nТематика: ${themeRu(row.theme)}` +
     `\nПереписано: ${Number(row.rewrite_count || 0)}` +
     `\nОбласть: ${scopeRu(scope)}` +
-    `\n\n🧩 Тема: ${ruPayload.topic || "—"}` +
+    `\n\n🧩 Тема: ${ruPayload.topic || "нет темы"}` +
     `\n\n${ruPayload.body || ""}` +
 
     `\n\n🔎 Заметка по исследованию\n${stripScopePrefix(row.research_summary_ru) || ""}` +
@@ -1065,6 +1079,10 @@ function scopeRu(value) {
 
 function cleanPublicText(value) {
   return String(value || "")
+    // Long-dash style guard: keep numeric ranges with a short hyphen,
+    // replace other em/en dashes with a comma.
+    .replace(/(\d)\s*[\u2013\u2014]\s*(\d)/g, "$1-$2")
+    .replace(/\s*[\u2013\u2014]\s*/g, ", ")
     // Markdown links: [label](https://example.com) -> label
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi, "$1")
     // Bare URLs
