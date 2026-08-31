@@ -2,15 +2,14 @@
  * Mosaic Pins Space - Google tag + Consent Mode v2 + ecommerce event bridge.
  *
  * Google Ads tag ID is public by design (it is present in page source).
- * No Google Ads conversion label is configured yet. When a Purchase conversion
- * action is created in Google Ads, set PURCHASE_CONVERSION_SEND_TO below to
- * the provided value, e.g. "AW-123456789/AbCdEfGhIj".
+ * Google Ads Purchase conversion is configured below.
+ * Keep the send_to value in sync with the Purchase conversion action in Google Ads.
  */
 (function () {
   "use strict";
 
   const GOOGLE_TAG_ID = "AW-18408562897";
-  const PURCHASE_CONVERSION_SEND_TO = "";
+  const PURCHASE_CONVERSION_SEND_TO = "AW-18408562897/GWKtCL7Jl-ccENHB8clE";
   const CONSENT_KEY = "mp_google_consent_v1";
   const CART_KEY = "mp_cart";
   const LANG_KEY = "mp_language";
