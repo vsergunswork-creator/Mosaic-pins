@@ -197,7 +197,6 @@
       .mpConsentSwitch input:checked+.mpConsentSlider{background:#22c55e}
       .mpConsentSwitch input:checked+.mpConsentSlider:before{transform:translateX(21px)}
       .mpConsentSwitch input:disabled+.mpConsentSlider{opacity:.65}
-      .mpCookieSettingsLink{appearance:none;display:inline-flex;align-items:center;justify-content:center;margin:0;padding:8px 10px;border-radius:999px;border:1px solid var(--line,rgba(255,255,255,.10));background:rgba(255,255,255,.04);color:var(--muted,#aeb8c5);font:inherit;font-size:12px;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}.mpCookieSettingsLink:hover{background:rgba(255,255,255,.08);color:var(--text,#eef2f7);border-color:rgba(255,255,255,.16)}
       @media(max-width:560px){#mpConsentOverlay{padding:10px}#mpConsentCard{padding:17px;border-radius:15px}.mpConsentActions{display:grid;grid-template-columns:1fr}.mpConsentBtn{width:100%}}
     `;
     document.head.appendChild(style);
@@ -307,13 +306,19 @@
   function appendSettingsLink() {
     const footer = document.querySelector(".footerLinks");
     if (!footer || footer.querySelector("[data-mp-cookie-settings]")) return;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "mpCookieSettingsLink";
-    button.dataset.mpCookieSettings = "1";
-    button.textContent = COPY[getLanguage()].reopen;
-    button.addEventListener("click", () => openPanel(true));
-    footer.appendChild(button);
+
+    // Use the same <a> element as the existing footer links so Cookie settings
+    // inherits each page's footer pill styling exactly, including after a
+    // saved consent choice when the consent dialog itself is not opened.
+    const link = document.createElement("a");
+    link.href = "#";
+    link.dataset.mpCookieSettings = "1";
+    link.textContent = COPY[getLanguage()].reopen;
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      openPanel(true);
+    });
+    footer.appendChild(link);
   }
 
   function fillPrivacySection() {
