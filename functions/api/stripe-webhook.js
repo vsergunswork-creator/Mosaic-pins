@@ -1,6 +1,7 @@
 import { decrementAirtableStock } from "./_airtable-products.js";
 import { runShippedSweep, sendPaidEmailForRecord } from "./_notifications.js";
 import { upsertOrderItemSnapshots } from "./_order-snapshots.js";
+import { ensureInvoiceForOrder } from "./_invoice.js";
 import { sendTelegramOrderAlertForRecord } from "./_telegram.js";
 
 // functions/api/stripe-webhook.js
@@ -322,9 +323,13 @@ export async function onRequestPost(ctx) {
       const emailJob = sendPaidEmailForRecord(env, savedOrder).catch((e) =>
         console.error("Immediate paid-email failed; cron will retry", e)
       );
+      const invoiceJob = ensureInvoiceForOrder(env, savedOrder).catch((e) =>
+        console.error("Automatic Stripe invoice failed; customer/account can retry", e)
+      );
       if (ctx.waitUntil) {
         ctx.waitUntil(telegramJob);
         ctx.waitUntil(emailJob);
+        ctx.waitUntil(invoiceJob);
       }
     };
 

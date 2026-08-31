@@ -4,6 +4,7 @@
 import { findProductRecordsByPins, decrementAirtableStock, invalidateProductCache } from "../_airtable-products.js";
 import { sendPaidEmailForRecord } from "../_notifications.js";
 import { upsertOrderItemSnapshots } from "../_order-snapshots.js";
+import { ensureInvoiceForOrder } from "../_invoice.js";
 import { sendTelegramOrderAlertForRecord } from "../_telegram.js";
 
 export function onRequestOptions({ request }) {
@@ -705,9 +706,21 @@ export async function onRequestPost(ctx) {
           )
         );
 
+      const invoiceJob =
+        ensureInvoiceForOrder(
+          env,
+          savedOrder
+        ).catch((e) =>
+          console.error(
+            "Automatic PayPal invoice failed; customer/account can retry",
+            e
+          )
+        );
+
       if (ctx.waitUntil) {
         ctx.waitUntil(telegramJob);
         ctx.waitUntil(emailJob);
+        ctx.waitUntil(invoiceJob);
       }
 
       return json(

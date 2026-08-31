@@ -33,7 +33,7 @@
       ordersEyebrow:"Käufe", myOrders:"Meine Bestellungen", loadingOrders:"Bestellungen werden geladen…",
       noOrders:"Für diese E-Mail wurden noch keine Bestellungen gefunden.", orderLabel:"Bestellung",
       total:"Gesamt", destination:"Ziel", tracking:"Sendungsnummer", quantity:"Menge", diameter:"Durchmesser",
-      leaveReview:"Bewertung schreiben", reviewSubmitted:"Bewertung abgegeben ✓",
+      leaveReview:"Bewertung schreiben", reviewSubmitted:"Bewertung abgegeben ✓", invoicePdf:"Rechnung PDF",
       paid:"Bezahlt", shipped:"Versendet", processing:"In Bearbeitung", refunded:"Erstattet",
       cancelled:"Storniert", notRefunded:"Nicht erstattet"
     },
@@ -48,7 +48,7 @@
       ordersEyebrow:"Покупки", myOrders:"Мои заказы", loadingOrders:"Загружаем заказы…",
       noOrders:"Для этого email пока не найдено заказов.", orderLabel:"Заказ",
       total:"Итого", destination:"Доставка", tracking:"Трек-номер", quantity:"Количество", diameter:"Диаметр",
-      leaveReview:"Оставить отзыв", reviewSubmitted:"Вы уже оставили отзыв ✓",
+      leaveReview:"Оставить отзыв", reviewSubmitted:"Вы уже оставили отзыв ✓", invoicePdf:"Счёт PDF",
       paid:"Оплачен", shipped:"Отправлен", processing:"В обработке", refunded:"Возвращён",
       cancelled:"Отменён", notRefunded:"Без возврата"
     },
@@ -63,7 +63,7 @@
       ordersEyebrow:"Achats", myOrders:"Mes commandes", loadingOrders:"Chargement des commandes…",
       noOrders:"Aucune commande n’a encore été trouvée pour cet e-mail.", orderLabel:"Commande",
       total:"Total", destination:"Destination", tracking:"Suivi", quantity:"Quantité", diameter:"Diamètre",
-      leaveReview:"Laisser un avis", reviewSubmitted:"Avis envoyé ✓",
+      leaveReview:"Laisser un avis", reviewSubmitted:"Avis envoyé ✓", invoicePdf:"Facture PDF",
       paid:"Payée", shipped:"Expédiée", processing:"En traitement", refunded:"Remboursée",
       cancelled:"Annulée", notRefunded:"Non remboursée"
     }
@@ -89,7 +89,7 @@
       ordersEyebrow:"Purchases", myOrders:"My Orders", loadingOrders:"Loading orders…",
       noOrders:"No orders have been found for this email yet.", orderLabel:"Order",
       total:"Total", destination:"Destination", tracking:"Tracking", quantity:"Quantity", diameter:"Diameter",
-      leaveReview:"Leave a review", reviewSubmitted:"Review submitted ✓",
+      leaveReview:"Leave a review", reviewSubmitted:"Review submitted ✓", invoicePdf:"Invoice PDF",
       paid:"Paid", shipped:"Shipped", processing:"Processing", refunded:"Refunded",
       cancelled:"Cancelled", notRefunded:"Not refunded"
     };
@@ -255,6 +255,23 @@
       }
 
       card.appendChild(summary);
+
+      const invoiceEligible = ["paid", "shipped"].includes(
+        String(order.status || "").trim().toLowerCase()
+      ) && !["refunded", "fully_refunded", "fully refunded"].includes(
+        String(order.refundStatus || "").trim().toLowerCase()
+      );
+
+      if (invoiceEligible && order.orderId) {
+        const actions = make("div", "order-actions");
+        const invoiceLink = make("a", "order-invoice-btn", t("invoicePdf"));
+        invoiceLink.href = `/api/account/invoice?order=${encodeURIComponent(order.orderId)}`;
+        invoiceLink.target = "_blank";
+        invoiceLink.rel = "noopener";
+        actions.appendChild(invoiceLink);
+        card.appendChild(actions);
+      }
+
       ordersList.appendChild(card);
     }
   }
