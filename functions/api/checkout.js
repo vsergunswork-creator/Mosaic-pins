@@ -178,7 +178,7 @@ export async function onRequestPost(ctx) {
       payload: {
         mode: "payment",
         line_items,
-        success_url: `${SITE_URL}/success`,
+        success_url: `${SITE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${SITE_URL}/cancel`,
         client_reference_id: `mp-${Date.now()}`,
         metadata: {
