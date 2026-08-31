@@ -181,7 +181,7 @@
       #mpConsentCard p{margin:0;color:#aeb9ca}
       .mpConsentMain,.mpConsentSettings{display:block}
       .mpConsentSettings[hidden],.mpConsentMain[hidden]{display:none!important}
-      .mpConsentActions{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
+      .mpConsentActions{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin-top:18px}
       .mpConsentBtn{appearance:none;border:1px solid rgba(255,255,255,.16);background:#1c2532;color:#eef2f7;border-radius:11px;padding:11px 14px;font-weight:800;cursor:pointer;min-height:44px}
       .mpConsentBtn.primary{background:#22c55e;border-color:#22c55e;color:#07110a}
       .mpConsentBtn:hover{filter:brightness(1.06)}
@@ -197,7 +197,7 @@
       .mpConsentSwitch input:checked+.mpConsentSlider{background:#22c55e}
       .mpConsentSwitch input:checked+.mpConsentSlider:before{transform:translateX(21px)}
       .mpConsentSwitch input:disabled+.mpConsentSlider{opacity:.65}
-      .mpCookieSettingsLink{background:none;border:0;padding:0;color:inherit;text-decoration:underline;text-underline-offset:2px;font:inherit;cursor:pointer}
+      .mpCookieSettingsLink{appearance:none;display:inline-flex;align-items:center;justify-content:center;margin:0;padding:8px 10px;border-radius:999px;border:1px solid var(--line,rgba(255,255,255,.10));background:rgba(255,255,255,.04);color:var(--muted,#aeb8c5);font:inherit;font-size:12px;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}.mpCookieSettingsLink:hover{background:rgba(255,255,255,.08);color:var(--text,#eef2f7);border-color:rgba(255,255,255,.16)}
       @media(max-width:560px){#mpConsentOverlay{padding:10px}#mpConsentCard{padding:17px;border-radius:15px}.mpConsentActions{display:grid;grid-template-columns:1fr}.mpConsentBtn{width:100%}}
     `;
     document.head.appendChild(style);

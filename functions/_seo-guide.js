@@ -917,7 +917,7 @@ function buildHtml({ slug, lang, copy, common, canonical, products, diameters })
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=20260823-step24f" />
   <link rel="manifest" href="/site.webmanifest?v=20260823-step24f" />
   <script src="/assets/js/i18n-prepaint.js?v=20260823-flow15"></script>
-  <script src="/assets/js/google-consent.js?v=20260831-step51"></script>
+  <script src="/assets/js/google-consent.js?v=20260831-step51b"></script>
   <link rel="stylesheet" href="/assets/css/seo-guides.css?v=20260824-step44" />
   <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-step24e-brand" />
   <script type="application/ld+json">${jsonForHtml(itemListSchema)}</script>
