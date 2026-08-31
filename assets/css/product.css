@@ -737,3 +737,26 @@
   color:rgba(255,255,255,.55) !important;
   transform:none;
 }
+
+
+/* Step53: compact merchant transparency block below purchase actions */
+.merchantTrust{
+  margin-top:14px;
+  padding:12px 13px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:rgba(255,255,255,.035);
+  color:var(--muted);
+  font-size:11.5px;
+  line-height:1.55;
+}
+.merchantTrustTitle{
+  color:var(--text);
+  font-size:12px;
+  font-weight:950;
+  margin-bottom:6px;
+}
+.merchantTrustLine + .merchantTrustLine{margin-top:4px;}
+.merchantTrust strong{color:var(--text);font-weight:900;}
+.merchantTrustLinks{display:flex;flex-wrap:wrap;gap:7px 12px;margin-top:8px;}
+.merchantTrustLinks a{color:var(--text);text-decoration:underline;text-underline-offset:2px;}

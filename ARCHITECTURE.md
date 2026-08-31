@@ -1,4 +1,4 @@
-# Mosaic Pins architecture
+# Mosaic Pins Space architecture
 
 ## 1. Product/catalog flow
 

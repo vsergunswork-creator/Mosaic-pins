@@ -1,4 +1,4 @@
-# Mosaic Pins
+# Mosaic Pins Space
 
 Production storefront for **mosaicpins.space**.
 

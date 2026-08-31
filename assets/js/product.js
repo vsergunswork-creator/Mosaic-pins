@@ -3190,7 +3190,7 @@ function updateProductSeo(p){
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
       itemCondition: "https://schema.org/NewCondition",
-      seller: { "@type": "Organization", name: "Mosaic Pins Space" }
+      seller: { "@type": "Organization", name: "Mosaic Pins Space", url: "https://mosaicpins.space/", email: "support@mosaicpins.space" }
     };
   }
 

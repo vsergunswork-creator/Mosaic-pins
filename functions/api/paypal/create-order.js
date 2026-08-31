@@ -94,7 +94,7 @@ export async function onRequestPost({ request, env }) {
       intent: "CAPTURE",
       purchase_units: [{
         reference_id: "MOSAIC_PINS",
-        description: "Mosaic Pins order",
+        description: "Mosaic Pins Space order",
         custom_id: shippingCountry,
         amount: {
           currency_code: currency,
@@ -107,7 +107,7 @@ export async function onRequestPost({ request, env }) {
         items: ppItems,
       }],
       application_context: {
-        brand_name: "Mosaic Pins",
+        brand_name: "Mosaic Pins Space",
         shipping_preference: "GET_FROM_FILE",
         user_action: "PAY_NOW",
       },
