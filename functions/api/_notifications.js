@@ -1,5 +1,6 @@
 import { getOrderRecord, listOrderRecords, niceOrderId, updateOrderRecord } from "./_airtable-orders.js";
-import { buildPaidEmail, buildShippedEmail, normalizeOrderLanguage, sendStoreEmail } from "./_email.js";
+import { buildPaidEmail, buildShippedEmail, emailAttachmentFromBytes, normalizeOrderLanguage, sendStoreEmail } from "./_email.js";
+import { ensureInvoiceForOrder } from "./_invoice.js";
 
 export async function sendPaidEmailForRecord(env, rec, { recheck = true } = {}) {
   if (!rec?.id) return { sent: false, reason: "missing_record" };
@@ -21,16 +22,43 @@ export async function sendPaidEmailForRecord(env, rec, { recheck = true } = {}) 
   const languageField = String(env.AIRTABLE_LANGUAGE_FIELD || "Language");
   const language = normalizeOrderLanguage(f[languageField]);
 
+  let invoiceAttachment = null;
+  let invoiceNumber = "";
+  // The invoice is generated before the first paid confirmation so the customer
+  // receives the same immutable PDF that is stored in Airtable / My Orders.
+  // A temporary invoice failure must never suppress the payment confirmation.
+  for (let attempt = 0; attempt < 2 && !invoiceAttachment; attempt++) {
+    try {
+      const result = await ensureInvoiceForOrder(env, rec);
+      invoiceNumber = String(result?.invoice?.invoiceNumber || "").trim();
+      if (result?.pdfBytes?.length) {
+        invoiceAttachment = emailAttachmentFromBytes(
+          result.pdfBytes,
+          `${invoiceNumber || `Invoice-${niceOrderId(rec, env)}`}.pdf`,
+          "application/pdf"
+        );
+      }
+    } catch (error) {
+      console.error(`Invoice attachment preparation failed (attempt ${attempt + 1})`, error);
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 180));
+    }
+  }
+
   const msg = buildPaidEmail(env, {
     name: String(f[nameField] || "").trim(),
     orderId: niceOrderId(rec, env),
     amount: f[amountField],
     currency: f[currencyField],
     language,
+    invoiceAttached: Boolean(invoiceAttachment),
   });
-  await sendStoreEmail(env, { to, ...msg });
+  await sendStoreEmail(env, {
+    to,
+    ...msg,
+    ...(invoiceAttachment ? { attachments: [invoiceAttachment] } : {}),
+  });
   await updateOrderRecord(env, rec.id, { [sentField]: true });
-  return { sent: true, to, orderId: niceOrderId(rec, env) };
+  return { sent: true, to, orderId: niceOrderId(rec, env), invoiceAttached: Boolean(invoiceAttachment), invoiceNumber };
 }
 
 export async function sendShippedEmailForRecord(env, rec, { recheck = true } = {}) {

@@ -916,7 +916,7 @@ function buildHtml({ slug, lang, copy, common, canonical, products, diameters })
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20260823-step24f" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=20260823-step24f" />
   <link rel="manifest" href="/site.webmanifest?v=20260823-step24f" />
-  <script src="/assets/js/i18n-prepaint.js?v=20260831-step53"></script>
+  <script src="/assets/js/i18n-prepaint.js?v=20260831-step54"></script>
   <script src="/assets/js/google-consent.js?v=20260831-step51d"></script>
   <link rel="stylesheet" href="/assets/css/seo-guides.css?v=20260824-step44" />
   <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-step24e-brand" />
@@ -1002,7 +1002,7 @@ function buildHtml({ slug, lang, copy, common, canonical, products, diameters })
   </div>
 
   <script src="/assets/js/seo-guides.js?v=20260824-step44"></script>
-  <script src="/assets/js/site-common.js?v=20260831-step53"></script>
+  <script src="/assets/js/site-common.js?v=20260831-step54"></script>
 </body>
 </html>`;
 }

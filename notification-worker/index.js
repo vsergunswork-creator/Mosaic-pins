@@ -187,7 +187,7 @@ function safeJson(x) {
 
 // One mail transport + one set of customer email templates for the whole shop.
 
-async function sendStoreEmail(env, { to, subject, text, html }) {
+async function sendStoreEmail(env, { to, subject, text, html, attachments = [] }) {
   const from = String(env.MAIL_FROM || "support@mosaicpins.space").trim();
   const rawReplyTo = String(env.MAIL_REPLY_TO || "support@mosaicpins.space").trim();
   const replyTo = rawReplyTo.toLowerCase() === "mosaicpinsspace@gmail.com" ? "support@mosaicpins.space" : rawReplyTo;
@@ -218,6 +218,7 @@ async function sendStoreEmail(env, { to, subject, text, html }) {
       { type: "text/plain", value: text || "" },
       { type: "text/html", value: html || "" },
     ],
+    ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}),
   };
 
   const headers = { "Content-Type": "application/json" };
@@ -237,7 +238,7 @@ function normalizeOrderLanguage(value) {
   return ["en", "de", "ru", "fr"].includes(lang) ? lang : "en";
 }
 
-function buildPaidEmail(env, { name, orderId, amount, currency, language = "en" }) {
+function buildPaidEmail(env, { name, orderId, amount, currency, language = "en", invoiceAttached = false }) {
   const store = getStoreName(env);
   const lang = normalizeOrderLanguage(language);
   const t = COPY[lang];
@@ -251,6 +252,7 @@ function buildPaidEmail(env, { name, orderId, amount, currency, language = "en" 
 ${t.paidThanks} ${orderId}!
 ${t.paidReceived}
 ${amountLine ? `\n${t.total}: ${amountLine}\n` : ""}
+${invoiceAttached ? `\n${t.invoiceAttached}\n` : ""}
 ${t.paidFollowup}
 
 ${t.questions}
@@ -267,6 +269,7 @@ ${t.questions}
       <div style="font-size:15px;font-weight:900;${amountLine ? "margin-bottom:12px;" : ""}">${escapeHtml(orderId)}</div>
       ${amountLine ? `<div style="font-size:13px;color:#a8b3c7;margin-bottom:6px;">${escapeHtml(t.total)}</div><div style="font-size:15px;font-weight:900;">${escapeHtml(amountLine)}</div>` : ""}
     </div>
+    ${invoiceAttached ? `<div style="margin-top:14px;padding:10px 12px;border-radius:12px;background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.25);color:#c8f7d5;font-size:13px;line-height:1.45;">📎 ${escapeHtml(t.invoiceAttached)}</div>` : ""}
     <div style="color:#a8b3c7;font-size:13px;line-height:1.5;margin-top:16px;">
       ${escapeHtml(t.paidFollowup)}<br/>${escapeHtml(t.questions)}
     </div>
@@ -328,6 +331,7 @@ const COPY = {
     paidThanks: "Thank you for your order",
     paidReceived: "We’ve received your payment. Your order is being processed now.",
     paidFollowup: "We’ll email you again as soon as your order is shipped.",
+    invoiceAttached: "Your invoice is attached to this email as a PDF.",
     shippedSubject: "Your order has been shipped",
     shippedSubtitle: "Shipping update",
     shippedGoodNews: "Good news — your order",
@@ -348,6 +352,7 @@ const COPY = {
     paidThanks: "Vielen Dank für Ihre Bestellung",
     paidReceived: "Wir haben Ihre Zahlung erhalten. Ihre Bestellung wird jetzt bearbeitet.",
     paidFollowup: "Sobald Ihre Bestellung versendet wurde, erhalten Sie eine weitere E-Mail.",
+    invoiceAttached: "Ihre Rechnung ist dieser E-Mail als PDF beigefügt.",
     shippedSubject: "Ihre Bestellung wurde versendet",
     shippedSubtitle: "Versandinformation",
     shippedGoodNews: "Gute Nachrichten — Ihre Bestellung",
@@ -368,6 +373,7 @@ const COPY = {
     paidThanks: "Спасибо за ваш заказ",
     paidReceived: "Мы получили оплату. Ваш заказ уже передан в обработку.",
     paidFollowup: "Мы отправим ещё одно письмо, как только заказ будет отправлен.",
+    invoiceAttached: "Счёт приложен к этому письму в формате PDF.",
     shippedSubject: "Ваш заказ отправлен",
     shippedSubtitle: "Информация об отправке",
     shippedGoodNews: "Хорошие новости — ваш заказ",
@@ -388,6 +394,7 @@ const COPY = {
     paidThanks: "Merci pour votre commande",
     paidReceived: "Nous avons bien reçu votre paiement. Votre commande est maintenant en cours de traitement.",
     paidFollowup: "Nous vous enverrons un nouvel e-mail dès que votre commande sera expédiée.",
+    invoiceAttached: "Votre facture est jointe à cet e-mail au format PDF.",
     shippedSubject: "Votre commande a été expédiée",
     shippedSubtitle: "Mise à jour de l’expédition",
     shippedGoodNews: "Bonne nouvelle — votre commande",
@@ -485,6 +492,29 @@ function escapeHtml(s) {
 
 
 
+async function existingInvoiceEmailAttachment(env, rec) {
+  const field = String(env.AIRTABLE_INVOICE_PDF_FIELD || "Invoice PDF");
+  const numberField = String(env.AIRTABLE_INVOICE_NUMBER_FIELD || "Invoice Number");
+  const files = Array.isArray(rec?.fields?.[field]) ? rec.fields[field] : [];
+  const file = files.find((x) => x && x.url) || null;
+  if (!file?.url) return null;
+
+  const response = await fetch(String(file.url));
+  if (!response.ok) throw new Error(`Invoice attachment download failed: ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
+  }
+  const invoiceNumber = String(rec?.fields?.[numberField] || "").trim();
+  return {
+    content: btoa(binary),
+    filename: String(file.filename || `${invoiceNumber || `Invoice-${niceOrderId(rec, env)}`}.pdf`),
+    type: String(file.type || "application/pdf"),
+  };
+}
+
 async function sendPaidEmailForRecord(env, rec, { recheck = true } = {}) {
   if (!rec?.id) return { sent: false, reason: "missing_record" };
   if (recheck) rec = await getOrderRecord(env, rec.id);
@@ -505,16 +535,28 @@ async function sendPaidEmailForRecord(env, rec, { recheck = true } = {}) {
   const languageField = String(env.AIRTABLE_LANGUAGE_FIELD || "Language");
   const language = normalizeOrderLanguage(f[languageField]);
 
+  let invoiceAttachment = null;
+  try {
+    invoiceAttachment = await existingInvoiceEmailAttachment(env, rec);
+  } catch (error) {
+    console.error("Fallback paid-email could not load Airtable invoice attachment", error);
+  }
+
   const msg = buildPaidEmail(env, {
     name: String(f[nameField] || "").trim(),
     orderId: niceOrderId(rec, env),
     amount: f[amountField],
     currency: f[currencyField],
     language,
+    invoiceAttached: Boolean(invoiceAttachment),
   });
-  await sendStoreEmail(env, { to, ...msg });
+  await sendStoreEmail(env, {
+    to,
+    ...msg,
+    ...(invoiceAttachment ? { attachments: [invoiceAttachment] } : {}),
+  });
   await updateOrderRecord(env, rec.id, { [sentField]: true });
-  return { sent: true, to, orderId: niceOrderId(rec, env) };
+  return { sent: true, to, orderId: niceOrderId(rec, env), invoiceAttached: Boolean(invoiceAttachment) };
 }
 
 async function sendShippedEmailForRecord(env, rec, { recheck = true } = {}) {

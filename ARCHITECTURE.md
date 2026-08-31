@@ -18,6 +18,7 @@ Airtable `Products` is the only product source of truth.
 2. `/api/checkout` validates current price, active state and stock in Airtable.
 3. The validated cart is stored temporarily in KV. Stripe metadata contains only its short KV key, avoiding Stripe metadata size limits.
 4. Stripe sends `checkout.session.completed` to `/api/stripe-webhook` (the old `/api/stripe-email-webhook` URL is a compatibility alias to the same handler).
+   - For paid orders, the invoice PDF is generated before the paid confirmation email when possible, attached to that first email, and stored in Airtable/My Orders.
 5. Signature is verified.
 6. Order is upserted in Airtable.
 7. Stock is decremented once using KV idempotency markers and per-product locks.

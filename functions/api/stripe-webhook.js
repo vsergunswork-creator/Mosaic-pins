@@ -320,16 +320,22 @@ export async function onRequestPost(ctx) {
       const telegramJob = sendTelegramOrderAlertForRecord(env, savedOrder, { provider: "stripe" }).catch((e) =>
         console.error("Immediate Stripe Telegram alert failed; cron will retry", e)
       );
-      const emailJob = sendPaidEmailForRecord(env, savedOrder).catch((e) =>
-        console.error("Immediate paid-email failed; cron will retry", e)
-      );
-      const invoiceJob = ensureInvoiceForOrder(env, savedOrder).catch((e) =>
-        console.error("Automatic Stripe invoice failed; customer/account can retry", e)
-      );
+      const emailJob = (async () => {
+        let result = null;
+        try {
+          result = await sendPaidEmailForRecord(env, savedOrder);
+        } catch (e) {
+          console.error("Immediate paid-email failed; cron will retry", e);
+        }
+        if (!result?.invoiceAttached) {
+          await ensureInvoiceForOrder(env, savedOrder).catch((e) =>
+            console.error("Automatic Stripe invoice retry failed; customer/account can retry", e)
+          );
+        }
+      })();
       if (ctx.waitUntil) {
         ctx.waitUntil(telegramJob);
         ctx.waitUntil(emailJob);
-        ctx.waitUntil(invoiceJob);
       }
     };
 

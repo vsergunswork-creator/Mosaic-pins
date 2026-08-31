@@ -695,32 +695,35 @@ export async function onRequestPost(ctx) {
           )
         );
 
-      const emailJob =
-        sendPaidEmailForRecord(
-          env,
-          savedOrder
-        ).catch((e) =>
+      const emailJob = (async () => {
+        let result = null;
+        try {
+          result = await sendPaidEmailForRecord(
+            env,
+            savedOrder
+          );
+        } catch (e) {
           console.error(
             "Immediate PayPal paid-email failed; cron will retry",
             e
-          )
-        );
-
-      const invoiceJob =
-        ensureInvoiceForOrder(
-          env,
-          savedOrder
-        ).catch((e) =>
-          console.error(
-            "Automatic PayPal invoice failed; customer/account can retry",
-            e
-          )
-        );
+          );
+        }
+        if (!result?.invoiceAttached) {
+          await ensureInvoiceForOrder(
+            env,
+            savedOrder
+          ).catch((e) =>
+            console.error(
+              "Automatic PayPal invoice retry failed; customer/account can retry",
+              e
+            )
+          );
+        }
+      })();
 
       if (ctx.waitUntil) {
         ctx.waitUntil(telegramJob);
         ctx.waitUntil(emailJob);
-        ctx.waitUntil(invoiceJob);
       }
 
       return json(
