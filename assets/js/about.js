@@ -721,27 +721,40 @@
   const ABOUT_LOCAL_CACHE = "mp_about_content_v2";
   const ABOUT_LOCAL_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
+  function applyHeroAspect(w, h){
+    w = Number(w || 0);
+    h = Number(h || 0);
+    if (!(w > 0 && h > 0)) return false;
+
+    const ratio = w / h;
+    // Protect the layout from a malformed/extreme attachment.
+    if (ratio < 2 || ratio > 8) return false;
+
+    const value = `${w} / ${h}`;
+    hero.dataset.imageAspect = value;
+    hero.style.aspectRatio = value;
+    return true;
+  }
+
   function setHeroBg(url){
     if (!url) return;
-    if (heroImg.dataset.src === url) return;
+
+    // Mobile browsers fire resize events while their address bar expands or
+    // collapses. Reuse the banner's measured ratio instead of falling back to
+    // a tall generic ratio, which made the wide About banner look "lost".
+    if (heroImg.dataset.src === url) {
+      if (hero.dataset.imageAspect) hero.style.aspectRatio = hero.dataset.imageAspect;
+      return;
+    }
 
     heroImg.dataset.src = url;
     heroImg.style.backgroundImage = `url("${url}")`;
 
     // Match the hero container to the banner's real proportions on every
-    // screen size. The image is shown with contain, so mobile no longer
-    // gets a tall 16:7 box with empty bands around a wide banner.
+    // screen size. The image is shown with contain, so no empty tall bands.
     const probe = new Image();
     probe.decoding = "async";
-    probe.onload = () => {
-      const w = Number(probe.naturalWidth || 0);
-      const h = Number(probe.naturalHeight || 0);
-      if (w > 0 && h > 0) {
-        const ratio = w / h;
-        // Protect the layout from a malformed/extreme attachment.
-        if (ratio >= 2 && ratio <= 8) hero.style.aspectRatio = `${w} / ${h}`;
-      }
-    };
+    probe.onload = () => applyHeroAspect(probe.naturalWidth, probe.naturalHeight);
     probe.src = url;
   }
 
@@ -994,10 +1007,12 @@
     measureStep();
     applyCarousel();
 
-    if (window.matchMedia("(max-width: 980px)").matches) {
-      hero.style.aspectRatio = "16 / 7";
+    // Keep the real Airtable banner ratio on phones too. Chrome/Android can
+    // emit resize while the browser chrome changes height; the old 16:7
+    // fallback was what broke the wide banner after navigation/refresh.
+    if (hero.dataset.imageAspect) {
+      hero.style.aspectRatio = hero.dataset.imageAspect;
     } else if (heroImg.dataset.src) {
-      // Re-run the image probe after crossing the desktop breakpoint.
       const src = heroImg.dataset.src;
       heroImg.dataset.src = "";
       setHeroBg(src);
