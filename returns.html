@@ -84,7 +84,7 @@
 
           <div class="card">
             <h2>How to return an item</h2>
-            <p>Before returning an item, email support@mosaicpins.space with your order ID and the reason for the return. We will confirm the return instructions.</p>
+            <p id="returnInstructionsText">Before returning an item, email support@mosaicpins.space with your order ID and the reason for the return. We will confirm the return instructions.</p>
             <p>Return address: Mosaic Pins Space / Vitalijs Serguns, Tribseer Damm 50, 18437 Stralsund, Germany.</p>
           </div>
 
@@ -123,6 +123,21 @@
   </div>
 
   <script src="/assets/js/returns.js"></script>
+  <script>
+    (() => {
+      const el = document.getElementById("returnInstructionsText");
+      if (!el) return;
+      let lang = "en";
+      try { lang = String(localStorage.getItem("mp_language") || "en").toLowerCase(); } catch (_) {}
+      const copy = {
+        en: "Before returning an item, email support@mosaicpins.space with your order ID and the reason for the return. We will confirm the return instructions.",
+        de: "Sende vor der Rückgabe eine E-Mail an support@mosaicpins.space und gib deine Bestellnummer sowie den Rückgabegrund an. Wir bestätigen dir anschließend die Rückgabeanweisungen.",
+        ru: "Перед возвратом напишите на support@mosaicpins.space, укажите номер заказа и причину возврата. Мы подтвердим инструкции по возврату.",
+        fr: "Avant de retourner un article, écrivez à support@mosaicpins.space en indiquant votre numéro de commande et le motif du retour. Nous vous confirmerons les instructions de retour."
+      };
+      el.textContent = copy[lang] || copy.en;
+    })();
+  </script>
   <script src="/assets/js/site-common.js?v=20260901-step56"></script>
 </body>
 </html>
