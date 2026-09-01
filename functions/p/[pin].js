@@ -107,6 +107,7 @@ function buildStructuredData(product, canonical, description) {
     "@type": "Product",
     name: cleanText(product?.title || product?.pin || "Mosaic Pin"),
     sku: cleanText(product?.pin || ""),
+    mpn: cleanText(product?.pin || ""),
     url: canonical,
     description,
     image: images,

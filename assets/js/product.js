@@ -3167,6 +3167,7 @@ function updateProductSeo(p){
     "@type": "Product",
     name: String(p?.title || pin || "Mosaic Pin"),
     sku: pin,
+    mpn: pin,
     url: canonical,
     description,
     image: Array.isArray(p?.images) ? p.images.filter(Boolean) : [],
