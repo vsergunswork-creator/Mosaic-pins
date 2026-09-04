@@ -152,6 +152,35 @@ export default {
       return serveLibraryMedia(env, postId);
     }
 
+    if (url.pathname === "/library/preview-media" && request.method === "GET") {
+      if (!(await isLibraryAuthorized(request, env))) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      const postId = Number(url.searchParams.get("id") || 0);
+      if (!Number.isInteger(postId) || postId <= 0) {
+        return new Response("Bad request", { status: 400 });
+      }
+      return serveLibraryPreviewMedia(env, postId);
+    }
+
+    if (url.pathname === "/library/product-options" && request.method === "GET") {
+      if (!(await isLibraryAuthorized(request, env))) {
+        return json({ ok: false, error: "Unauthorized" }, 401);
+      }
+      const postId = Number(url.searchParams.get("id") || 0);
+      if (!Number.isInteger(postId) || postId <= 0) {
+        return json({ ok: false, error: "Bad post id" }, 400);
+      }
+      return libraryProductOptions(env, postId);
+    }
+
+    if (url.pathname === "/library/action" && request.method === "POST") {
+      if (!(await isLibraryAuthorized(request, env))) {
+        return json({ ok: false, error: "Unauthorized" }, 401);
+      }
+      return handleLibraryAction(request, env);
+    }
+
     return new Response("Mosaic Pins Marketing Bot is online ✅", {
       headers: {
         "content-type": "text/plain; charset=utf-8",
@@ -211,7 +240,7 @@ async function handleTelegramWebhook(request, env, ctx) {
         "/new: поиск, анализ и создание одного нового кандидата\n" +
         "/rotation: показать следующую ротацию типа и тематики, бесплатно\n" +
         "/history: показать последние кандидаты, бесплатно\n" +
-        "Content Library: /library в адресе Worker, вход через BOT_ADMIN_SECRET\n\n" +
+        "Marketing Dashboard: /library, темы, фото и Facebook прямо из браузера; вход через BOT_ADMIN_SECRET\n\n" +
         "Кнопки под кандидатом:\n" +
         "✅ Принять: отметить готовым\n" +
         "🔄 Переписать: переписать EN + RU без нового поиска\n" +
@@ -1981,10 +2010,15 @@ async function getLibraryRows(env) {
     SELECT
       p.id, p.created_at, p.updated_at, p.status, p.category, p.content_type, p.theme,
       p.topic, p.en_text, p.ru_text, p.research_summary_ru, p.rewrite_count,
+      p.telegram_message_id,
       m.mode AS media_mode, m.image_url, m.image_pin, m.image_title,
+      pr.ai_image_url AS preview_ai_image_url, pr.ai_image_title AS preview_ai_image_title,
+      pr.product_index AS preview_product_index, pr.product_image_url AS preview_product_image_url,
+      pr.product_pin AS preview_product_pin, pr.product_title AS preview_product_title,
       f.status AS facebook_status, f.facebook_post_id, f.published_at, f.last_error
     FROM content_posts p
     LEFT JOIN content_media m ON m.post_id = p.id
+    LEFT JOIN content_media_previews pr ON pr.post_id = p.id
     LEFT JOIN facebook_publications f ON f.post_id = p.id
     ORDER BY p.created_at DESC
     LIMIT 400
@@ -2019,6 +2053,12 @@ function libraryMediaHtml(row) {
   return `<div class="media-empty"><span>📷</span><b>Медиа не выбрано</b></div>`;
 }
 
+function libraryPreviewHtml(row) {
+  const hasAi = String(row?.preview_ai_image_url || "").startsWith("tgfile:");
+  if (!hasAi) return "";
+  return `<div class="preview-box"><div class="preview-title">Последний AI вариант</div><img src="/library/preview-media?id=${Number(row.id)}" alt="AI preview" loading="lazy"><div class="preview-actions"><button class="action secondary" data-action="ai_select" data-id="${Number(row.id)}">✅ Выбрать AI</button><button class="action ghost" data-action="ai_generate" data-id="${Number(row.id)}">🔄 Другое AI</button></div></div>`;
+}
+
 function libraryDate(value) {
   const date = new Date(String(value || ""));
   if (Number.isNaN(date.getTime())) return "";
@@ -2034,17 +2074,29 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function libraryActionsHtml(row, bucket) {
+  const id = Number(row.id);
+  if (bucket === "candidate") {
+    return `<div class="actions"><button class="action primary" data-action="approve" data-id="${id}">✅ Принять</button><button class="action secondary" data-action="rewrite" data-id="${id}">🔄 Переписать</button><button class="action danger" data-action="skip" data-id="${id}">❌ Пропустить</button></div>`;
+  }
+  if (bucket !== "ready") return "";
+
+  const mediaChosen = ["product","ai","none"].includes(String(row.media_mode || ""));
+  return `<div class="actions media-actions"><button class="action secondary" data-action="product_picker" data-id="${id}">📷 Фото товара</button><button class="action secondary" data-action="ai_generate" data-id="${id}">🖼 AI фото</button><button class="action ghost" data-action="no_photo" data-id="${id}">🚫 Без фото</button></div>
+  <div class="actions publish-actions"><button class="action facebook${mediaChosen ? "" : " disabled"}" data-action="facebook_publish" data-id="${id}" ${mediaChosen ? "" : "disabled"}>🚀 Facebook</button></div>`;
+}
+
 function libraryCard(row) {
   const ru = splitRuPayload(row.ru_text);
   const bucket = libraryBucket(row);
   const titleRu = ru.topic || "";
-  const search = [row.id,row.topic,titleRu,row.en_text,ru.body,row.content_type,row.theme,row.image_pin,row.image_title].join(" ").toLowerCase();
+  const search = [row.id,row.topic,titleRu,row.en_text,ru.body,row.content_type,row.theme,row.image_pin,row.image_title,row.preview_product_pin,row.preview_product_title].join(" ").toLowerCase();
   const facebookMeta = bucket === "published"
     ? `<span class="facebook-ok">Facebook · ${escapeHtml(libraryDate(row.published_at))}</span>`
     : row.facebook_status === "failed"
-      ? `<span class="facebook-fail">Ошибка Facebook</span>`
+      ? `<span class="facebook-fail" title="${escapeHtml(row.last_error || "")}">Ошибка Facebook</span>`
       : "";
-  return `<article class="card" data-bucket="${bucket}" data-search="${escapeHtml(search)}">
+  return `<article class="card" data-bucket="${bucket}" data-search="${escapeHtml(search)}" id="post-${Number(row.id)}">
     <div class="media">${libraryMediaHtml(row)}<div class="media-label">${escapeHtml(libraryMediaLabel(row))}</div></div>
     <div class="body">
       <div class="topline"><span class="id">#${Number(row.id)}</span><span>${escapeHtml(contentTypeRu(row.content_type))}</span><span>${escapeHtml(themeRu(row.theme))}</span></div>
@@ -2052,6 +2104,8 @@ function libraryCard(row) {
       ${titleRu && row.topic ? `<div class="en-topic">${escapeHtml(row.topic)}</div>` : ""}
       <div class="statusline"><span class="status ${bucket}">${bucket === "ready" ? "Готов к публикации" : bucket === "published" ? "Опубликовано" : bucket === "archive" ? "Архив" : "Кандидат"}</span>${facebookMeta}<span class="date">${escapeHtml(libraryDate(row.created_at))}</span></div>
       <div class="posttext">${escapeHtml(row.en_text || "")}</div>
+      ${libraryActionsHtml(row, bucket)}
+      ${bucket === "ready" ? libraryPreviewHtml(row) : ""}
       <details><summary>Русская версия</summary><div class="ru-text">${escapeHtml(ru.body || "")}</div></details>
       <details><summary>Исследование и данные</summary><div class="research">${escapeHtml(stripScopePrefix(row.research_summary_ru) || "Нет заметки")}</div><div class="mini">Rewrite: ${Number(row.rewrite_count || 0)} · Media: ${escapeHtml(row.media_mode || "unset")}${row.facebook_post_id ? ` · FB ID: ${escapeHtml(row.facebook_post_id)}` : ""}</div></details>
     </div>
@@ -2064,16 +2118,21 @@ async function renderContentLibrary(env) {
   const counts = { ready:0, published:0, archive:0, candidate:0 };
   for (const row of rows) counts[libraryBucket(row)]++;
   const cards = rows.map(libraryCard).join("");
+  const history = await getRecentHistory(env, 30);
+  const next = chooseRotation(history);
+  const fbReady = has(env.FACEBOOK_PAGE_ID) && has(env.FACEBOOK_PAGE_ACCESS_TOKEN);
   return html(`<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mosaic Pins Content Library</title>
+<title>Mosaic Pins Marketing Dashboard</title>
 <style>
-:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:18px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{display:grid;grid-template-columns:220px 1fr;min-height:260px;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.media{background:#0b130f;position:relative;min-height:220px}.media img{width:100%;height:100%;object-fit:cover;display:block}.media-empty{height:100%;min-height:220px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:absolute;left:9px;right:9px;bottom:9px;background:#07110ddd;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;backdrop-filter:blur(8px)}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}.card{grid-template-columns:190px 1fr}}@media(max-width:620px){.wrap{padding:14px}.header{align-items:flex-start}.title{font-size:22px}.card{display:block}.media{height:230px;min-height:0}.media-empty{min-height:230px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}}
+:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41;--danger:#7b3439;--blue:#245f9b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.head-actions{display:flex;gap:8px;align-items:center}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.create{border:1px solid #47a869;background:#277845;color:white;border-radius:11px;padding:10px 14px;font-weight:900;cursor:pointer}.rotation{background:#101914;border:1px solid var(--line);border-radius:14px;padding:10px 13px;margin-bottom:12px;color:#b7c3bc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rotation b{color:#e8f3ec}.dot{color:#607168}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{display:grid;grid-template-columns:220px 1fr;min-height:260px;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.media{background:#0b130f;position:relative;min-height:220px}.media img{width:100%;height:100%;object-fit:cover;display:block}.media-empty{height:100%;min-height:220px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:absolute;left:9px;right:9px;bottom:9px;background:#07110ddd;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;backdrop-filter:blur(8px)}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.action{border:1px solid #34483c;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#17231c;color:#e6eee9}.action.primary{background:#236d3d;border-color:#398858}.action.secondary{background:#183526;border-color:#315b40}.action.ghost{background:#111a15}.action.danger{background:#492329;border-color:#70383e}.action.facebook{background:#1e5c93;border-color:#3179b9}.action.disabled,.action:disabled{opacity:.4;cursor:not-allowed}.action.busy,.create.busy{opacity:.55;pointer-events:none}.preview-box{margin-top:12px;border:1px solid #31463a;background:#0c1510;border-radius:13px;padding:10px}.preview-title{font-size:11px;color:#9cacA2;font-weight:800;margin-bottom:7px}.preview-box img{width:100%;max-height:260px;object-fit:cover;border-radius:10px;display:block}.preview-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;z-index:30;max-width:min(420px,calc(100vw - 36px));background:#152019;border:1px solid #3d5949;color:#eef6f1;border-radius:12px;padding:11px 14px;box-shadow:0 18px 50px #0008;display:none}.toast.error{background:#35191b;border-color:#713239;color:#ffd9db}.modal{position:fixed;inset:0;z-index:20;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px 30px;overflow:auto}.modal.open{display:flex}.modal-box{width:min(980px,100%);background:#101914;border:1px solid #304238;border-radius:18px;padding:16px;box-shadow:0 24px 80px #000b}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.modal-head h3{margin:0;font-size:19px}.close{border:1px solid #33483c;background:#151f19;color:#dce5df;border-radius:9px;padding:7px 10px;cursor:pointer}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-option{background:#0b130f;border:1px solid #293a30;border-radius:13px;overflow:hidden}.product-option img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}.product-option .po-body{padding:10px}.po-title{font-weight:800;line-height:1.25}.po-meta{color:#8fa096;font-size:11px;margin:4px 0 8px}.product-option button{width:100%}.loader{padding:35px;text-align:center;color:#aab8b0}@media(max-width:900px){.grid{grid-template-columns:1fr}.card{grid-template-columns:190px 1fr}.products{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.wrap{padding:14px}.header{align-items:flex-start}.head-actions{flex-direction:column;align-items:stretch}.title{font-size:22px}.card{display:block}.media{height:230px;min-height:0}.media-empty{min-height:230px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}.products{grid-template-columns:1fr}.rotation{font-size:12px}}
 </style></head>
-<body><div class="wrap"><header class="header"><div><div class="title">Mosaic Pins Content Library</div><div class="subtitle">Принятые темы, выбранные фото и история публикаций</div></div><form method="post" action="/library/logout"><button class="logout">Выйти</button></form></header>
+<body><div class="wrap"><header class="header"><div><div class="title">Mosaic Pins Marketing Dashboard</div><div class="subtitle">Темы, фото, согласование и публикация Facebook в одном месте</div></div><div class="head-actions"><button id="newTopic" class="create">+ Новая тема</button><form method="post" action="/library/logout"><button class="logout">Выйти</button></form></div></header>
+<div class="rotation"><span>Следующая ротация:</span><b>${escapeHtml(contentTypeRu(next.contentType))}</b><span class="dot">·</span><b>${escapeHtml(themeRu(next.theme))}</b><span class="dot">·</span><span>Facebook ${fbReady ? "подключён ✅" : "не подключён"}</span></div>
 <div class="toolbar"><div class="tabs"><button class="tab active" data-tab="ready">Готово · ${counts.ready}</button><button class="tab" data-tab="published">Опубликовано · ${counts.published}</button><button class="tab" data-tab="candidate">Кандидаты · ${counts.candidate}</button><button class="tab" data-tab="archive">Архив · ${counts.archive}</button><button class="tab" data-tab="all">Все · ${rows.length}</button></div><input id="search" class="search" type="search" placeholder="Поиск по теме, тексту, типу, PIN..." autocomplete="off"></div>
-<main id="grid" class="grid">${cards}</main><div id="empty" class="empty">Ничего не найдено</div><div class="foot">Данные берутся напрямую из D1 Marketing Bot. Публикация пока остаётся через Telegram.</div></div>
-<script>(()=>{const tabs=[...document.querySelectorAll('.tab')],cards=[...document.querySelectorAll('.card')],search=document.getElementById('search'),empty=document.getElementById('empty');let bucket='ready';function apply(){const q=search.value.trim().toLowerCase();let shown=0;for(const card of cards){const okBucket=bucket==='all'||card.dataset.bucket===bucket;const okSearch=!q||card.dataset.search.includes(q);const show=okBucket&&okSearch;card.style.display=show?'':'none';if(show)shown++}empty.style.display=shown?'none':'block'}for(const tab of tabs){tab.addEventListener('click',()=>{for(const x of tabs)x.classList.remove('active');tab.classList.add('active');bucket=tab.dataset.tab;apply()})}search.addEventListener('input',apply);apply()})();</script></body></html>`);
+<main id="grid" class="grid">${cards}</main><div id="empty" class="empty">Ничего не найдено</div><div class="foot">Один D1 и одна логика для Telegram и веб-панели. AI фото создаётся только по нажатию.</div></div>
+<div id="productModal" class="modal"><div class="modal-box"><div class="modal-head"><h3>Выбрать реальное фото товара</h3><button id="closeModal" class="close">Закрыть</button></div><div id="products" class="products"><div class="loader">Загрузка…</div></div></div></div><div id="toast" class="toast"></div>
+<script>(()=>{const tabs=[...document.querySelectorAll('.tab')],cards=[...document.querySelectorAll('.card')],search=document.getElementById('search'),empty=document.getElementById('empty'),toast=document.getElementById('toast'),modal=document.getElementById('productModal'),products=document.getElementById('products');let bucket='ready',modalPostId=0;function apply(){const q=search.value.trim().toLowerCase();let shown=0;for(const card of cards){const okBucket=bucket==='all'||card.dataset.bucket===bucket;const okSearch=!q||card.dataset.search.includes(q);const show=okBucket&&okSearch;card.style.display=show?'':'none';if(show)shown++}empty.style.display=shown?'none':'block'}function say(text,error=false){toast.textContent=text;toast.className='toast'+(error?' error':'');toast.style.display='block';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>toast.style.display='none',4200)}async function action(actionName,id=0,extra={}){const res=await fetch('/library/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:actionName,id,...extra})});const data=await res.json().catch(()=>({ok:false,error:'Некорректный ответ'}));if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');return data}async function runButton(btn,actionName,id,extra={}){const old=btn.textContent;btn.classList.add('busy');btn.textContent='Подождите…';try{const data=await action(actionName,id,extra);say(data.message||'Готово');setTimeout(()=>location.reload(),450)}catch(e){say(e.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}}for(const tab of tabs){tab.addEventListener('click',()=>{for(const x of tabs)x.classList.remove('active');tab.classList.add('active');bucket=tab.dataset.tab;apply()})}search.addEventListener('input',apply);document.getElementById('newTopic').addEventListener('click',e=>runButton(e.currentTarget,'new',0));document.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(!btn||btn.disabled)return;const a=btn.dataset.action,id=Number(btn.dataset.id||0);if(a==='product_picker'){modalPostId=id;modal.classList.add('open');products.innerHTML='<div class="loader">Ищу подходящие фотографии…</div>';try{const res=await fetch('/library/product-options?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Не удалось получить фото');products.innerHTML='';for(const p of data.products){const card=document.createElement('div');card.className='product-option';const img=document.createElement('img');img.src=p.image;img.alt=p.title||p.pin||'Product photo';img.loading='lazy';const body=document.createElement('div');body.className='po-body';const title=document.createElement('div');title.className='po-title';title.textContent=p.title||p.pin||'Фото товара';const meta=document.createElement('div');meta.className='po-meta';meta.textContent='PIN: '+(p.pin||'')+' · Stock: '+Number(p.stock||0);const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'product_select',modalPostId,{index:p.index}));body.append(title,meta,pick);card.append(img,body);products.append(card)}if(!data.products.length)products.innerHTML='<div class="loader">Подходящих фотографий не найдено</div>'}catch(err){products.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}const map={approve:'approve',rewrite:'rewrite',skip:'skip',no_photo:'no_photo',ai_generate:'ai_generate',ai_select:'ai_select',facebook_publish:'facebook_publish'};if(map[a]){if(a==='facebook_publish'&&!confirm('Опубликовать этот пост на Facebook Page?'))return;runButton(btn,map[a],id)}});document.getElementById('closeModal').addEventListener('click',()=>modal.classList.remove('open'));modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});apply()})();</script></body></html>`);
 }
 
 async function serveLibraryMedia(env, postId) {
@@ -2094,6 +2153,172 @@ async function serveLibraryMedia(env, postId) {
   } catch (error) {
     return new Response("Media unavailable", { status: 502 });
   }
+}
+
+
+async function serveLibraryPreviewMedia(env, postId) {
+  const preview = await getMediaPreviewState(env, postId);
+  const ref = String(preview?.ai_image_url || "");
+  if (!ref.startsWith("tgfile:")) return new Response("Preview not found", { status: 404 });
+  try {
+    const blob = await fetchTelegramStoredImage(env, ref.slice("tgfile:".length));
+    return new Response(blob, {
+      headers: {
+        "content-type": blob.type || "image/jpeg",
+        "cache-control": "private, max-age=900",
+        "x-content-type-options": "nosniff"
+      }
+    });
+  } catch (_) {
+    return new Response("Preview unavailable", { status: 502 });
+  }
+}
+
+async function libraryProductOptions(env, postId) {
+  const row = await getPost(env, postId);
+  if (!row) return json({ ok: false, error: "Кандидат не найден" }, 404);
+  if (row.status !== "approved") return json({ ok: false, error: "Сначала нужно принять пост" }, 409);
+  try {
+    const candidates = await getRealPhotoCandidates(row);
+    return json({
+      ok: true,
+      products: candidates.slice(0, 12).map((product, index) => ({
+        index,
+        pin: String(product?.pin || ""),
+        title: String(product?.title || product?.pin || ""),
+        stock: Number(product?.stock || 0),
+        image: String(product?.images?.[0] || "")
+      })).filter(product => product.image)
+    });
+  } catch (error) {
+    return json({ ok: false, error: `Не удалось получить фото: ${String(error?.message || error)}` }, 502);
+  }
+}
+
+async function handleLibraryAction(request, env) {
+  const payload = await request.json().catch(() => null);
+  if (!payload || typeof payload !== "object") return json({ ok: false, error: "Некорректный запрос" }, 400);
+  const action = String(payload.action || "").trim();
+  const postId = Number(payload.id || 0);
+
+  try {
+    if (action === "new") {
+      const result = await generateAndSendCandidate(env, { trigger: "library_new" });
+      const ok = result?.status >= 200 && result?.status < 300 && result?.body?.ok;
+      return json({
+        ...(result?.body || {}),
+        ok: Boolean(ok),
+        message: ok ? `Новый кандидат #${result.body.id} создан` : undefined,
+        error: ok ? undefined : String(result?.body?.error || "Не удалось создать кандидата")
+      }, ok ? 200 : (result?.status || 500));
+    }
+
+    if (!Number.isInteger(postId) || postId <= 0) return json({ ok: false, error: "Некорректный ID поста" }, 400);
+    const row = await getPost(env, postId);
+    if (!row) return json({ ok: false, error: "Кандидат не найден" }, 404);
+
+    if (action === "approve") {
+      if (row.status !== "candidate") return json({ ok: false, error: "Этот пост уже обработан" }, 409);
+      await approveCandidate(env, postId, row.telegram_message_id);
+      const updated = await getPost(env, postId);
+      return json({ ok: updated?.status === "approved", message: "Пост принят ✅", error: updated?.status === "approved" ? undefined : "Не удалось принять пост" }, updated?.status === "approved" ? 200 : 500);
+    }
+
+    if (action === "rewrite") {
+      if (row.status !== "candidate") return json({ ok: false, error: "Переписывать можно только кандидата" }, 409);
+      const before = Number(row.rewrite_count || 0);
+      await rewriteCandidate(env, postId, row.telegram_message_id);
+      const updated = await getPost(env, postId);
+      const ok = Number(updated?.rewrite_count || 0) > before;
+      return json({ ok, message: ok ? "Текст переписан" : undefined, error: ok ? undefined : "Не удалось переписать текст" }, ok ? 200 : 502);
+    }
+
+    if (action === "skip") {
+      if (row.status !== "candidate") return json({ ok: false, error: "Этот пост уже обработан" }, 409);
+      await skipCandidate(env, postId, row.telegram_message_id);
+      return json({ ok: true, message: "Кандидат отправлен в архив" });
+    }
+
+    if (row.status !== "approved") return json({ ok: false, error: "Сначала нужно принять пост" }, 409);
+
+    if (action === "no_photo") {
+      await selectNoPhoto(env, postId);
+      return json({ ok: true, message: "Выбрано: без фото" });
+    }
+
+    if (action === "product_select") {
+      const index = Number(payload.index || 0);
+      if (!Number.isInteger(index) || index < 0) return json({ ok: false, error: "Некорректный вариант фото" }, 400);
+      const candidates = await getRealPhotoCandidates(row);
+      if (!candidates[index]) return json({ ok: false, error: "Фото больше недоступно, обнови список" }, 409);
+      await selectRealPhoto(env, postId, index, null);
+      const media = await getMediaSelection(env, postId);
+      return json({ ok: media?.mode === "product", message: media?.mode === "product" ? `Фото ${media.image_pin || "товара"} выбрано` : undefined, error: media?.mode === "product" ? undefined : "Не удалось выбрать фото" }, media?.mode === "product" ? 200 : 500);
+    }
+
+    if (action === "ai_generate") {
+      const before = await getMediaPreviewState(env, postId);
+      const beforeStamp = String(before?.updated_at || "");
+      await generateAiImagePreview(env, postId);
+      const after = await getMediaPreviewState(env, postId);
+      const ok = String(after?.ai_image_url || "").startsWith("tgfile:") && String(after?.updated_at || "") !== beforeStamp;
+      return json({ ok, message: ok ? "Новое AI фото создано" : undefined, error: ok ? undefined : "AI фото не создалось, проверь Telegram/лог Worker" }, ok ? 200 : 502);
+    }
+
+    if (action === "ai_select") {
+      const preview = await getMediaPreviewState(env, postId);
+      if (!String(preview?.ai_image_url || "").startsWith("tgfile:")) return json({ ok: false, error: "Сначала создай AI фото" }, 409);
+      await selectAiImage(env, postId, null);
+      const media = await getMediaSelection(env, postId);
+      return json({ ok: media?.mode === "ai", message: media?.mode === "ai" ? "AI фото выбрано" : undefined, error: media?.mode === "ai" ? undefined : "Не удалось выбрать AI фото" }, media?.mode === "ai" ? 200 : 500);
+    }
+
+    if (action === "facebook_publish") {
+      const result = await publishFromLibrary(env, postId);
+      return json(result, result.ok ? 200 : (result.status || 502));
+    }
+
+    return json({ ok: false, error: "Неизвестное действие" }, 400);
+  } catch (error) {
+    return json({ ok: false, error: String(error?.message || error || "Неизвестная ошибка") }, 500);
+  }
+}
+
+async function publishFromLibrary(env, postId) {
+  const row = await getPost(env, postId);
+  if (!row || row.status !== "approved") return { ok: false, status: 409, error: "Сначала нужно принять пост" };
+  await ensurePublishingTables(env);
+  const previous = await env.mosaic_marketing_bot_db.prepare(`
+    SELECT status, facebook_post_id, published_at FROM facebook_publications WHERE post_id = ?
+  `).bind(postId).first();
+  if (previous?.status === "published") return { ok: false, status: 409, error: "Этот пост уже опубликован", facebookPostId: previous.facebook_post_id || "" };
+
+  const pageId = String(env.FACEBOOK_PAGE_ID || "").trim();
+  const token = String(env.FACEBOOK_PAGE_ACCESS_TOKEN || "").trim();
+  if (!pageId || !token) return { ok: false, status: 503, error: "Facebook Page ID или Page Access Token не подключены" };
+  const media = await getMediaSelection(env, postId);
+  if (!media || media.mode === "unset") return { ok: false, status: 409, error: "Сначала выбери фото или Без фото" };
+
+  const result = await publishToFacebookPage(env, row, media);
+  const now = new Date().toISOString();
+  await env.mosaic_marketing_bot_db.prepare(`
+    INSERT INTO facebook_publications (post_id, status, facebook_post_id, facebook_page_id, published_at, last_error, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(post_id) DO UPDATE SET
+      status = excluded.status, facebook_post_id = excluded.facebook_post_id,
+      facebook_page_id = excluded.facebook_page_id, published_at = excluded.published_at,
+      last_error = excluded.last_error, updated_at = excluded.updated_at
+  `).bind(postId, result.ok ? "published" : "failed", String(result.postId || ""), pageId, result.ok ? now : "", result.ok ? "" : String(result.error || "Unknown Facebook error"), now).run();
+
+  if (!result.ok) {
+    await sendTelegramText(env, `⚠️ Facebook publish failed for #${postId}\n${result.error || "Unknown error"}`).catch(() => {});
+    return { ok: false, status: 502, error: String(result.error || "Facebook publish failed") };
+  }
+
+  if (row.telegram_message_id) {
+    await editTelegramText(env, row.telegram_message_id, `✅ ОПУБЛИКОВАНО В FACEBOOK\nPublished: ${now}\nFacebook ID: ${result.postId || ""}\n\n` + formatCandidateMessage(row, false), null).catch(() => {});
+  }
+  return { ok: true, message: "Опубликовано в Facebook ✅", facebookPostId: String(result.postId || ""), publishedAt: now };
 }
 
 function extractOutputText(data) {
