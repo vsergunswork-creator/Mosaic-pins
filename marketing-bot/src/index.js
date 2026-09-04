@@ -101,6 +101,57 @@ export default {
       });
     }
 
+    // Private Content Library for approved, published and archived posts.
+    // Uses BOT_ADMIN_SECRET only for login and stores only its SHA-256 hash in
+    // an HttpOnly cookie. No new Cloudflare variable is required.
+    if (url.pathname === "/library" && request.method === "GET") {
+      if (!(await isLibraryAuthorized(request, env))) {
+        return html(libraryLoginPage(url.searchParams.get("error") === "1"), 401);
+      }
+      return renderContentLibrary(env);
+    }
+
+    if (url.pathname === "/library/login" && request.method === "POST") {
+      const form = await request.formData().catch(() => null);
+      const provided = String(form?.get("secret") || "").trim();
+      const required = String(env.BOT_ADMIN_SECRET || "").trim();
+      if (!required || provided !== required) {
+        return new Response(null, {
+          status: 303,
+          headers: { location: "/library?error=1" }
+        });
+      }
+      const cookieValue = await libraryCookieValue(env);
+      return new Response(null, {
+        status: 303,
+        headers: {
+          location: "/library",
+          "set-cookie": `mb_library_auth=${cookieValue}; Path=/library; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
+        }
+      });
+    }
+
+    if (url.pathname === "/library/logout" && request.method === "POST") {
+      return new Response(null, {
+        status: 303,
+        headers: {
+          location: "/library",
+          "set-cookie": "mb_library_auth=; Path=/library; HttpOnly; Secure; SameSite=Strict; Max-Age=0"
+        }
+      });
+    }
+
+    if (url.pathname === "/library/media" && request.method === "GET") {
+      if (!(await isLibraryAuthorized(request, env))) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      const postId = Number(url.searchParams.get("id") || 0);
+      if (!Number.isInteger(postId) || postId <= 0) {
+        return new Response("Bad request", { status: 400 });
+      }
+      return serveLibraryMedia(env, postId);
+    }
+
     return new Response("Mosaic Pins Marketing Bot is online ✅", {
       headers: {
         "content-type": "text/plain; charset=utf-8",
@@ -159,7 +210,8 @@ async function handleTelegramWebhook(request, env, ctx) {
         "Mosaic Pins Marketing Bot\n\n" +
         "/new: поиск, анализ и создание одного нового кандидата\n" +
         "/rotation: показать следующую ротацию типа и тематики, бесплатно\n" +
-        "/history: показать последние кандидаты, бесплатно\n\n" +
+        "/history: показать последние кандидаты, бесплатно\n" +
+        "Content Library: /library в адресе Worker, вход через BOT_ADMIN_SECRET\n\n" +
         "Кнопки под кандидатом:\n" +
         "✅ Принять: отметить готовым\n" +
         "🔄 Переписать: переписать EN + RU без нового поиска\n" +
@@ -1875,6 +1927,173 @@ function parseStructuredOutput(data) {
   } catch (_) {}
 
   return null;
+}
+
+
+async function libraryCookieValue(env) {
+  const secret = String(env.BOT_ADMIN_SECRET || "").trim();
+  if (!secret) return "";
+  const bytes = new TextEncoder().encode(`mosaic-library:${secret}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function cookieValue(request, name) {
+  const cookie = String(request.headers.get("cookie") || "");
+  for (const part of cookie.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return "";
+}
+
+async function isLibraryAuthorized(request, env) {
+  const expected = await libraryCookieValue(env);
+  if (!expected) return false;
+  return cookieValue(request, "mb_library_auth") === expected;
+}
+
+function html(body, status = 200) {
+  return new Response(body, {
+    status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-frame-options": "DENY",
+      "referrer-policy": "no-referrer",
+      "content-security-policy": "default-src 'self'; img-src 'self' https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+    }
+  });
+}
+
+function libraryLoginPage(hasError = false) {
+  return `<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mosaic Pins Content Library</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d0b;color:#f4f7f5;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:20px}.box{width:min(430px,100%);background:#101713;border:1px solid #26352d;border-radius:20px;padding:26px;box-shadow:0 20px 60px #0008}.brand{font-weight:800;font-size:22px}.sub{color:#aab7b0;margin:7px 0 22px}.error{background:#35191b;border:1px solid #6f3035;color:#ffd5d8;padding:10px 12px;border-radius:12px;margin-bottom:14px}label{display:block;font-size:13px;color:#b9c4be;margin-bottom:7px}input{width:100%;border:1px solid #34473d;background:#0b110e;color:white;border-radius:12px;padding:13px 14px;font-size:16px;outline:none}input:focus{border-color:#52ad70;box-shadow:0 0 0 3px #52ad7024}button{width:100%;margin-top:14px;border:0;border-radius:12px;padding:13px 16px;background:#2f9e58;color:white;font-weight:800;font-size:15px;cursor:pointer}.note{font-size:12px;color:#7f8e86;margin-top:16px}</style></head>
+<body><form class="box" method="post" action="/library/login"><div class="brand">Mosaic Pins Content Library</div><div class="sub">Закрытый архив Marketing Bot</div>${hasError ? '<div class="error">Неверный BOT_ADMIN_SECRET</div>' : ''}<label for="secret">BOT_ADMIN_SECRET</label><input id="secret" name="secret" type="password" autocomplete="current-password" required autofocus><button type="submit">Войти</button><div class="note">Секрет не сохраняется в URL. В браузере остаётся только HttpOnly cookie с SHA-256 отпечатком.</div></form></body></html>`;
+}
+
+async function getLibraryRows(env) {
+  await ensurePublishingTables(env);
+  const result = await env.mosaic_marketing_bot_db.prepare(`
+    SELECT
+      p.id, p.created_at, p.updated_at, p.status, p.category, p.content_type, p.theme,
+      p.topic, p.en_text, p.ru_text, p.research_summary_ru, p.rewrite_count,
+      m.mode AS media_mode, m.image_url, m.image_pin, m.image_title,
+      f.status AS facebook_status, f.facebook_post_id, f.published_at, f.last_error
+    FROM content_posts p
+    LEFT JOIN content_media m ON m.post_id = p.id
+    LEFT JOIN facebook_publications f ON f.post_id = p.id
+    ORDER BY p.created_at DESC
+    LIMIT 400
+  `).all();
+  return Array.isArray(result?.results) ? result.results : [];
+}
+
+function libraryBucket(row) {
+  if (String(row?.facebook_status || "") === "published") return "published";
+  if (String(row?.status || "") === "skipped") return "archive";
+  if (String(row?.status || "") === "approved") return "ready";
+  return "candidate";
+}
+
+function libraryMediaLabel(row) {
+  const mode = String(row?.media_mode || "unset");
+  if (mode === "product") return row?.image_pin ? `Реальное фото · ${row.image_pin}` : "Реальное фото";
+  if (mode === "ai") return "AI фото";
+  if (mode === "none") return "Без фото";
+  return "Медиа не выбрано";
+}
+
+function libraryMediaHtml(row) {
+  const mode = String(row?.media_mode || "unset");
+  if (mode === "product" && String(row?.image_url || "").startsWith("http")) {
+    return `<img src="${escapeHtml(row.image_url)}" alt="${escapeHtml(row.image_title || row.topic || "Selected product photo")}" loading="lazy">`;
+  }
+  if (mode === "ai" && String(row?.image_url || "").startsWith("tgfile:")) {
+    return `<img src="/library/media?id=${Number(row.id)}" alt="Selected AI image" loading="lazy">`;
+  }
+  if (mode === "none") return `<div class="media-empty"><span>🚫</span><b>Без фото</b></div>`;
+  return `<div class="media-empty"><span>📷</span><b>Медиа не выбрано</b></div>`;
+}
+
+function libraryDate(value) {
+  const date = new Date(String(value || ""));
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ru-RU", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", timeZone:"Europe/Berlin" }).format(date);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function libraryCard(row) {
+  const ru = splitRuPayload(row.ru_text);
+  const bucket = libraryBucket(row);
+  const titleRu = ru.topic || "";
+  const search = [row.id,row.topic,titleRu,row.en_text,ru.body,row.content_type,row.theme,row.image_pin,row.image_title].join(" ").toLowerCase();
+  const facebookMeta = bucket === "published"
+    ? `<span class="facebook-ok">Facebook · ${escapeHtml(libraryDate(row.published_at))}</span>`
+    : row.facebook_status === "failed"
+      ? `<span class="facebook-fail">Ошибка Facebook</span>`
+      : "";
+  return `<article class="card" data-bucket="${bucket}" data-search="${escapeHtml(search)}">
+    <div class="media">${libraryMediaHtml(row)}<div class="media-label">${escapeHtml(libraryMediaLabel(row))}</div></div>
+    <div class="body">
+      <div class="topline"><span class="id">#${Number(row.id)}</span><span>${escapeHtml(contentTypeRu(row.content_type))}</span><span>${escapeHtml(themeRu(row.theme))}</span></div>
+      <h2>${escapeHtml(titleRu || row.topic || `Post #${row.id}`)}</h2>
+      ${titleRu && row.topic ? `<div class="en-topic">${escapeHtml(row.topic)}</div>` : ""}
+      <div class="statusline"><span class="status ${bucket}">${bucket === "ready" ? "Готов к публикации" : bucket === "published" ? "Опубликовано" : bucket === "archive" ? "Архив" : "Кандидат"}</span>${facebookMeta}<span class="date">${escapeHtml(libraryDate(row.created_at))}</span></div>
+      <div class="posttext">${escapeHtml(row.en_text || "")}</div>
+      <details><summary>Русская версия</summary><div class="ru-text">${escapeHtml(ru.body || "")}</div></details>
+      <details><summary>Исследование и данные</summary><div class="research">${escapeHtml(stripScopePrefix(row.research_summary_ru) || "Нет заметки")}</div><div class="mini">Rewrite: ${Number(row.rewrite_count || 0)} · Media: ${escapeHtml(row.media_mode || "unset")}${row.facebook_post_id ? ` · FB ID: ${escapeHtml(row.facebook_post_id)}` : ""}</div></details>
+    </div>
+  </article>`;
+}
+
+async function renderContentLibrary(env) {
+  if (!env.mosaic_marketing_bot_db) return html("D1 is not configured", 500);
+  const rows = await getLibraryRows(env);
+  const counts = { ready:0, published:0, archive:0, candidate:0 };
+  for (const row of rows) counts[libraryBucket(row)]++;
+  const cards = rows.map(libraryCard).join("");
+  return html(`<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mosaic Pins Content Library</title>
+<style>
+:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:18px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{display:grid;grid-template-columns:220px 1fr;min-height:260px;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.media{background:#0b130f;position:relative;min-height:220px}.media img{width:100%;height:100%;object-fit:cover;display:block}.media-empty{height:100%;min-height:220px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:absolute;left:9px;right:9px;bottom:9px;background:#07110ddd;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;backdrop-filter:blur(8px)}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}.card{grid-template-columns:190px 1fr}}@media(max-width:620px){.wrap{padding:14px}.header{align-items:flex-start}.title{font-size:22px}.card{display:block}.media{height:230px;min-height:0}.media-empty{min-height:230px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}}
+</style></head>
+<body><div class="wrap"><header class="header"><div><div class="title">Mosaic Pins Content Library</div><div class="subtitle">Принятые темы, выбранные фото и история публикаций</div></div><form method="post" action="/library/logout"><button class="logout">Выйти</button></form></header>
+<div class="toolbar"><div class="tabs"><button class="tab active" data-tab="ready">Готово · ${counts.ready}</button><button class="tab" data-tab="published">Опубликовано · ${counts.published}</button><button class="tab" data-tab="candidate">Кандидаты · ${counts.candidate}</button><button class="tab" data-tab="archive">Архив · ${counts.archive}</button><button class="tab" data-tab="all">Все · ${rows.length}</button></div><input id="search" class="search" type="search" placeholder="Поиск по теме, тексту, типу, PIN..." autocomplete="off"></div>
+<main id="grid" class="grid">${cards}</main><div id="empty" class="empty">Ничего не найдено</div><div class="foot">Данные берутся напрямую из D1 Marketing Bot. Публикация пока остаётся через Telegram.</div></div>
+<script>(()=>{const tabs=[...document.querySelectorAll('.tab')],cards=[...document.querySelectorAll('.card')],search=document.getElementById('search'),empty=document.getElementById('empty');let bucket='ready';function apply(){const q=search.value.trim().toLowerCase();let shown=0;for(const card of cards){const okBucket=bucket==='all'||card.dataset.bucket===bucket;const okSearch=!q||card.dataset.search.includes(q);const show=okBucket&&okSearch;card.style.display=show?'':'none';if(show)shown++}empty.style.display=shown?'none':'block'}for(const tab of tabs){tab.addEventListener('click',()=>{for(const x of tabs)x.classList.remove('active');tab.classList.add('active');bucket=tab.dataset.tab;apply()})}search.addEventListener('input',apply);apply()})();</script></body></html>`);
+}
+
+async function serveLibraryMedia(env, postId) {
+  const media = await getMediaSelection(env, postId);
+  if (!media || media.mode !== "ai" || !String(media.image_url || "").startsWith("tgfile:")) {
+    return new Response("Media not found", { status: 404 });
+  }
+  const fileId = String(media.image_url).slice("tgfile:".length);
+  try {
+    const blob = await fetchTelegramStoredImage(env, fileId);
+    return new Response(blob, {
+      headers: {
+        "content-type": blob.type || "image/jpeg",
+        "cache-control": "private, max-age=3600",
+        "x-content-type-options": "nosniff"
+      }
+    });
+  } catch (error) {
+    return new Response("Media unavailable", { status: 502 });
+  }
 }
 
 function extractOutputText(data) {
