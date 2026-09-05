@@ -2,6 +2,7 @@ const OPENAI_URL = "https://api.openai.com/v1/responses";
 const OPENAI_IMAGE_URL = "https://api.openai.com/v1/images/generations";
 const MODEL = "gpt-5.6-luna";
 const IMAGE_MODEL = "gpt-image-2";
+const AI_IMAGE_CHECK_MODEL = MODEL;
 
 const CONTENT_TYPES = {
   utility: [
@@ -267,6 +268,7 @@ async function handleTelegramWebhook(request, env, ctx) {
         "📷 Фото товара: предложить реальное фото из mosaicpins.space без OpenAI\n" +
         "🚫 Без фото: подготовить текстовую публикацию\n" +
         "🖼 AI фото: сгенерировать одно тематическое изображение GPT Image 2 после принятия\n" +
+        "🛡 AI image check: после генерации автоматически проверяет геометрию и соответствие теме; Reject нельзя выбрать\n" +
         "🚀 Facebook: публикует только когда Page ID и Page Access Token подключены\n" +
         "📊 Poll: для Facebook Page оформляется как вопрос с 2-4 вариантами и голосованием цифрой в комментариях"
       );
@@ -322,8 +324,13 @@ async function handleTelegramWebhook(request, env, ctx) {
       await answerCallback(env, callback.id, "Генерирую AI-изображение...");
       ctx.waitUntil(generateAiImagePreview(env, postId));
     } else if (action === "ai_select") {
-      await answerCallback(env, callback.id, "AI-изображение выбрано ✅");
-      ctx.waitUntil(selectAiImage(env, postId, callback.message?.message_id));
+      const preview = await getMediaPreviewState(env, postId).catch(() => null);
+      if (normalizeAiCheckStatus(preview?.ai_check_status) === "reject") {
+        await answerCallback(env, callback.id, "⛔ AI check: Reject. Выбор заблокирован.");
+      } else {
+        await answerCallback(env, callback.id, normalizeAiCheckStatus(preview?.ai_check_status) === "warning" ? "⚠️ AI фото выбрано после предупреждения" : "AI-изображение выбрано ✅");
+        ctx.waitUntil(selectAiImage(env, postId, callback.message?.message_id));
+      }
     } else if (action === "facebook_publish") {
       ctx.waitUntil(handleFacebookPublish(env, postId, callback.id));
     }
@@ -914,10 +921,25 @@ async function ensurePublishingTables(env) {
       post_id INTEGER NOT NULL,
       image_url TEXT NOT NULL,
       image_title TEXT,
+      ai_check_status TEXT,
+      ai_check_score INTEGER,
+      ai_check_summary TEXT,
+      ai_check_issues_json TEXT,
       created_at TEXT NOT NULL
     )
   `).run();
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_content_ai_history_post ON content_ai_history(post_id, id DESC)`).run();
+
+  // Step13: persist the automatic vision QA result for the latest preview and
+  // every saved AI image. Existing D1 databases are migrated automatically.
+  await ensureD1Column(db, "content_media_previews", "ai_check_status", "TEXT");
+  await ensureD1Column(db, "content_media_previews", "ai_check_score", "INTEGER");
+  await ensureD1Column(db, "content_media_previews", "ai_check_summary", "TEXT");
+  await ensureD1Column(db, "content_media_previews", "ai_check_issues_json", "TEXT");
+  await ensureD1Column(db, "content_ai_history", "ai_check_status", "TEXT");
+  await ensureD1Column(db, "content_ai_history", "ai_check_score", "INTEGER");
+  await ensureD1Column(db, "content_ai_history", "ai_check_summary", "TEXT");
+  await ensureD1Column(db, "content_ai_history", "ai_check_issues_json", "TEXT");
 
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS facebook_metrics (
@@ -977,7 +999,8 @@ async function getMediaPreviewState(env, postId) {
   await ensurePublishingTables(env);
   return env.mosaic_marketing_bot_db.prepare(`
     SELECT post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id,
-           product_index, product_image_url, product_pin, product_title, updated_at
+           product_index, product_image_url, product_pin, product_title,
+           ai_check_status, ai_check_score, ai_check_summary, ai_check_issues_json, updated_at
     FROM content_media_previews
     WHERE post_id = ?
   `).bind(postId).first();
@@ -994,14 +1017,19 @@ async function saveMediaPreviewState(env, postId, patch = {}) {
     productIndex: patch.productIndex !== undefined ? Math.max(0, Number(patch.productIndex) || 0) : Math.max(0, Number(current?.product_index) || 0),
     productImageUrl: patch.productImageUrl !== undefined ? String(patch.productImageUrl || "") : String(current?.product_image_url || ""),
     productPin: patch.productPin !== undefined ? String(patch.productPin || "") : String(current?.product_pin || ""),
-    productTitle: patch.productTitle !== undefined ? String(patch.productTitle || "") : String(current?.product_title || "")
+    productTitle: patch.productTitle !== undefined ? String(patch.productTitle || "") : String(current?.product_title || ""),
+    aiCheckStatus: patch.aiCheckStatus !== undefined ? normalizeAiCheckStatus(patch.aiCheckStatus) : normalizeAiCheckStatus(current?.ai_check_status),
+    aiCheckScore: patch.aiCheckScore !== undefined ? normalizeAiCheckScore(patch.aiCheckScore) : normalizeAiCheckScore(current?.ai_check_score),
+    aiCheckSummary: patch.aiCheckSummary !== undefined ? String(patch.aiCheckSummary || "") : String(current?.ai_check_summary || ""),
+    aiCheckIssuesJson: patch.aiCheckIssuesJson !== undefined ? String(patch.aiCheckIssuesJson || "[]") : String(current?.ai_check_issues_json || "[]")
   };
   const now = new Date().toISOString();
   await env.mosaic_marketing_bot_db.prepare(`
     INSERT INTO content_media_previews
       (post_id, ai_image_url, ai_image_title, product_message_id, ai_message_id,
-       product_index, product_image_url, product_pin, product_title, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       product_index, product_image_url, product_pin, product_title,
+       ai_check_status, ai_check_score, ai_check_summary, ai_check_issues_json, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(post_id) DO UPDATE SET
       ai_image_url = excluded.ai_image_url,
       ai_image_title = excluded.ai_image_title,
@@ -1011,10 +1039,15 @@ async function saveMediaPreviewState(env, postId, patch = {}) {
       product_image_url = excluded.product_image_url,
       product_pin = excluded.product_pin,
       product_title = excluded.product_title,
+      ai_check_status = excluded.ai_check_status,
+      ai_check_score = excluded.ai_check_score,
+      ai_check_summary = excluded.ai_check_summary,
+      ai_check_issues_json = excluded.ai_check_issues_json,
       updated_at = excluded.updated_at
   `).bind(
     postId, next.aiImageUrl, next.aiImageTitle, next.productMessageId, next.aiMessageId,
-    next.productIndex, next.productImageUrl, next.productPin, next.productTitle, now
+    next.productIndex, next.productImageUrl, next.productPin, next.productTitle,
+    next.aiCheckStatus, next.aiCheckScore, next.aiCheckSummary, next.aiCheckIssuesJson, now
   ).run();
 }
 
@@ -1319,19 +1352,21 @@ async function generateAiImagePreview(env, postId) {
     return;
   }
 
-  const caption =
-    `🖼 AI-изображение для кандидата #${postId}\n` +
-    `Тема: ${row.topic || ""}\n` +
-    `Тематика: ${themeRu(row.theme)}\n` +
-    `Область: ${scopeRu(extractScopeFromSummary(row.research_summary_ru))}\n\n` +
-    `GPT Image 2, черновое качество low. Генерация выполняется только по нажатию кнопки.`;
+  const aiCheck = await checkGeneratedAiImage(env, row, b64).catch(error => ({
+    status: "warning",
+    score: 50,
+    summary: "Автоматическая vision-проверка не завершилась. Проверь изображение вручную.",
+    issues: [String(error?.message || error || "Vision check unavailable").slice(0, 180)]
+  }));
+
+  const caption = buildAiPreviewCaption(row, postId, aiCheck);
 
   const sent = await sendTelegramPhotoBytes(
     env,
     bytes,
     `mosaic-post-${postId}.png`,
     caption,
-    aiPhotoKeyboard(postId)
+    aiPhotoKeyboard(postId, aiCheck.status)
   );
 
   if (!sent.ok || !sent.fileId) {
@@ -1344,9 +1379,13 @@ async function generateAiImagePreview(env, postId) {
   await saveMediaPreviewState(env, postId, {
     aiImageUrl: aiRef,
     aiImageTitle: aiTitle,
-    aiMessageId: sent.messageId || undefined
+    aiMessageId: sent.messageId || undefined,
+    aiCheckStatus: aiCheck.status,
+    aiCheckScore: aiCheck.score,
+    aiCheckSummary: aiCheck.summary,
+    aiCheckIssuesJson: JSON.stringify(aiCheck.issues || [])
   });
-  await saveAiHistoryEntry(env, postId, aiRef, aiTitle).catch(() => {});
+  await saveAiHistoryEntry(env, postId, aiRef, aiTitle, aiCheck).catch(() => {});
   // Important: an AI preview is only a proposal. The currently selected media
   // stays active until the user explicitly presses "✅ Выбрать".
   await refreshApprovedTelegramMessage(env, postId);
@@ -1359,7 +1398,12 @@ async function selectAiImage(env, postId, previewMessageId) {
   const preview = await getMediaPreviewState(env, postId);
   if (!preview || !String(preview.ai_image_url || "").startsWith("tgfile:")) {
     await sendTelegramText(env, `⚠️ Для #${postId} сначала создай AI-изображение.`);
-    return;
+    return { ok: false, reason: "missing" };
+  }
+  const checkStatus = normalizeAiCheckStatus(preview.ai_check_status);
+  if (checkStatus === "reject") {
+    await sendTelegramText(env, `⛔ AI image check: REJECT для #${postId}. Этот вариант нельзя выбрать. Создай другой AI-вариант или используй реальное фото.`);
+    return { ok: false, reason: "reject" };
   }
 
   await saveMediaSelection(env, postId, {
@@ -1375,11 +1419,163 @@ async function selectAiImage(env, postId, previewMessageId) {
     await editTelegramPhotoCaption(
       env,
       previewMessageId,
-      `✅ AI-изображение выбрано для кандидата #${postId}\nТема: ${row.topic || ""}`,
+      `${checkStatus === "warning" ? "⚠️" : "✅"} AI-изображение выбрано для кандидата #${postId}\n` +
+      `AI image check: ${aiCheckLabel(checkStatus)}${preview.ai_check_score != null ? ` (${normalizeAiCheckScore(preview.ai_check_score)}/100)` : ""}\n` +
+      `Тема: ${row.topic || ""}`,
       null
     );
   }
   await refreshApprovedTelegramMessage(env, postId);
+  return { ok: true, warning: checkStatus === "warning" };
+}
+
+
+function normalizeAiCheckStatus(value) {
+  const status = String(value || "unknown").toLowerCase().trim();
+  return ["ok", "warning", "reject"].includes(status) ? status : "unknown";
+}
+
+function normalizeAiCheckScore(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function aiCheckLabel(status) {
+  const normalized = normalizeAiCheckStatus(status);
+  return normalized === "ok" ? "OK" : normalized === "warning" ? "WARNING" : normalized === "reject" ? "REJECT" : "UNKNOWN";
+}
+
+function aiCheckIcon(status) {
+  const normalized = normalizeAiCheckStatus(status);
+  return normalized === "ok" ? "✅" : normalized === "warning" ? "⚠️" : normalized === "reject" ? "⛔" : "❔";
+}
+
+function compactAiCheckText(value, max = 220) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function buildAiPreviewCaption(row, postId, aiCheck) {
+  const status = normalizeAiCheckStatus(aiCheck?.status);
+  const score = aiCheck?.score == null ? null : normalizeAiCheckScore(aiCheck.score);
+  const summary = compactAiCheckText(aiCheck?.summary, 230);
+  const issues = (Array.isArray(aiCheck?.issues) ? aiCheck.issues : []).map(x => compactAiCheckText(x, 120)).filter(Boolean).slice(0, 3);
+  const issueText = issues.length ? `\nЗамечания:\n${issues.map(x => `• ${x}`).join("\n")}` : "";
+  const lockText = status === "reject" ? "\n⛔ Выбор этого варианта заблокирован. Создай другое AI фото или используй реальное." : status === "warning" ? "\n⚠️ Можно выбрать только после ручной проверки." : "";
+  return (
+    `🖼 AI-изображение для кандидата #${postId}\n` +
+    `Тема: ${row.topic || ""}\n` +
+    `Тематика: ${themeRu(row.theme)}\n` +
+    `Область: ${scopeRu(extractScopeFromSummary(row.research_summary_ru))}\n\n` +
+    `${aiCheckIcon(status)} AI image check: ${aiCheckLabel(status)}${score == null ? "" : ` (${score}/100)`}\n` +
+    `${summary || "Автоматическая оценка не дала пояснения."}${issueText}${lockText}\n\n` +
+    `GPT Image 2, черновое качество low. Генерация выполняется только по нажатию кнопки.`
+  ).slice(0, 1000);
+}
+
+async function checkGeneratedAiImage(env, row, b64) {
+  const apiKey = String(env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) {
+    return { status:"warning", score:50, summary:"OPENAI_API_KEY недоступен для vision-проверки. Проверь изображение вручную.", issues:[] };
+  }
+
+  const response = await fetch(OPENAI_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: AI_IMAGE_CHECK_MODEL,
+      reasoning: { effort: "low" },
+      input: [
+        {
+          role: "developer",
+          content: [{
+            type: "input_text",
+            text:
+              "You are a strict but fair visual QA reviewer for AI-generated editorial images used by a custom knife-making community. " +
+              "Judge only what is visibly present. Do not invent hidden defects and do not reject because an unseen detail cannot be verified. " +
+              "Prioritize physical plausibility, coherent tang/scale relationships, believable hole and pin placement, correct hardware type, and visual agreement with the post's main claim. " +
+              "REJECT only for a clear serious problem: impossible or contradictory assembly geometry, obviously mismatched mating parts, duplicated or floating hardware, impossible intersections, clearly wrong main object/hardware for the topic, or a visual that materially contradicts the post. " +
+              "WARNING for suspicious but not definitive geometry, minor AI artifacts near technical details, weak topic match, or an image that could mislead unless manually reviewed. " +
+              "OK when the visible scene is physically plausible enough for an editorial social post and clearly supports the stated topic. " +
+              "Cosmetic imperfections that do not affect technical meaning are not grounds for REJECT. " +
+              "Score 0-100 where 100 means highly plausible and strongly topic-aligned. Keep summary and issues concise. Write summary and issues in Russian. Never use em dash or en dash characters in the returned text. Return structured JSON only."
+          }]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text:
+                `Post topic: ${cleanPublicText(row?.topic)}\n` +
+                `Theme: ${humanize(row?.theme)}\n` +
+                `Scope: ${extractScopeFromSummary(row?.research_summary_ru)}\n` +
+                `Post text: ${cleanPublicText(row?.en_text)}\n\n` +
+                "Review the attached generated image for technical plausibility and topic match."
+            },
+            {
+              type: "input_image",
+              image_url: `data:image/png;base64,${b64}`,
+              detail: "auto"
+            }
+          ]
+        }
+      ],
+      max_output_tokens: 650,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "mosaic_ai_image_qa",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              status: { type: "string", enum: ["ok", "warning", "reject"] },
+              score: { type: "integer", minimum: 0, maximum: 100 },
+              summary: { type: "string" },
+              issues: { type: "array", items: { type: "string" }, maxItems: 6 }
+            },
+            required: ["status", "score", "summary", "issues"],
+            additionalProperties: false
+          }
+        }
+      }
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = safeApiError(data);
+    return {
+      status: "warning",
+      score: 50,
+      summary: "Автоматическая vision-проверка временно недоступна. Проверь изображение вручную.",
+      issues: [compactAiCheckText(err.message || `OpenAI HTTP ${response.status}`, 180)]
+    };
+  }
+
+  const raw = extractOutputText(data);
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
+  if (!parsed || typeof parsed !== "object") {
+    return {
+      status: "warning",
+      score: 50,
+      summary: "Vision-проверка вернула неполный результат. Проверь изображение вручную.",
+      issues: []
+    };
+  }
+
+  return {
+    status: normalizeAiCheckStatus(parsed.status) === "unknown" ? "warning" : normalizeAiCheckStatus(parsed.status),
+    score: normalizeAiCheckScore(parsed.score),
+    summary: compactAiCheckText(parsed.summary, 320),
+    issues: (Array.isArray(parsed.issues) ? parsed.issues : []).map(x => compactAiCheckText(x, 180)).filter(Boolean).slice(0, 6)
+  };
 }
 
 function buildAiImagePrompt(row) {
@@ -1906,11 +2102,15 @@ function realPhotoKeyboard(postId, index) {
   };
 }
 
-function aiPhotoKeyboard(postId) {
+function aiPhotoKeyboard(postId, checkStatus = "unknown") {
+  const status = normalizeAiCheckStatus(checkStatus);
+  if (status === "reject") {
+    return { inline_keyboard: [[{ text: "⛔ Reject, создать другое", callback_data: `ai_image:${postId}` }]] };
+  }
   return {
     inline_keyboard: [
       [
-        { text: "✅ Выбрать", callback_data: `ai_select:${postId}` },
+        { text: status === "warning" ? "⚠️ Выбрать всё равно" : "✅ Выбрать", callback_data: `ai_select:${postId}` },
         { text: "🔄 Другое AI", callback_data: `ai_image:${postId}` }
       ]
     ]
@@ -2156,6 +2356,8 @@ async function getLibraryRows(env) {
       p.telegram_message_id,
       m.mode AS media_mode, m.image_url, m.image_pin, m.image_title,
       pr.ai_image_url AS preview_ai_image_url, pr.ai_image_title AS preview_ai_image_title,
+      pr.ai_check_status AS preview_ai_check_status, pr.ai_check_score AS preview_ai_check_score,
+      pr.ai_check_summary AS preview_ai_check_summary, pr.ai_check_issues_json AS preview_ai_check_issues_json,
       pr.product_index AS preview_product_index, pr.product_image_url AS preview_product_image_url,
       pr.product_pin AS preview_product_pin, pr.product_title AS preview_product_title,
       f.status AS facebook_status, f.facebook_post_id, f.published_at, f.last_error,
@@ -2203,7 +2405,16 @@ function libraryMediaHtml(row) {
 function libraryPreviewHtml(row) {
   const hasAi = String(row?.preview_ai_image_url || "").startsWith("tgfile:");
   if (!hasAi) return "";
-  return `<div class="preview-box"><div class="preview-title">Последний AI вариант</div><img src="/library/preview-media?id=${Number(row.id)}" alt="AI preview" loading="lazy"><div class="preview-actions"><button class="action secondary" data-action="ai_select" data-id="${Number(row.id)}">✅ Выбрать AI</button><button class="action ghost" data-action="ai_generate" data-id="${Number(row.id)}">🔄 Другое AI</button></div></div>`;
+  const status = normalizeAiCheckStatus(row?.preview_ai_check_status);
+  const score = row?.preview_ai_check_score == null ? null : normalizeAiCheckScore(row.preview_ai_check_score);
+  const summary = String(row?.preview_ai_check_summary || "").trim();
+  const issues = safeJsonArray(row?.preview_ai_check_issues_json).slice(0, 4);
+  const blocked = status === "reject";
+  const check = `<div class="ai-check ${status}"><b>${aiCheckIcon(status)} AI image check: ${escapeHtml(aiCheckLabel(status))}${score == null ? "" : ` · ${score}/100`}</b>${summary ? `<span>${escapeHtml(summary)}</span>` : ""}${issues.length ? `<ul>${issues.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>` : ""}</div>`;
+  const select = blocked
+    ? `<button class="action secondary disabled" disabled title="AI image check: Reject">⛔ Выбор заблокирован</button>`
+    : `<button class="action secondary" data-action="ai_select" data-id="${Number(row.id)}">${status === "warning" ? "⚠️ Выбрать всё равно" : "✅ Выбрать AI"}</button>`;
+  return `<div class="preview-box"><div class="preview-title">Последний AI вариант</div><img src="/library/preview-media?id=${Number(row.id)}" alt="AI preview" loading="lazy">${check}<div class="preview-actions">${select}<button class="action ghost" data-action="ai_generate" data-id="${Number(row.id)}">🔄 Другое AI</button></div></div>`;
 }
 
 function libraryDate(value) {
@@ -2468,7 +2679,7 @@ async function renderContentLibrary(env) {
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mosaic Pins Marketing Dashboard</title>
 <style>
-:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41;--danger:#7b3439;--blue:#245f9b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.head-actions{display:flex;gap:8px;align-items:center}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.create{border:1px solid #58b979;background:linear-gradient(180deg,#2e9250,#236f3e);color:white;border-radius:14px;padding:14px 28px;font-weight:900;font-size:16px;letter-spacing:.01em;cursor:pointer;box-shadow:0 10px 26px #1e7d4140,0 0 0 1px #ffffff0a inset}.create:hover{filter:brightness(1.08);transform:translateY(-1px)}.new-topic-row{display:flex;justify-content:center;padding:12px 0 2px}.new-topic-row .create{width:min(360px,100%)}.editorial{max-width:980px;margin:0 auto 14px;background:linear-gradient(180deg,#101914,#0d1711);border:1px solid #2d4436;border-radius:14px;padding:11px 14px;color:#aebdb4;font-size:12px}.editorial b{color:#dcebe2}.confidence{border-radius:999px;padding:4px 8px;font-weight:800}.confidence.high{background:#123b24;color:#9fe8b5}.confidence.medium{background:#423518;color:#f0d68d}.confidence.low{background:#4b2429;color:#ffb9bd}.trust{margin-top:13px;border:1px solid #2f4437;background:#0d1711;border-radius:13px;padding:11px 12px}.trust-high{border-color:#28583a;background:#0d1d13}.trust-medium{border-color:#66542a;background:#1b180d}.trust-low,.trust-unknown{border-color:#643238;background:#1d1012}.trust-lock{box-shadow:0 0 0 1px #7f343c44 inset}.trust-head{display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:900;color:#e9f4ed;margin-bottom:9px}.trust-level{font-size:10px;border:1px solid #ffffff1d;border-radius:999px;padding:3px 7px;color:#b7c5bd;white-space:nowrap}.trust-grid{display:grid;grid-template-columns:1.45fr .8fr;gap:10px}.trust-grid>div{background:#09120d;border:1px solid #25362c;border-radius:10px;padding:8px 9px}.trust-grid b{display:block;color:#93a59a;text-transform:uppercase;letter-spacing:.04em;font-size:9px;margin-bottom:3px}.trust-grid span{display:block;color:#d9e4dd;font-size:11px}.trust-verdict{margin-top:9px;color:#dbe6df;font-size:11px;line-height:1.45}.trust-note{margin-top:6px;color:#71837a;font-size:9px}.publish-lock{align-self:center;color:#ffb2b7;font-size:11px;font-weight:800}.rotation{background:#101914;border:1px solid var(--line);border-radius:14px;padding:10px 13px;margin-bottom:12px;color:#b7c3bc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rotation b{color:#e8f3ec}.dot{color:#607168}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:980px;margin:0 auto}.card{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.card.focused{border-color:#58b979;box-shadow:0 0 0 3px #38a75c30,0 14px 42px #0005;transition:border-color .25s,box-shadow .25s}.media{background:#0b130f;min-height:0;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #203027}.media img{width:auto;height:auto;max-width:100%;max-height:250px;object-fit:contain;display:block;border-radius:12px}.media-empty{width:100%;min-height:180px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:static;width:100%;margin-top:10px;background:#07110d;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;text-align:center}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.action{border:1px solid #34483c;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#17231c;color:#e6eee9}.action.primary{background:#236d3d;border-color:#398858}.action.secondary{background:#183526;border-color:#315b40}.action.ghost{background:#111a15}.action.danger{background:#492329;border-color:#70383e}.action.facebook{background:#1e5c93;border-color:#3179b9}.action.delete{background:#241416;border-color:#66343a;color:#ffc6ca}.action.delete:hover{background:#351b1f;border-color:#8b454d}.cleanup-actions{margin-top:10px;padding-top:8px;border-top:1px dashed #2b3931}.action.disabled,.action:disabled{opacity:.4;cursor:not-allowed}.action.busy,.create.busy{opacity:.55;pointer-events:none}.preview-box{margin-top:12px;border:1px solid #31463a;background:#0c1510;border-radius:13px;padding:10px}.preview-title{font-size:11px;color:#9cacA2;font-weight:800;margin-bottom:7px}.preview-box img{width:auto;height:auto;max-width:100%;max-height:280px;object-fit:contain;border-radius:10px;display:block;margin:0 auto}.preview-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;z-index:30;max-width:min(420px,calc(100vw - 36px));background:#152019;border:1px solid #3d5949;color:#eef6f1;border-radius:12px;padding:11px 14px;box-shadow:0 18px 50px #0008;display:none}.toast.error{background:#35191b;border-color:#713239;color:#ffd9db}.modal{position:fixed;inset:0;z-index:20;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px 30px;overflow:auto}.modal.open{display:flex}.modal-box{width:min(980px,100%);background:#101914;border:1px solid #304238;border-radius:18px;padding:16px;box-shadow:0 24px 80px #000b}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.modal-head h3{margin:0;font-size:19px}.close{border:1px solid #33483c;background:#151f19;color:#dce5df;border-radius:9px;padding:7px 10px;cursor:pointer}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-option{background:#0b130f;border:1px solid #293a30;border-radius:13px;overflow:hidden}.product-option img{width:100%;height:180px;object-fit:contain;display:block;background:#08100c;padding:8px}.product-option .po-body{padding:10px}.po-title{font-weight:800;line-height:1.25}.po-meta{color:#8fa096;font-size:11px;margin:4px 0 8px}.product-option button{width:100%}.loader{padding:35px;text-align:center;color:#aab8b0}.dashboard-widgets{max-width:980px;margin:0 auto 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}.widget{background:#0f1813;border:1px solid #2b3b31;border-radius:14px;padding:11px 13px}.widget>b{font-size:11px;color:#dbe7df}.widget-pills,.upcoming{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.widget-pills span,.upcoming span{font-size:10px;color:#9fb0a6;background:#0a120e;border:1px solid #26362c;border-radius:999px;padding:4px 7px}.upcoming{display:grid}.upcoming span{border-radius:8px}.selectbox{position:absolute;z-index:3;margin:10px}.card{position:relative}.bulk-check{width:18px;height:18px;accent-color:#38a75c}.bulkbar{display:none;align-items:center;gap:7px;flex-wrap:wrap;margin-top:9px;padding:8px 10px;background:#121d16;border:1px solid #304238;border-radius:11px}.bulkbar.show{display:flex}.bulkbar span{margin-right:auto;color:#b9c8bf}.priority.high{border-color:#8a4b2c!important;color:#ffd0ae!important}.priority.later{color:#b5b5d2!important}.fav-badge{color:#ffd76b!important}.action.favorite.active{border-color:#8a7130;background:#392f17;color:#ffe499}.tagline{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.tagline span{font-size:10px;color:#9ccbb0;background:#0d2116;border:1px solid #275038;border-radius:999px;padding:3px 6px}.duplicate{margin:8px 0;border:1px solid #6b5427;background:#201a0c;color:#e9d89c;border-radius:11px;padding:9px 10px;font-size:11px}.duplicate .action{margin-left:7px;padding:5px 7px}.sources{border-top:0!important}.source-list{display:grid;gap:6px;margin-top:9px}.source-row{display:grid;gap:2px;color:#d7e4dc;text-decoration:none;background:#0b130f;border:1px solid #293a30;border-radius:9px;padding:8px 9px}.source-row:hover{border-color:#4b7b5d}.source-row b{font-size:10px;color:#8ecda4}.source-row span{font-size:11px}.source-empty{color:#819188;padding:8px 0}.editor{border:1px solid #2b3d32!important;border-radius:12px;padding:9px 10px!important;background:#0c1510}.editgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.editgrid label{display:grid;gap:5px;color:#9fb0a6;font-size:10px;font-weight:700}.editgrid .wide{grid-column:1/-1}.editgrid input,.editgrid textarea,.editgrid select,.schedule-row input{width:100%;background:#09110d;color:#eef5f0;border:1px solid #32453a;border-radius:9px;padding:9px;font:12px/1.45 system-ui}.editgrid textarea{resize:vertical}.edit-help{font-size:10px;color:#71837a}.schedule{margin-top:11px;border:1px solid #32463a;background:#0c1610;border-radius:12px;padding:10px}.schedule>div:first-child{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.schedule-note{font-size:10px;color:#84968b}.scheduled-badge{font-size:10px;background:#183622;color:#a9eabc;border-radius:999px;padding:3px 7px}.schedule-row{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:7px;margin-top:8px}.metrics{margin-top:11px;border:1px solid #27445e;background:#0c1720;border-radius:12px;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.metrics>div{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-right:auto}.metrics span{font-size:10px;color:#a9c5da}.metrics small{color:#6d8799}.fb-preview{border:1px solid #2b3c34!important;border-radius:12px;padding:9px 10px!important}.fbmock{max-width:520px;margin:10px auto 0;background:#18191a;border:1px solid #303234;border-radius:12px;overflow:hidden;color:#e4e6eb}.fbhead{display:flex;gap:9px;padding:12px;align-items:center}.fbavatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#274f35;font-weight:900}.fbhead small{display:block;color:#b0b3b8}.fbtext{padding:0 12px 12px;white-space:pre-wrap}.fbmock>img{width:100%;max-height:360px;object-fit:contain;background:#0c0c0c}.fbfooter{border-top:1px solid #3a3b3c;padding:9px;text-align:center;color:#b0b3b8}.ai-history-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ai-history-item{border:1px solid #2e4136;border-radius:12px;background:#0a120e;padding:8px}.ai-history-item img{width:100%;height:160px;object-fit:contain;background:#070b09;border-radius:8px}.ai-history-item small{display:block;color:#82938a;margin:5px 0}.ai-history-item button{width:100%}.modal-box.small{width:min(720px,100%)}@media(max-width:900px){.grid{max-width:100%}.card{grid-template-columns:200px minmax(0,1fr)}.media img{max-height:220px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.dashboard-widgets{grid-template-columns:1fr}.editgrid{grid-template-columns:1fr}.editgrid .wide{grid-column:auto}.schedule-row{grid-template-columns:1fr}.ai-history-grid{grid-template-columns:1fr 1fr}.wrap{padding:14px}.header{align-items:flex-start}.head-actions{flex-direction:column;align-items:stretch}.title{font-size:22px}.card{display:block}.media{padding:12px;border-right:0;border-bottom:1px solid #203027}.media img{max-height:220px}.media-empty{min-height:150px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}.products{grid-template-columns:1fr}.product-option img{height:210px}.rotation{font-size:12px}.new-topic-row{padding-top:10px}.new-topic-row .create{font-size:15px;padding:13px 18px}.trust-grid{grid-template-columns:1fr}.trust-head{align-items:flex-start;flex-direction:column;gap:5px}}
+:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41;--danger:#7b3439;--blue:#245f9b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.head-actions{display:flex;gap:8px;align-items:center}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.create{border:1px solid #58b979;background:linear-gradient(180deg,#2e9250,#236f3e);color:white;border-radius:14px;padding:14px 28px;font-weight:900;font-size:16px;letter-spacing:.01em;cursor:pointer;box-shadow:0 10px 26px #1e7d4140,0 0 0 1px #ffffff0a inset}.create:hover{filter:brightness(1.08);transform:translateY(-1px)}.new-topic-row{display:flex;justify-content:center;padding:12px 0 2px}.new-topic-row .create{width:min(360px,100%)}.editorial{max-width:980px;margin:0 auto 14px;background:linear-gradient(180deg,#101914,#0d1711);border:1px solid #2d4436;border-radius:14px;padding:11px 14px;color:#aebdb4;font-size:12px}.editorial b{color:#dcebe2}.confidence{border-radius:999px;padding:4px 8px;font-weight:800}.confidence.high{background:#123b24;color:#9fe8b5}.confidence.medium{background:#423518;color:#f0d68d}.confidence.low{background:#4b2429;color:#ffb9bd}.trust{margin-top:13px;border:1px solid #2f4437;background:#0d1711;border-radius:13px;padding:11px 12px}.trust-high{border-color:#28583a;background:#0d1d13}.trust-medium{border-color:#66542a;background:#1b180d}.trust-low,.trust-unknown{border-color:#643238;background:#1d1012}.trust-lock{box-shadow:0 0 0 1px #7f343c44 inset}.trust-head{display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:900;color:#e9f4ed;margin-bottom:9px}.trust-level{font-size:10px;border:1px solid #ffffff1d;border-radius:999px;padding:3px 7px;color:#b7c5bd;white-space:nowrap}.trust-grid{display:grid;grid-template-columns:1.45fr .8fr;gap:10px}.trust-grid>div{background:#09120d;border:1px solid #25362c;border-radius:10px;padding:8px 9px}.trust-grid b{display:block;color:#93a59a;text-transform:uppercase;letter-spacing:.04em;font-size:9px;margin-bottom:3px}.trust-grid span{display:block;color:#d9e4dd;font-size:11px}.trust-verdict{margin-top:9px;color:#dbe6df;font-size:11px;line-height:1.45}.trust-note{margin-top:6px;color:#71837a;font-size:9px}.publish-lock{align-self:center;color:#ffb2b7;font-size:11px;font-weight:800}.rotation{background:#101914;border:1px solid var(--line);border-radius:14px;padding:10px 13px;margin-bottom:12px;color:#b7c3bc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rotation b{color:#e8f3ec}.dot{color:#607168}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:980px;margin:0 auto}.card{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.card.focused{border-color:#58b979;box-shadow:0 0 0 3px #38a75c30,0 14px 42px #0005;transition:border-color .25s,box-shadow .25s}.media{background:#0b130f;min-height:0;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #203027}.media img{width:auto;height:auto;max-width:100%;max-height:250px;object-fit:contain;display:block;border-radius:12px}.media-empty{width:100%;min-height:180px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:static;width:100%;margin-top:10px;background:#07110d;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;text-align:center}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.action{border:1px solid #34483c;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#17231c;color:#e6eee9}.action.primary{background:#236d3d;border-color:#398858}.action.secondary{background:#183526;border-color:#315b40}.action.ghost{background:#111a15}.action.danger{background:#492329;border-color:#70383e}.action.facebook{background:#1e5c93;border-color:#3179b9}.action.delete{background:#241416;border-color:#66343a;color:#ffc6ca}.action.delete:hover{background:#351b1f;border-color:#8b454d}.cleanup-actions{margin-top:10px;padding-top:8px;border-top:1px dashed #2b3931}.action.disabled,.action:disabled{opacity:.4;cursor:not-allowed}.action.busy,.create.busy{opacity:.55;pointer-events:none}.ai-check{margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:5px;font-size:12px}.ai-check b{font-size:13px}.ai-check span{color:#c0cbc5}.ai-check ul{margin:2px 0 0 18px;padding:0;color:#aebbb4}.ai-check.ok{border-color:#2f7047;background:#10291a}.ai-check.warning{border-color:#7a6128;background:#2d2614}.ai-check.reject{border-color:#873f45;background:#321719}.ai-check.unknown{background:#151c18}.ai-history-check{font-size:12px;display:grid;gap:4px}.ai-history-check.ok{color:#9fe8b5}.ai-history-check.warning{color:#f0d68d}.ai-history-check.reject{color:#ffb3b8}.ai-history-check.unknown{color:#aab7b0}.preview-box{margin-top:12px;border:1px solid #31463a;background:#0c1510;border-radius:13px;padding:10px}.preview-title{font-size:11px;color:#9cacA2;font-weight:800;margin-bottom:7px}.preview-box img{width:auto;height:auto;max-width:100%;max-height:280px;object-fit:contain;border-radius:10px;display:block;margin:0 auto}.preview-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;z-index:30;max-width:min(420px,calc(100vw - 36px));background:#152019;border:1px solid #3d5949;color:#eef6f1;border-radius:12px;padding:11px 14px;box-shadow:0 18px 50px #0008;display:none}.toast.error{background:#35191b;border-color:#713239;color:#ffd9db}.modal{position:fixed;inset:0;z-index:20;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px 30px;overflow:auto}.modal.open{display:flex}.modal-box{width:min(980px,100%);background:#101914;border:1px solid #304238;border-radius:18px;padding:16px;box-shadow:0 24px 80px #000b}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.modal-head h3{margin:0;font-size:19px}.close{border:1px solid #33483c;background:#151f19;color:#dce5df;border-radius:9px;padding:7px 10px;cursor:pointer}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-option{background:#0b130f;border:1px solid #293a30;border-radius:13px;overflow:hidden}.product-option img{width:100%;height:180px;object-fit:contain;display:block;background:#08100c;padding:8px}.product-option .po-body{padding:10px}.po-title{font-weight:800;line-height:1.25}.po-meta{color:#8fa096;font-size:11px;margin:4px 0 8px}.product-option button{width:100%}.loader{padding:35px;text-align:center;color:#aab8b0}.dashboard-widgets{max-width:980px;margin:0 auto 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}.widget{background:#0f1813;border:1px solid #2b3b31;border-radius:14px;padding:11px 13px}.widget>b{font-size:11px;color:#dbe7df}.widget-pills,.upcoming{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.widget-pills span,.upcoming span{font-size:10px;color:#9fb0a6;background:#0a120e;border:1px solid #26362c;border-radius:999px;padding:4px 7px}.upcoming{display:grid}.upcoming span{border-radius:8px}.selectbox{position:absolute;z-index:3;margin:10px}.card{position:relative}.bulk-check{width:18px;height:18px;accent-color:#38a75c}.bulkbar{display:none;align-items:center;gap:7px;flex-wrap:wrap;margin-top:9px;padding:8px 10px;background:#121d16;border:1px solid #304238;border-radius:11px}.bulkbar.show{display:flex}.bulkbar span{margin-right:auto;color:#b9c8bf}.priority.high{border-color:#8a4b2c!important;color:#ffd0ae!important}.priority.later{color:#b5b5d2!important}.fav-badge{color:#ffd76b!important}.action.favorite.active{border-color:#8a7130;background:#392f17;color:#ffe499}.tagline{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.tagline span{font-size:10px;color:#9ccbb0;background:#0d2116;border:1px solid #275038;border-radius:999px;padding:3px 6px}.duplicate{margin:8px 0;border:1px solid #6b5427;background:#201a0c;color:#e9d89c;border-radius:11px;padding:9px 10px;font-size:11px}.duplicate .action{margin-left:7px;padding:5px 7px}.sources{border-top:0!important}.source-list{display:grid;gap:6px;margin-top:9px}.source-row{display:grid;gap:2px;color:#d7e4dc;text-decoration:none;background:#0b130f;border:1px solid #293a30;border-radius:9px;padding:8px 9px}.source-row:hover{border-color:#4b7b5d}.source-row b{font-size:10px;color:#8ecda4}.source-row span{font-size:11px}.source-empty{color:#819188;padding:8px 0}.editor{border:1px solid #2b3d32!important;border-radius:12px;padding:9px 10px!important;background:#0c1510}.editgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.editgrid label{display:grid;gap:5px;color:#9fb0a6;font-size:10px;font-weight:700}.editgrid .wide{grid-column:1/-1}.editgrid input,.editgrid textarea,.editgrid select,.schedule-row input{width:100%;background:#09110d;color:#eef5f0;border:1px solid #32453a;border-radius:9px;padding:9px;font:12px/1.45 system-ui}.editgrid textarea{resize:vertical}.edit-help{font-size:10px;color:#71837a}.schedule{margin-top:11px;border:1px solid #32463a;background:#0c1610;border-radius:12px;padding:10px}.schedule>div:first-child{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.schedule-note{font-size:10px;color:#84968b}.scheduled-badge{font-size:10px;background:#183622;color:#a9eabc;border-radius:999px;padding:3px 7px}.schedule-row{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:7px;margin-top:8px}.metrics{margin-top:11px;border:1px solid #27445e;background:#0c1720;border-radius:12px;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.metrics>div{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-right:auto}.metrics span{font-size:10px;color:#a9c5da}.metrics small{color:#6d8799}.fb-preview{border:1px solid #2b3c34!important;border-radius:12px;padding:9px 10px!important}.fbmock{max-width:520px;margin:10px auto 0;background:#18191a;border:1px solid #303234;border-radius:12px;overflow:hidden;color:#e4e6eb}.fbhead{display:flex;gap:9px;padding:12px;align-items:center}.fbavatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#274f35;font-weight:900}.fbhead small{display:block;color:#b0b3b8}.fbtext{padding:0 12px 12px;white-space:pre-wrap}.fbmock>img{width:100%;max-height:360px;object-fit:contain;background:#0c0c0c}.fbfooter{border-top:1px solid #3a3b3c;padding:9px;text-align:center;color:#b0b3b8}.ai-history-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ai-history-item{border:1px solid #2e4136;border-radius:12px;background:#0a120e;padding:8px}.ai-history-item img{width:100%;height:160px;object-fit:contain;background:#070b09;border-radius:8px}.ai-history-item small{display:block;color:#82938a;margin:5px 0}.ai-history-item button{width:100%}.modal-box.small{width:min(720px,100%)}@media(max-width:900px){.grid{max-width:100%}.card{grid-template-columns:200px minmax(0,1fr)}.media img{max-height:220px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.dashboard-widgets{grid-template-columns:1fr}.editgrid{grid-template-columns:1fr}.editgrid .wide{grid-column:auto}.schedule-row{grid-template-columns:1fr}.ai-history-grid{grid-template-columns:1fr 1fr}.wrap{padding:14px}.header{align-items:flex-start}.head-actions{flex-direction:column;align-items:stretch}.title{font-size:22px}.card{display:block}.media{padding:12px;border-right:0;border-bottom:1px solid #203027}.media img{max-height:220px}.media-empty{min-height:150px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}.products{grid-template-columns:1fr}.product-option img{height:210px}.rotation{font-size:12px}.new-topic-row{padding-top:10px}.new-topic-row .create{font-size:15px;padding:13px 18px}.trust-grid{grid-template-columns:1fr}.trust-head{align-items:flex-start;flex-direction:column;gap:5px}}
 </style></head>
 <body><div class="wrap"><header class="header"><div><div class="title">Mosaic Pins Marketing Dashboard</div><div class="subtitle">Темы, фото, согласование и публикация Facebook в одном месте</div></div><div class="head-actions"><form method="post" action="/library/logout"><button class="logout">Выйти</button></form></div></header>
 <div class="rotation"><span>Следующая ротация:</span><b>${escapeHtml(contentTypeRu(next.contentType))}</b><span class="dot">·</span><b>${escapeHtml(themeRu(next.theme))}</b><span class="dot">·</span><span>Facebook ${fbReady ? "подключён ✅" : "не подключён"}</span></div>
@@ -2490,7 +2701,7 @@ function updateBulk(){const n=document.querySelectorAll('.bulk-check:checked').l
 async function bulkDo(type){const ids=[...document.querySelectorAll('.bulk-check:checked')].map(x=>Number(x.value)).filter(Boolean);if(!ids.length)return;const msg=type==='bulk_delete'?\`Удалить \${ids.length} записей? Опубликованные Facebook-посты останутся на Facebook.\`:\`Переместить \${ids.length} кандидатов в архив?\`;if(!confirm(msg))return;try{const data=await action(type,0,{ids});say(data.message||'Готово');setTimeout(()=>location.href='/library?tab='+encodeURIComponent(bucket),350)}catch(e){say(e.message||'Ошибка',true)}}document.getElementById('bulkDelete').addEventListener('click',()=>bulkDo('bulk_delete'));document.getElementById('bulkArchive').addEventListener('click',()=>bulkDo('bulk_archive'));
 document.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(!btn||btn.disabled)return;const a=btn.dataset.action,id=Number(btn.dataset.id||0);
 if(a==='product_picker'){modalPostId=id;modal.classList.add('open');products.innerHTML='<div class="loader">Ищу подходящие фотографии…</div>';try{const res=await fetch('/library/product-options?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Не удалось получить фото');products.innerHTML='';for(const p of data.products){const card=document.createElement('div');card.className='product-option';const img=document.createElement('img');img.src=p.image;img.alt=p.title||p.pin||'Product photo';img.loading='lazy';const body=document.createElement('div');body.className='po-body';const title=document.createElement('div');title.className='po-title';title.textContent=p.title||p.pin||'Фото товара';const meta=document.createElement('div');meta.className='po-meta';meta.textContent='PIN: '+(p.pin||'')+' · Stock: '+Number(p.stock||0);const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'product_select',modalPostId,{index:p.index}));body.append(title,meta,pick);card.append(img,body);products.append(card)}if(!data.products.length)products.innerHTML='<div class="loader">Подходящих фотографий не найдено</div>'}catch(err){products.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}
-if(a==='ai_history'){aiModal.classList.add('open');aiHistory.innerHTML='<div class="loader">Загрузка…</div>';try{const res=await fetch('/library/ai-history?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');aiHistory.innerHTML='';for(const h of data.items){const item=document.createElement('div');item.className='ai-history-item';const img=document.createElement('img');img.src='/library/history-media?id='+encodeURIComponent(h.id);img.loading='lazy';const small=document.createElement('small');small.textContent=h.createdAt||'';const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'ai_select_history',id,{historyId:h.id}));item.append(img,small,pick);aiHistory.append(item)}if(!data.items.length)aiHistory.innerHTML='<div class="loader">Сохранённых AI вариантов пока нет</div>'}catch(err){aiHistory.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}
+if(a==='ai_history'){aiModal.classList.add('open');aiHistory.innerHTML='<div class="loader">Загрузка…</div>';try{const res=await fetch('/library/ai-history?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');aiHistory.innerHTML='';for(const h of data.items){const item=document.createElement('div');item.className='ai-history-item';const img=document.createElement('img');img.src='/library/history-media?id='+encodeURIComponent(h.id);img.loading='lazy';const small=document.createElement('small');small.textContent=h.createdAt||'';const check=document.createElement('div');check.className='ai-history-check '+(h.checkStatus||'unknown');const checkTitle=document.createElement('b');const icon=h.checkStatus==='ok'?'✅':h.checkStatus==='warning'?'⚠️':h.checkStatus==='reject'?'⛔':'❔';checkTitle.textContent=icon+' AI image check: '+String(h.checkStatus||'unknown').toUpperCase()+(h.checkScore==null?'':' · '+h.checkScore+'/100');check.append(checkTitle);if(h.checkSummary){const sum=document.createElement('span');sum.textContent=h.checkSummary;check.append(sum)}if(Array.isArray(h.checkIssues)&&h.checkIssues.length){const ul=document.createElement('ul');for(const issue of h.checkIssues.slice(0,4)){const li=document.createElement('li');li.textContent=issue;ul.append(li)}check.append(ul)}const pick=document.createElement('button');pick.className='action primary';pick.textContent=h.checkStatus==='reject'?'⛔ Reject, выбор заблокирован':h.checkStatus==='warning'?'⚠️ Выбрать всё равно':'✅ Выбрать';if(h.checkStatus==='reject'){pick.disabled=true;pick.classList.add('disabled')}else pick.addEventListener('click',()=>runButton(pick,'ai_select_history',id,{historyId:h.id}));item.append(img,small,check,pick);aiHistory.append(item)}if(!data.items.length)aiHistory.innerHTML='<div class="loader">Сохранённых AI вариантов пока нет</div>'}catch(err){aiHistory.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}
 if(a==='save_edit'){const ed=document.querySelector(\`[data-editor="\${id}"]\`);if(!ed)return;const extra={topic:ed.querySelector('.ed-topic')?.value||'',topicRu:ed.querySelector('.ed-topic-ru')?.value||'',enText:ed.querySelector('.ed-en')?.value||'',ruText:ed.querySelector('.ed-ru')?.value||'',tags:ed.querySelector('.ed-tags')?.value||'',priority:ed.querySelector('.ed-priority')?.value||'normal',note:ed.querySelector('.ed-note')?.value||''};return runButton(btn,'save_edit',id,extra,bucket)}
 if(a==='schedule'){const input=document.querySelector(\`.schedule-at[data-id="\${id}"]\`);if(!input?.value){say('Выбери дату и время',true);return}const iso=new Date(input.value).toISOString();return runButton(btn,'schedule',id,{scheduledAt:iso},bucket)}
 if(a==='facebook_publish'&&!confirm('Опубликовать этот пост на Facebook Page?'))return;
@@ -2502,19 +2713,31 @@ const params=new URLSearchParams(location.search),initialTab=params.get('tab'),f
 }
 
 
-async function saveAiHistoryEntry(env, postId, imageUrl, imageTitle) {
+async function saveAiHistoryEntry(env, postId, imageUrl, imageTitle, aiCheck = null) {
   await ensurePublishingTables(env);
   const ref = String(imageUrl || "");
   if (!ref.startsWith("tgfile:")) return;
   const exists = await env.mosaic_marketing_bot_db.prepare(`SELECT id FROM content_ai_history WHERE post_id = ? AND image_url = ? LIMIT 1`).bind(postId, ref).first();
   if (exists) return;
-  await env.mosaic_marketing_bot_db.prepare(`INSERT INTO content_ai_history(post_id,image_url,image_title,created_at) VALUES(?,?,?,?)`).bind(postId, ref, String(imageTitle || ""), new Date().toISOString()).run();
+  const status = normalizeAiCheckStatus(aiCheck?.status);
+  const score = aiCheck?.score == null ? null : normalizeAiCheckScore(aiCheck.score);
+  const summary = String(aiCheck?.summary || "");
+  const issuesJson = JSON.stringify(Array.isArray(aiCheck?.issues) ? aiCheck.issues.slice(0, 6) : []);
+  await env.mosaic_marketing_bot_db.prepare(`INSERT INTO content_ai_history(post_id,image_url,image_title,ai_check_status,ai_check_score,ai_check_summary,ai_check_issues_json,created_at) VALUES(?,?,?,?,?,?,?,?)`).bind(postId, ref, String(imageTitle || ""), status, score, summary, issuesJson, new Date().toISOString()).run();
 }
 
 async function libraryAiHistory(env, postId) {
   await ensurePublishingTables(env);
-  const result = await env.mosaic_marketing_bot_db.prepare(`SELECT id, image_title, created_at FROM content_ai_history WHERE post_id = ? ORDER BY id DESC LIMIT 20`).bind(postId).all();
-  const items = Array.isArray(result?.results) ? result.results.map(row => ({ id:Number(row.id), title:String(row.image_title||""), createdAt:libraryDate(row.created_at) })) : [];
+  const result = await env.mosaic_marketing_bot_db.prepare(`SELECT id, image_title, ai_check_status, ai_check_score, ai_check_summary, ai_check_issues_json, created_at FROM content_ai_history WHERE post_id = ? ORDER BY id DESC LIMIT 20`).bind(postId).all();
+  const items = Array.isArray(result?.results) ? result.results.map(row => ({
+    id:Number(row.id),
+    title:String(row.image_title||""),
+    createdAt:libraryDate(row.created_at),
+    checkStatus:normalizeAiCheckStatus(row.ai_check_status),
+    checkScore:row.ai_check_score == null ? null : normalizeAiCheckScore(row.ai_check_score),
+    checkSummary:String(row.ai_check_summary||""),
+    checkIssues:safeJsonArray(row.ai_check_issues_json).slice(0,6)
+  })) : [];
   return json({ ok:true, items });
 }
 
@@ -2810,18 +3033,29 @@ async function handleLibraryAction(request, env) {
     if (action === "ai_select") {
       const preview = await getMediaPreviewState(env, postId);
       if (!String(preview?.ai_image_url || "").startsWith("tgfile:")) return json({ ok: false, error: "Сначала создай AI фото" }, 409);
-      await selectAiImage(env, postId, null);
+      if (normalizeAiCheckStatus(preview?.ai_check_status) === "reject") return json({ ok:false, error:"AI image check: Reject. Этот вариант заблокирован от выбора" },409);
+      const selected = await selectAiImage(env, postId, null);
       const media = await getMediaSelection(env, postId);
-      return json({ ok: media?.mode === "ai", message: media?.mode === "ai" ? "AI фото выбрано" : undefined, error: media?.mode === "ai" ? undefined : "Не удалось выбрать AI фото" }, media?.mode === "ai" ? 200 : 500);
+      const ok = Boolean(selected?.ok) && media?.mode === "ai";
+      return json({ ok, message: ok ? (selected.warning ? "AI фото выбрано с предупреждением" : "AI фото выбрано") : undefined, error: ok ? undefined : "Не удалось выбрать AI фото" }, ok ? 200 : 500);
     }
 
     if (action === "ai_select_history") {
       const historyId = Number(payload.historyId||0);
-      const h = await env.mosaic_marketing_bot_db.prepare(`SELECT image_url,image_title FROM content_ai_history WHERE id=? AND post_id=?`).bind(historyId,postId).first();
+      const h = await env.mosaic_marketing_bot_db.prepare(`SELECT image_url,image_title,ai_check_status,ai_check_score,ai_check_summary,ai_check_issues_json FROM content_ai_history WHERE id=? AND post_id=?`).bind(historyId,postId).first();
       if (!String(h?.image_url||"").startsWith("tgfile:")) return json({ok:false,error:"AI вариант не найден"},404);
-      await saveMediaPreviewState(env,postId,{aiImageUrl:String(h.image_url),aiImageTitle:String(h.image_title||"AI")});
-      await selectAiImage(env,postId,null);
-      return json({ok:true,message:"Старый AI вариант снова выбран"});
+      const checkStatus = normalizeAiCheckStatus(h.ai_check_status);
+      if (checkStatus === "reject") return json({ok:false,error:"Этот AI вариант имеет статус Reject и заблокирован от выбора"},409);
+      await saveMediaPreviewState(env,postId,{
+        aiImageUrl:String(h.image_url),
+        aiImageTitle:String(h.image_title||"AI"),
+        aiCheckStatus:checkStatus,
+        aiCheckScore:h.ai_check_score,
+        aiCheckSummary:String(h.ai_check_summary||""),
+        aiCheckIssuesJson:String(h.ai_check_issues_json||"[]")
+      });
+      const selected = await selectAiImage(env,postId,null);
+      return json({ok:Boolean(selected?.ok),message:selected?.ok ? (selected.warning ? "Старый AI вариант выбран с предупреждением" : "Старый AI вариант снова выбран") : undefined,error:selected?.ok ? undefined : "Не удалось выбрать AI вариант"}, selected?.ok ? 200 : 409);
     }
 
     if (action === "schedule") {
