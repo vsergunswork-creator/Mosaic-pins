@@ -1400,6 +1400,7 @@ function buildAiImagePrompt(row) {
   }[scope] || "Keep the visual tightly connected to the stated topic without inventing unsupported technical details.";
 
   const visualInstruction = buildMainVisualInstruction(row);
+  const geometryGuardrails = buildTechnicalGeometryGuardrails(row);
 
   return (
     "Create a realistic editorial social-media image for an English-language custom knife-making community. " +
@@ -1408,6 +1409,7 @@ function buildAiImagePrompt(row) {
     `The post says: ${cleanPublicText(row.en_text)}\n\n` +
     scopeInstruction + " " +
     visualInstruction + " " +
+    geometryGuardrails + " " +
     "The MAIN CLAIM OR PROBLEM from the post must be immediately visible in the image without needing any text explanation. " +
     "Do not settle for a generic knife-making scene merely related to the theme. Make the key visual evidence the dominant focal point. " +
     "Show a believable professional knife-maker workshop or finished custom-knife context that supports that exact idea. " +
@@ -1417,6 +1419,33 @@ function buildAiImagePrompt(row) {
     "If the post discusses fit, drilling, epoxy, finishing or another process, illustrate the actual cause, defect, fit, surface condition, or result discussed in the post instead of only showing the tool or process. " +
     "Landscape composition, close enough to clearly read the relevant craft detail, clean focal point, photorealistic workshop photography, suitable for a Facebook post."
   );
+}
+
+function buildTechnicalGeometryGuardrails(row) {
+  const topic = cleanPublicText(row?.topic).toLowerCase();
+  const text = cleanPublicText(row?.en_text).toLowerCase();
+  const theme = String(row?.theme || "").toLowerCase();
+  const haystack = `${topic} ${text} ${theme}`;
+  const technical = /drill|drilling|hole|fit|fitting|clearance|alignment|epoxy|adhesive|glue|bond|joint|handle|scale|tang|pin|fastener|lanyard|polish|sanding|finish/.test(haystack);
+
+  const base = (
+    "PHYSICAL PLAUSIBILITY IS MORE IMPORTANT THAN DRAMA. Never invent extra holes, pins, screws, fasteners, slots, cutouts, or duplicate parts merely to make the image look technical. " +
+    "Never show a blade blank or tang next to handle scales whose overall length, outline, front/rear shape, hole count, or hole positions obviously do not correspond. " +
+    "If two handle scales are visible as a pair, they must read as a believable matching left/right pair. " +
+    "If a pin or tube is shown aligned with a hole, the diameter and position must be mechanically plausible. " +
+    "Avoid impossible intersections, floating hardware, warped straight edges, duplicated holes, and parts that could not physically assemble. "
+  );
+
+  if (!technical) {
+    return base +
+      " Prefer a finished assembled object or a simple isolated material detail rather than an exploded pseudo-engineering layout.";
+  }
+
+  return base +
+    " For technical workshop topics, DO NOT use a full exploded knife assembly unless every mating part can be shown consistently. " +
+    "When exact full-assembly geometry is not essential to the post, use a macro crop of ONE local feature, such as one hole and one pin, one joint line, one scratch, one tube opening, or one finished handle detail. " +
+    "It is better to hide the rest of the knife outside the frame than to show contradictory geometry. " +
+    "Do not present the AI image as an engineering drawing, dimensional reference, drilling template, or authoritative assembly diagram.";
 }
 
 function buildMainVisualInstruction(row) {
@@ -1435,14 +1464,16 @@ function buildMainVisualInstruction(row) {
 
   if (/drill|drilling|hole|fit|fitting|clearance|alignment/.test(haystack)) {
     return (
-      "Make the fit or drilling issue visually explicit in a close-up: clearly show the relevant hole, pin, alignment, clearance, or dry-fit relationship that the post discusses. " +
-      "The viewer should understand the fit problem or controlled-fit idea from the geometry alone."
+      "Make the fit or drilling issue visually explicit using a MACRO VIEW of only the local relationship that matters: preferably one clearly formed hole and one matching pin/tube, or one small dry-fit interface. " +
+      "Do not show a full blade blank plus full handle scales just to explain alignment. Do not invent a row of holes. Keep unrelated holes and the rest of the assembly outside the frame. " +
+      "The viewer should understand the local fit idea without relying on a fake full-length technical layout."
     );
   }
 
   if (/epoxy|adhesive|glue|bond|joint/.test(haystack)) {
     return (
-      "Make the adhesive-joint idea visually explicit. Show the real mating surfaces, joint line, or bonded handle assembly in close-up so the viewer can see the relationship between the parts, not merely a bottle of epoxy."
+      "Make the adhesive-joint idea visually explicit with a tight macro of a believable joint line or two truly matching mating surfaces. " +
+      "Avoid a full exploded knife assembly. The local surfaces must correspond physically, and no extra holes or hardware should appear unless the post actually discusses them. Do not merely show a bottle of epoxy."
     );
   }
 
@@ -1455,6 +1486,14 @@ function buildMainVisualInstruction(row) {
   if (/lanyard/.test(haystack)) {
     return (
       "Use a close-up that makes the lanyard feature itself obvious in the knife handle. The hollow tube or lanyard opening must be clearly readable and not confused with a solid decorative pin."
+    );
+  }
+
+  if (/handle design|handle material|handle materials|scale|scales|tang|finished knife|finished knives/.test(haystack)) {
+    return (
+      "Prefer a believable FINISHED ASSEMBLED HANDLE or an isolated handle-material sample. " +
+      "Do not show full detached scales beside a blade/tang unless their outline, length and all visible hole positions match convincingly. " +
+      "For a general handle topic, a finished handle close-up is safer and more credible than an exploded layout."
     );
   }
 
