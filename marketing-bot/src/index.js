@@ -1493,6 +1493,12 @@ async function handleFacebookPublish(env, postId, callbackId) {
     return;
   }
 
+  const trust = researchTrustMeta(row);
+  if (trust.lock) {
+    await answerCallback(env, callbackId, "Публикация заблокирована: технический пост с низкой проверкой", true);
+    return;
+  }
+
   const pageId = String(env.FACEBOOK_PAGE_ID || "").trim();
   const token = String(env.FACEBOOK_PAGE_ACCESS_TOKEN || "").trim();
   if (!pageId || !token) {
@@ -1922,6 +1928,21 @@ async function editTelegramText(env, messageId, text, replyMarkup = undefined) {
   return { ok: response.ok && data?.ok === true, data };
 }
 
+async function deleteTelegramMessage(env, messageId) {
+  if (!messageId) return { ok: false };
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(env.TELEGRAM_CHAT_ID || "").trim();
+  if (!token || !chatId) return { ok: false };
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId })
+  });
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok && data?.ok === true, data };
+}
+
 async function answerCallback(env, callbackId, text, showAlert = false) {
   const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();
   if (!token || !callbackId) return;
@@ -2022,7 +2043,7 @@ async function getLibraryRows(env) {
   const result = await env.mosaic_marketing_bot_db.prepare(`
     SELECT
       p.id, p.created_at, p.updated_at, p.status, p.category, p.content_type, p.theme,
-      p.topic, p.en_text, p.ru_text, p.research_summary_ru, p.rewrite_count,
+      p.topic, p.en_text, p.ru_text, p.research_summary_ru, p.source_json, p.rewrite_count,
       p.telegram_message_id,
       m.mode AS media_mode, m.image_url, m.image_pin, m.image_title,
       pr.ai_image_url AS preview_ai_image_url, pr.ai_image_title AS preview_ai_image_title,
@@ -2089,14 +2110,18 @@ function escapeHtml(value) {
 
 function libraryActionsHtml(row, bucket) {
   const id = Number(row.id);
+  const deleteLabel = bucket === "published" ? "🗑 Удалить из панели" : "🗑 Удалить";
+  const deleteAction = `<div class="actions cleanup-actions"><button class="action delete" data-action="delete_post" data-id="${id}">${deleteLabel}</button></div>`;
   if (bucket === "candidate") {
-    return `<div class="actions"><button class="action primary" data-action="approve" data-id="${id}">✅ Принять</button><button class="action secondary" data-action="rewrite" data-id="${id}">🔄 Переписать</button><button class="action danger" data-action="skip" data-id="${id}">❌ Пропустить</button></div>`;
+    return `<div class="actions"><button class="action primary" data-action="approve" data-id="${id}">✅ Принять</button><button class="action secondary" data-action="rewrite" data-id="${id}">🔄 Переписать</button><button class="action danger" data-action="skip" data-id="${id}">❌ Пропустить</button></div>${deleteAction}`;
   }
-  if (bucket !== "ready") return "";
+  if (bucket !== "ready") return deleteAction;
 
   const mediaChosen = ["product","ai","none"].includes(String(row.media_mode || ""));
+  const trustLocked = researchTrustMeta(row).lock;
+  const canPublish = mediaChosen && !trustLocked;
   return `<div class="actions media-actions"><button class="action secondary" data-action="product_picker" data-id="${id}">📷 Фото товара</button><button class="action secondary" data-action="ai_generate" data-id="${id}">🖼 AI фото</button><button class="action ghost" data-action="no_photo" data-id="${id}">🚫 Без фото</button></div>
-  <div class="actions publish-actions"><button class="action facebook${mediaChosen ? "" : " disabled"}" data-action="facebook_publish" data-id="${id}" ${mediaChosen ? "" : "disabled"}>🚀 Facebook</button></div>`;
+  <div class="actions publish-actions"><button class="action facebook${canPublish ? "" : " disabled"}" data-action="facebook_publish" data-id="${id}" ${canPublish ? "" : "disabled"} title="${trustLocked ? "Низкой проверки недостаточно для технической публикации" : mediaChosen ? "" : "Сначала выбери медиа или Без фото"}">🚀 Facebook</button>${trustLocked ? '<span class="publish-lock">⛔ Публикация заблокирована: технический пост с низкой проверкой</span>' : ""}</div>${deleteAction}`;
 }
 
 function researchConfidenceMeta(summary) {
@@ -2110,6 +2135,54 @@ function researchConfidenceMeta(summary) {
 function researchConfidenceBadgeHtml(row) {
   const meta = researchConfidenceMeta(row?.research_summary_ru);
   return meta ? `<span class="confidence ${meta.level}">${escapeHtml(meta.label)}</span>` : "";
+}
+
+function researchEvidenceBasis(summary) {
+  const text = String(summary || "");
+  const match = text.match(/(?:^|\n)Основание:\s*([^\n]+)/i);
+  return match ? match[1].trim() : "";
+}
+
+function isTechnicalContentType(contentType) {
+  return ["technical_tip", "common_mistake", "workshop_idea", "mini_guide"].includes(String(contentType || ""));
+}
+
+function researchTrustMeta(row) {
+  const confidence = researchConfidenceMeta(row?.research_summary_ru) || { level: "unknown", label: "Проверка: не указана" };
+  const sources = safeJsonArray(row?.source_json);
+  const domains = uniqueDomains(sources);
+  const basis = researchEvidenceBasis(row?.research_summary_ru);
+  const technical = isTechnicalContentType(row?.content_type);
+  let verdict = "Используй как аккуратно проверенную тему, но всё равно прочитай текст перед публикацией.";
+  if (confidence.level === "high") {
+    verdict = technical
+      ? "Ключевой технический тезис хорошо подтверждён. Можно публиковать после обычной ручной проверки формулировки."
+      : "Идея хорошо подтверждена несколькими сигналами. Можно публиковать после обычной ручной проверки.";
+  } else if (confidence.level === "medium") {
+    verdict = technical
+      ? "Есть подтверждение, но практика может зависеть от материала и процесса. Оставляй формулировку осторожной и не превращай её в универсальное правило."
+      : "Сигнал подтверждён не полностью. Лучше подавать как наблюдение, вопрос или практику, которая может различаться у мастеров.";
+  } else if (confidence.level === "low") {
+    verdict = technical
+      ? "Стоп: низкой проверки недостаточно для технического совета. Такой пост нельзя публиковать как инструкцию."
+      : "Это только идея для обсуждения. Не выдавай её за установленный технический факт.";
+  }
+  const lock = technical && confidence.level === "low";
+  return { confidence, sources: sources.length, domains: domains.length, basis, verdict, lock };
+}
+
+function researchTrustHtml(row) {
+  const trust = researchTrustMeta(row);
+  const sourceText = trust.sources
+    ? `Источников: ${trust.sources} · независимых доменов: ${trust.domains}`
+    : "Список источников пока не сохранён";
+  const basis = trust.basis || "Бот не записал отдельное основание для этого старого кандидата. Открой блок исследования и проверь заметку вручную.";
+  return `<div class="trust trust-${trust.confidence.level}${trust.lock ? " trust-lock" : ""}">
+    <div class="trust-head"><span>🛡 Почему этому можно доверять</span><span class="trust-level">${escapeHtml(trust.confidence.label)}</span></div>
+    <div class="trust-grid"><div><b>Основание</b><span>${escapeHtml(basis)}</span></div><div><b>Источники</b><span>${escapeHtml(sourceText)}</span></div></div>
+    <div class="trust-verdict">${trust.lock ? "⛔ " : trust.confidence.level === "medium" ? "⚠️ " : trust.confidence.level === "low" ? "⚠️ " : "✅ "}${escapeHtml(trust.verdict)}</div>
+    <div class="trust-note">Это внутренний контроль качества, а не гарантия абсолютной точности.</div>
+  </div>`;
 }
 
 function libraryCard(row) {
@@ -2130,6 +2203,7 @@ function libraryCard(row) {
       ${titleRu && row.topic ? `<div class="en-topic">${escapeHtml(row.topic)}</div>` : ""}
       <div class="statusline"><span class="status ${bucket}">${bucket === "ready" ? "Готов к публикации" : bucket === "published" ? "Опубликовано" : bucket === "archive" ? "Архив" : "Кандидат"}</span>${researchConfidenceBadgeHtml(row)}${facebookMeta}<span class="date">${escapeHtml(libraryDate(row.created_at))}</span></div>
       <div class="posttext">${escapeHtml(row.en_text || "")}</div>
+      ${researchTrustHtml(row)}
       ${libraryActionsHtml(row, bucket)}
       ${bucket === "ready" ? libraryPreviewHtml(row) : ""}
       <details><summary>Русская версия</summary><div class="ru-text">${escapeHtml(ru.body || "")}</div></details>
@@ -2151,7 +2225,7 @@ async function renderContentLibrary(env) {
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mosaic Pins Marketing Dashboard</title>
 <style>
-:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41;--danger:#7b3439;--blue:#245f9b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.head-actions{display:flex;gap:8px;align-items:center}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.create{border:1px solid #58b979;background:linear-gradient(180deg,#2e9250,#236f3e);color:white;border-radius:14px;padding:14px 28px;font-weight:900;font-size:16px;letter-spacing:.01em;cursor:pointer;box-shadow:0 10px 26px #1e7d4140,0 0 0 1px #ffffff0a inset}.create:hover{filter:brightness(1.08);transform:translateY(-1px)}.new-topic-row{display:flex;justify-content:center;padding:12px 0 2px}.new-topic-row .create{width:min(360px,100%)}.editorial{max-width:980px;margin:0 auto 14px;background:linear-gradient(180deg,#101914,#0d1711);border:1px solid #2d4436;border-radius:14px;padding:11px 14px;color:#aebdb4;font-size:12px}.editorial b{color:#dcebe2}.confidence{border-radius:999px;padding:4px 8px;font-weight:800}.confidence.high{background:#123b24;color:#9fe8b5}.confidence.medium{background:#423518;color:#f0d68d}.confidence.low{background:#4b2429;color:#ffb9bd}.rotation{background:#101914;border:1px solid var(--line);border-radius:14px;padding:10px 13px;margin-bottom:12px;color:#b7c3bc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rotation b{color:#e8f3ec}.dot{color:#607168}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:980px;margin:0 auto}.card{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.card.focused{border-color:#58b979;box-shadow:0 0 0 3px #38a75c30,0 14px 42px #0005;transition:border-color .25s,box-shadow .25s}.media{background:#0b130f;min-height:0;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #203027}.media img{width:auto;height:auto;max-width:100%;max-height:250px;object-fit:contain;display:block;border-radius:12px}.media-empty{width:100%;min-height:180px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:static;width:100%;margin-top:10px;background:#07110d;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;text-align:center}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.action{border:1px solid #34483c;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#17231c;color:#e6eee9}.action.primary{background:#236d3d;border-color:#398858}.action.secondary{background:#183526;border-color:#315b40}.action.ghost{background:#111a15}.action.danger{background:#492329;border-color:#70383e}.action.facebook{background:#1e5c93;border-color:#3179b9}.action.disabled,.action:disabled{opacity:.4;cursor:not-allowed}.action.busy,.create.busy{opacity:.55;pointer-events:none}.preview-box{margin-top:12px;border:1px solid #31463a;background:#0c1510;border-radius:13px;padding:10px}.preview-title{font-size:11px;color:#9cacA2;font-weight:800;margin-bottom:7px}.preview-box img{width:auto;height:auto;max-width:100%;max-height:280px;object-fit:contain;border-radius:10px;display:block;margin:0 auto}.preview-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;z-index:30;max-width:min(420px,calc(100vw - 36px));background:#152019;border:1px solid #3d5949;color:#eef6f1;border-radius:12px;padding:11px 14px;box-shadow:0 18px 50px #0008;display:none}.toast.error{background:#35191b;border-color:#713239;color:#ffd9db}.modal{position:fixed;inset:0;z-index:20;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px 30px;overflow:auto}.modal.open{display:flex}.modal-box{width:min(980px,100%);background:#101914;border:1px solid #304238;border-radius:18px;padding:16px;box-shadow:0 24px 80px #000b}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.modal-head h3{margin:0;font-size:19px}.close{border:1px solid #33483c;background:#151f19;color:#dce5df;border-radius:9px;padding:7px 10px;cursor:pointer}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-option{background:#0b130f;border:1px solid #293a30;border-radius:13px;overflow:hidden}.product-option img{width:100%;height:180px;object-fit:contain;display:block;background:#08100c;padding:8px}.product-option .po-body{padding:10px}.po-title{font-weight:800;line-height:1.25}.po-meta{color:#8fa096;font-size:11px;margin:4px 0 8px}.product-option button{width:100%}.loader{padding:35px;text-align:center;color:#aab8b0}@media(max-width:900px){.grid{max-width:100%}.card{grid-template-columns:200px minmax(0,1fr)}.media img{max-height:220px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.wrap{padding:14px}.header{align-items:flex-start}.head-actions{flex-direction:column;align-items:stretch}.title{font-size:22px}.card{display:block}.media{padding:12px;border-right:0;border-bottom:1px solid #203027}.media img{max-height:220px}.media-empty{min-height:150px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}.products{grid-template-columns:1fr}.product-option img{height:210px}.rotation{font-size:12px}.new-topic-row{padding-top:10px}.new-topic-row .create{font-size:15px;padding:13px 18px}}
+:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41;--danger:#7b3439;--blue:#245f9b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.head-actions{display:flex;gap:8px;align-items:center}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.create{border:1px solid #58b979;background:linear-gradient(180deg,#2e9250,#236f3e);color:white;border-radius:14px;padding:14px 28px;font-weight:900;font-size:16px;letter-spacing:.01em;cursor:pointer;box-shadow:0 10px 26px #1e7d4140,0 0 0 1px #ffffff0a inset}.create:hover{filter:brightness(1.08);transform:translateY(-1px)}.new-topic-row{display:flex;justify-content:center;padding:12px 0 2px}.new-topic-row .create{width:min(360px,100%)}.editorial{max-width:980px;margin:0 auto 14px;background:linear-gradient(180deg,#101914,#0d1711);border:1px solid #2d4436;border-radius:14px;padding:11px 14px;color:#aebdb4;font-size:12px}.editorial b{color:#dcebe2}.confidence{border-radius:999px;padding:4px 8px;font-weight:800}.confidence.high{background:#123b24;color:#9fe8b5}.confidence.medium{background:#423518;color:#f0d68d}.confidence.low{background:#4b2429;color:#ffb9bd}.trust{margin-top:13px;border:1px solid #2f4437;background:#0d1711;border-radius:13px;padding:11px 12px}.trust-high{border-color:#28583a;background:#0d1d13}.trust-medium{border-color:#66542a;background:#1b180d}.trust-low,.trust-unknown{border-color:#643238;background:#1d1012}.trust-lock{box-shadow:0 0 0 1px #7f343c44 inset}.trust-head{display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:900;color:#e9f4ed;margin-bottom:9px}.trust-level{font-size:10px;border:1px solid #ffffff1d;border-radius:999px;padding:3px 7px;color:#b7c5bd;white-space:nowrap}.trust-grid{display:grid;grid-template-columns:1.45fr .8fr;gap:10px}.trust-grid>div{background:#09120d;border:1px solid #25362c;border-radius:10px;padding:8px 9px}.trust-grid b{display:block;color:#93a59a;text-transform:uppercase;letter-spacing:.04em;font-size:9px;margin-bottom:3px}.trust-grid span{display:block;color:#d9e4dd;font-size:11px}.trust-verdict{margin-top:9px;color:#dbe6df;font-size:11px;line-height:1.45}.trust-note{margin-top:6px;color:#71837a;font-size:9px}.publish-lock{align-self:center;color:#ffb2b7;font-size:11px;font-weight:800}.rotation{background:#101914;border:1px solid var(--line);border-radius:14px;padding:10px 13px;margin-bottom:12px;color:#b7c3bc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rotation b{color:#e8f3ec}.dot{color:#607168}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:980px;margin:0 auto}.card{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.card.focused{border-color:#58b979;box-shadow:0 0 0 3px #38a75c30,0 14px 42px #0005;transition:border-color .25s,box-shadow .25s}.media{background:#0b130f;min-height:0;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #203027}.media img{width:auto;height:auto;max-width:100%;max-height:250px;object-fit:contain;display:block;border-radius:12px}.media-empty{width:100%;min-height:180px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:static;width:100%;margin-top:10px;background:#07110d;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;text-align:center}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.action{border:1px solid #34483c;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#17231c;color:#e6eee9}.action.primary{background:#236d3d;border-color:#398858}.action.secondary{background:#183526;border-color:#315b40}.action.ghost{background:#111a15}.action.danger{background:#492329;border-color:#70383e}.action.facebook{background:#1e5c93;border-color:#3179b9}.action.delete{background:#241416;border-color:#66343a;color:#ffc6ca}.action.delete:hover{background:#351b1f;border-color:#8b454d}.cleanup-actions{margin-top:10px;padding-top:8px;border-top:1px dashed #2b3931}.action.disabled,.action:disabled{opacity:.4;cursor:not-allowed}.action.busy,.create.busy{opacity:.55;pointer-events:none}.preview-box{margin-top:12px;border:1px solid #31463a;background:#0c1510;border-radius:13px;padding:10px}.preview-title{font-size:11px;color:#9cacA2;font-weight:800;margin-bottom:7px}.preview-box img{width:auto;height:auto;max-width:100%;max-height:280px;object-fit:contain;border-radius:10px;display:block;margin:0 auto}.preview-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;z-index:30;max-width:min(420px,calc(100vw - 36px));background:#152019;border:1px solid #3d5949;color:#eef6f1;border-radius:12px;padding:11px 14px;box-shadow:0 18px 50px #0008;display:none}.toast.error{background:#35191b;border-color:#713239;color:#ffd9db}.modal{position:fixed;inset:0;z-index:20;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px 30px;overflow:auto}.modal.open{display:flex}.modal-box{width:min(980px,100%);background:#101914;border:1px solid #304238;border-radius:18px;padding:16px;box-shadow:0 24px 80px #000b}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.modal-head h3{margin:0;font-size:19px}.close{border:1px solid #33483c;background:#151f19;color:#dce5df;border-radius:9px;padding:7px 10px;cursor:pointer}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-option{background:#0b130f;border:1px solid #293a30;border-radius:13px;overflow:hidden}.product-option img{width:100%;height:180px;object-fit:contain;display:block;background:#08100c;padding:8px}.product-option .po-body{padding:10px}.po-title{font-weight:800;line-height:1.25}.po-meta{color:#8fa096;font-size:11px;margin:4px 0 8px}.product-option button{width:100%}.loader{padding:35px;text-align:center;color:#aab8b0}@media(max-width:900px){.grid{max-width:100%}.card{grid-template-columns:200px minmax(0,1fr)}.media img{max-height:220px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.wrap{padding:14px}.header{align-items:flex-start}.head-actions{flex-direction:column;align-items:stretch}.title{font-size:22px}.card{display:block}.media{padding:12px;border-right:0;border-bottom:1px solid #203027}.media img{max-height:220px}.media-empty{min-height:150px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}.products{grid-template-columns:1fr}.product-option img{height:210px}.rotation{font-size:12px}.new-topic-row{padding-top:10px}.new-topic-row .create{font-size:15px;padding:13px 18px}.trust-grid{grid-template-columns:1fr}.trust-head{align-items:flex-start;flex-direction:column;gap:5px}}
 </style></head>
 <body><div class="wrap"><header class="header"><div><div class="title">Mosaic Pins Marketing Dashboard</div><div class="subtitle">Темы, фото, согласование и публикация Facebook в одном месте</div></div><div class="head-actions"><form method="post" action="/library/logout"><button class="logout">Выйти</button></form></div></header>
 <div class="rotation"><span>Следующая ротация:</span><b>${escapeHtml(contentTypeRu(next.contentType))}</b><span class="dot">·</span><b>${escapeHtml(themeRu(next.theme))}</b><span class="dot">·</span><span>Facebook ${fbReady ? "подключён ✅" : "не подключён"}</span></div>
@@ -2159,7 +2233,7 @@ async function renderContentLibrary(env) {
 <div class="toolbar"><div class="tabs"><button class="tab active" data-tab="ready">Готово · ${counts.ready}</button><button class="tab" data-tab="published">Опубликовано · ${counts.published}</button><button class="tab" data-tab="candidate">Кандидаты · ${counts.candidate}</button><button class="tab" data-tab="archive">Архив · ${counts.archive}</button><button class="tab" data-tab="all">Все · ${rows.length}</button></div><input id="search" class="search" type="search" placeholder="Поиск по теме, тексту, типу, PIN..." autocomplete="off"><div class="new-topic-row"><button id="newTopic" class="create">✨ Создать новую тему</button></div></div>
 <main id="grid" class="grid">${cards}</main><div id="empty" class="empty">Ничего не найдено</div><div class="foot">Один D1 и одна логика для Telegram и веб-панели. AI фото создаётся только по нажатию.</div></div>
 <div id="productModal" class="modal"><div class="modal-box"><div class="modal-head"><h3>Выбрать реальное фото товара</h3><button id="closeModal" class="close">Закрыть</button></div><div id="products" class="products"><div class="loader">Загрузка…</div></div></div></div><div id="toast" class="toast"></div>
-<script>(()=>{const tabs=[...document.querySelectorAll('.tab')],cards=[...document.querySelectorAll('.card')],search=document.getElementById('search'),empty=document.getElementById('empty'),toast=document.getElementById('toast'),modal=document.getElementById('productModal'),products=document.getElementById('products');let bucket='ready',modalPostId=0;function apply(){const q=search.value.trim().toLowerCase();let shown=0;for(const card of cards){const okBucket=bucket==='all'||card.dataset.bucket===bucket;const okSearch=!q||card.dataset.search.includes(q);const show=okBucket&&okSearch;card.style.display=show?'':'none';if(show)shown++}empty.style.display=shown?'none':'block'}function say(text,error=false){toast.textContent=text;toast.className='toast'+(error?' error':'');toast.style.display='block';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>toast.style.display='none',4200)}async function action(actionName,id=0,extra={}){const res=await fetch('/library/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:actionName,id,...extra})});const data=await res.json().catch(()=>({ok:false,error:'Некорректный ответ'}));if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');return data}async function runButton(btn,actionName,id,extra={}){const old=btn.textContent;btn.classList.add('busy');btn.textContent='Подождите…';try{const data=await action(actionName,id,extra);say(data.message||'Готово');setTimeout(()=>location.reload(),450)}catch(e){say(e.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}}for(const tab of tabs){tab.addEventListener('click',()=>{for(const x of tabs)x.classList.remove('active');tab.classList.add('active');bucket=tab.dataset.tab;apply()})}search.addEventListener('input',apply);document.getElementById('newTopic').addEventListener('click',async e=>{const btn=e.currentTarget,old=btn.textContent;btn.classList.add('busy');btn.textContent='Создаю тему…';try{const data=await action('new',0);say(data.message||'Новый кандидат создан');const id=Number(data.id||0);if(id>0){setTimeout(()=>{location.href='/library?tab=candidate&focus='+encodeURIComponent(id)+'#post-'+encodeURIComponent(id)},250)}else{setTimeout(()=>location.reload(),450)}}catch(err){say(err.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}});document.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(!btn||btn.disabled)return;const a=btn.dataset.action,id=Number(btn.dataset.id||0);if(a==='product_picker'){modalPostId=id;modal.classList.add('open');products.innerHTML='<div class="loader">Ищу подходящие фотографии…</div>';try{const res=await fetch('/library/product-options?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Не удалось получить фото');products.innerHTML='';for(const p of data.products){const card=document.createElement('div');card.className='product-option';const img=document.createElement('img');img.src=p.image;img.alt=p.title||p.pin||'Product photo';img.loading='lazy';const body=document.createElement('div');body.className='po-body';const title=document.createElement('div');title.className='po-title';title.textContent=p.title||p.pin||'Фото товара';const meta=document.createElement('div');meta.className='po-meta';meta.textContent='PIN: '+(p.pin||'')+' · Stock: '+Number(p.stock||0);const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'product_select',modalPostId,{index:p.index}));body.append(title,meta,pick);card.append(img,body);products.append(card)}if(!data.products.length)products.innerHTML='<div class="loader">Подходящих фотографий не найдено</div>'}catch(err){products.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}const map={approve:'approve',rewrite:'rewrite',skip:'skip',no_photo:'no_photo',ai_generate:'ai_generate',ai_select:'ai_select',facebook_publish:'facebook_publish'};if(map[a]){if(a==='facebook_publish'&&!confirm('Опубликовать этот пост на Facebook Page?'))return;runButton(btn,map[a],id)}});document.getElementById('closeModal').addEventListener('click',()=>modal.classList.remove('open'));modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});const params=new URLSearchParams(location.search),initialTab=params.get('tab'),focusId=Number(params.get('focus')||0);if(['ready','published','candidate','archive','all'].includes(initialTab)){bucket=initialTab;for(const tab of tabs)tab.classList.toggle('active',tab.dataset.tab===bucket)}apply();if(focusId>0){setTimeout(()=>{const card=document.getElementById('post-'+focusId);if(card){card.classList.add('focused');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('focused'),2600)}},180)}})();</script></body></html>`);
+<script>(()=>{const tabs=[...document.querySelectorAll('.tab')],cards=[...document.querySelectorAll('.card')],search=document.getElementById('search'),empty=document.getElementById('empty'),toast=document.getElementById('toast'),modal=document.getElementById('productModal'),products=document.getElementById('products');let bucket='ready',modalPostId=0;function apply(){const q=search.value.trim().toLowerCase();let shown=0;for(const card of cards){const okBucket=bucket==='all'||card.dataset.bucket===bucket;const okSearch=!q||card.dataset.search.includes(q);const show=okBucket&&okSearch;card.style.display=show?'':'none';if(show)shown++}empty.style.display=shown?'none':'block'}function say(text,error=false){toast.textContent=text;toast.className='toast'+(error?' error':'');toast.style.display='block';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>toast.style.display='none',4200)}async function action(actionName,id=0,extra={}){const res=await fetch('/library/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:actionName,id,...extra})});const data=await res.json().catch(()=>({ok:false,error:'Некорректный ответ'}));if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');return data}async function runButton(btn,actionName,id,extra={}){const old=btn.textContent;btn.classList.add('busy');btn.textContent='Подождите…';try{const data=await action(actionName,id,extra);say(data.message||'Готово');setTimeout(()=>location.reload(),450)}catch(e){say(e.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}}for(const tab of tabs){tab.addEventListener('click',()=>{for(const x of tabs)x.classList.remove('active');tab.classList.add('active');bucket=tab.dataset.tab;apply()})}search.addEventListener('input',apply);document.getElementById('newTopic').addEventListener('click',async e=>{const btn=e.currentTarget,old=btn.textContent;btn.classList.add('busy');btn.textContent='Создаю тему…';try{const data=await action('new',0);say(data.message||'Новый кандидат создан');const id=Number(data.id||0);if(id>0){setTimeout(()=>{location.href='/library?tab=candidate&focus='+encodeURIComponent(id)+'#post-'+encodeURIComponent(id)},250)}else{setTimeout(()=>location.reload(),450)}}catch(err){say(err.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}});document.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(!btn||btn.disabled)return;const a=btn.dataset.action,id=Number(btn.dataset.id||0);if(a==='product_picker'){modalPostId=id;modal.classList.add('open');products.innerHTML='<div class="loader">Ищу подходящие фотографии…</div>';try{const res=await fetch('/library/product-options?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Не удалось получить фото');products.innerHTML='';for(const p of data.products){const card=document.createElement('div');card.className='product-option';const img=document.createElement('img');img.src=p.image;img.alt=p.title||p.pin||'Product photo';img.loading='lazy';const body=document.createElement('div');body.className='po-body';const title=document.createElement('div');title.className='po-title';title.textContent=p.title||p.pin||'Фото товара';const meta=document.createElement('div');meta.className='po-meta';meta.textContent='PIN: '+(p.pin||'')+' · Stock: '+Number(p.stock||0);const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'product_select',modalPostId,{index:p.index}));body.append(title,meta,pick);card.append(img,body);products.append(card)}if(!data.products.length)products.innerHTML='<div class="loader">Подходящих фотографий не найдено</div>'}catch(err){products.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}const map={approve:'approve',rewrite:'rewrite',skip:'skip',no_photo:'no_photo',ai_generate:'ai_generate',ai_select:'ai_select',facebook_publish:'facebook_publish',delete_post:'delete_post'};if(map[a]){if(a==='facebook_publish'&&!confirm('Опубликовать этот пост на Facebook Page?'))return;if(a==='delete_post'){const card=btn.closest('.card'),published=card?.dataset?.bucket==='published';const msg=published?'Удалить эту запись из панели? Пост в Facebook останется опубликованным. Это действие нельзя отменить.':'Удалить этот пост без возможности восстановления? Если связанные сообщения Telegram ещё доступны, бот попробует удалить и их.';if(!confirm(msg))return}runButton(btn,map[a],id)}});document.getElementById('closeModal').addEventListener('click',()=>modal.classList.remove('open'));modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});const params=new URLSearchParams(location.search),initialTab=params.get('tab'),focusId=Number(params.get('focus')||0);if(['ready','published','candidate','archive','all'].includes(initialTab)){bucket=initialTab;for(const tab of tabs)tab.classList.toggle('active',tab.dataset.tab===bucket)}apply();if(focusId>0){setTimeout(()=>{const card=document.getElementById('post-'+focusId);if(card){card.classList.add('focused');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('focused'),2600)}},180)}})();</script></body></html>`);
 }
 
 async function serveLibraryMedia(env, postId) {
@@ -2266,6 +2340,11 @@ async function handleLibraryAction(request, env) {
       return json({ ok: true, message: "Кандидат отправлен в архив" });
     }
 
+    if (action === "delete_post") {
+      const result = await deleteLibraryPost(env, row);
+      return json(result, result.ok ? 200 : (result.status || 500));
+    }
+
     if (row.status !== "approved") return json({ ok: false, error: "Сначала нужно принять пост" }, 409);
 
     if (action === "no_photo") {
@@ -2311,6 +2390,41 @@ async function handleLibraryAction(request, env) {
   }
 }
 
+async function deleteLibraryPost(env, row) {
+  const db = env.mosaic_marketing_bot_db;
+  if (!db || !row?.id) return { ok: false, status: 500, error: "D1 недоступна" };
+  await ensurePublishingTables(env);
+
+  const postId = Number(row.id);
+  const preview = await getMediaPreviewState(env, postId).catch(() => null);
+  const telegramIds = [...new Set([
+    Number(row.telegram_message_id || 0),
+    Number(preview?.product_message_id || 0),
+    Number(preview?.ai_message_id || 0)
+  ].filter(id => Number.isInteger(id) && id > 0))];
+
+  // Telegram cleanup is best-effort. D1 deletion should not fail just because
+  // an old Telegram message is already gone or can no longer be deleted.
+  for (const messageId of telegramIds) {
+    await deleteTelegramMessage(env, messageId).catch(() => {});
+  }
+
+  const published = String(row.facebook_status || "") === "published";
+  await db.batch([
+    db.prepare(`DELETE FROM content_media_previews WHERE post_id = ?`).bind(postId),
+    db.prepare(`DELETE FROM content_media WHERE post_id = ?`).bind(postId),
+    db.prepare(`DELETE FROM facebook_publications WHERE post_id = ?`).bind(postId),
+    db.prepare(`DELETE FROM content_posts WHERE id = ?`).bind(postId)
+  ]);
+
+  return {
+    ok: true,
+    message: published
+      ? "Запись удалена из панели. Пост в Facebook оставлен без изменений."
+      : "Пост удалён из панели и D1. Связанные сообщения Telegram очищены, где это было возможно."
+  };
+}
+
 async function publishFromLibrary(env, postId) {
   const row = await getPost(env, postId);
   if (!row || row.status !== "approved") return { ok: false, status: 409, error: "Сначала нужно принять пост" };
@@ -2319,6 +2433,9 @@ async function publishFromLibrary(env, postId) {
     SELECT status, facebook_post_id, published_at FROM facebook_publications WHERE post_id = ?
   `).bind(postId).first();
   if (previous?.status === "published") return { ok: false, status: 409, error: "Этот пост уже опубликован", facebookPostId: previous.facebook_post_id || "" };
+
+  const trust = researchTrustMeta(row);
+  if (trust.lock) return { ok: false, status: 409, error: "Публикация заблокирована: технический пост с низкой проверкой. Перепиши его как обсуждение или создай новую тему." };
 
   const pageId = String(env.FACEBOOK_PAGE_ID || "").trim();
   const token = String(env.FACEBOOK_PAGE_ACCESS_TOKEN || "").trim();
