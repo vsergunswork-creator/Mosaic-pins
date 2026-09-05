@@ -174,6 +174,20 @@ export default {
       return libraryProductOptions(env, postId);
     }
 
+    if (url.pathname === "/library/ai-history" && request.method === "GET") {
+      if (!(await isLibraryAuthorized(request, env))) return json({ ok: false, error: "Unauthorized" }, 401);
+      const postId = Number(url.searchParams.get("id") || 0);
+      if (!Number.isInteger(postId) || postId <= 0) return json({ ok: false, error: "Bad post id" }, 400);
+      return libraryAiHistory(env, postId);
+    }
+
+    if (url.pathname === "/library/history-media" && request.method === "GET") {
+      if (!(await isLibraryAuthorized(request, env))) return new Response("Unauthorized", { status: 401 });
+      const historyId = Number(url.searchParams.get("id") || 0);
+      if (!Number.isInteger(historyId) || historyId <= 0) return new Response("Bad request", { status: 400 });
+      return serveLibraryHistoryMedia(env, historyId);
+    }
+
     if (url.pathname === "/library/action" && request.method === "POST") {
       if (!(await isLibraryAuthorized(request, env))) {
         return json({ ok: false, error: "Unauthorized" }, 401);
@@ -187,6 +201,10 @@ export default {
         "cache-control": "no-store"
       }
     });
+  },
+
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(processScheduledPosts(env));
   }
 };
 
@@ -633,7 +651,7 @@ function buildResearchPrompt(rotation, recentTopics) {
   );
 }
 
-async function rewriteCandidate(env, postId, telegramMessageId) {
+async function rewriteCandidate(env, postId, telegramMessageId, options = {}) {
   const db = env.mosaic_marketing_bot_db;
   const row = await getPost(env, postId);
   if (!row) {
@@ -647,10 +665,16 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
     return;
   }
 
+  const differentAngle = Boolean(options?.differentAngle);
+  const avoidTopic = cleanPublicText(options?.avoidTopic || "");
+  const modeInstruction = differentAngle
+    ? "Keep the researched evidence, but deliberately choose a different editorial angle from the similar prior topic. Do not merely rephrase the same hook. Change the question, practical focus, audience takeaway, or structure while staying inside the supplied evidence. "
+    : "";
+
   await editTelegramText(
     env,
     telegramMessageId,
-    formatCandidateMessage(row) + "\n\n🔄 Переписываю…",
+    formatCandidateMessage(row) + (differentAngle ? "\n\n↪ Ищу другой угол подачи…" : "\n\n🔄 Переписываю…"),
     null
   );
 
@@ -669,7 +693,8 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
           content: [{
             type: "input_text",
             text:
-              "Rewrite a knife-making community post into a clearly different, stronger version while preserving the same researched topic. " +
+              "Rewrite a knife-making community post into a clearly different, stronger version while preserving the same researched evidence. " +
+              modeInstruction +
               "Do not perform or claim new web research. Do not add new factual claims that are not supported by the supplied research summary. " +
               "Never strengthen uncertainty during a rewrite. If the research summary says evidence is medium, low, mixed or limited, keep the wording cautious and do not turn an observation into an instruction or universal rule. " +
               "Write natural American English, provide a faithful Russian translation, and provide a natural Russian translation of the topic in topic_ru. " +
@@ -691,6 +716,9 @@ async function rewriteCandidate(env, postId, telegramMessageId) {
               `Research summary (RU): ${row.research_summary_ru || ""}\n\n` +
               `Current EN:\n${row.en_text}\n\n` +
               `Current RU:\n${splitRuPayload(row.ru_text).body}\n\n` +
+              (differentAngle && avoidTopic ? `Avoid duplicating this prior topic/hook: ${avoidTopic}
+
+` : "") +
               "Create a substantially different phrasing/structure, not a cosmetic word swap. Keep it concise and useful. " +
               "If this is a poll, rebuild it as a short clear question with 2-4 genuinely distinct answer choices."
           }]
@@ -866,6 +894,45 @@ async function ensurePublishingTables(env) {
   await ensureD1Column(db, "content_media_previews", "product_image_url", "TEXT");
   await ensureD1Column(db, "content_media_previews", "product_pin", "TEXT");
   await ensureD1Column(db, "content_media_previews", "product_title", "TEXT");
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS content_library_meta (
+      post_id INTEGER PRIMARY KEY,
+      favorite INTEGER NOT NULL DEFAULT 0,
+      priority TEXT NOT NULL DEFAULT 'normal',
+      tags TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT '',
+      scheduled_at TEXT,
+      schedule_status TEXT NOT NULL DEFAULT 'none',
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS content_ai_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL,
+      image_url TEXT NOT NULL,
+      image_title TEXT,
+      created_at TEXT NOT NULL
+    )
+  `).run();
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_content_ai_history_post ON content_ai_history(post_id, id DESC)`).run();
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS facebook_metrics (
+      post_id INTEGER PRIMARY KEY,
+      reactions INTEGER NOT NULL DEFAULT 0,
+      comments INTEGER NOT NULL DEFAULT 0,
+      shares INTEGER NOT NULL DEFAULT 0,
+      impressions INTEGER,
+      reach INTEGER,
+      updated_at TEXT,
+      last_error TEXT
+    )
+  `).run();
+  await ensureD1Column(db, "facebook_metrics", "impressions", "INTEGER");
+  await ensureD1Column(db, "facebook_metrics", "reach", "INTEGER");
 }
 
 async function ensureD1Column(db, table, column, definition) {
@@ -1272,11 +1339,14 @@ async function generateAiImagePreview(env, postId) {
     return;
   }
 
+  const aiRef = `tgfile:${sent.fileId}`;
+  const aiTitle = `AI: ${row.topic || `Post ${postId}`}`;
   await saveMediaPreviewState(env, postId, {
-    aiImageUrl: `tgfile:${sent.fileId}`,
-    aiImageTitle: `AI: ${row.topic || `Post ${postId}`}`,
+    aiImageUrl: aiRef,
+    aiImageTitle: aiTitle,
     aiMessageId: sent.messageId || undefined
   });
+  await saveAiHistoryEntry(env, postId, aiRef, aiTitle).catch(() => {});
   // Important: an AI preview is only a proposal. The currently selected media
   // stays active until the user explicitly presses "✅ Выбрать".
   await refreshApprovedTelegramMessage(env, postId);
@@ -2049,11 +2119,15 @@ async function getLibraryRows(env) {
       pr.ai_image_url AS preview_ai_image_url, pr.ai_image_title AS preview_ai_image_title,
       pr.product_index AS preview_product_index, pr.product_image_url AS preview_product_image_url,
       pr.product_pin AS preview_product_pin, pr.product_title AS preview_product_title,
-      f.status AS facebook_status, f.facebook_post_id, f.published_at, f.last_error
+      f.status AS facebook_status, f.facebook_post_id, f.published_at, f.last_error,
+      lm.favorite, lm.priority, lm.tags, lm.note, lm.scheduled_at, lm.schedule_status,
+      fm.reactions, fm.comments, fm.shares, fm.impressions, fm.reach, fm.updated_at AS metrics_updated_at, fm.last_error AS metrics_error
     FROM content_posts p
     LEFT JOIN content_media m ON m.post_id = p.id
     LEFT JOIN content_media_previews pr ON pr.post_id = p.id
     LEFT JOIN facebook_publications f ON f.post_id = p.id
+    LEFT JOIN content_library_meta lm ON lm.post_id = p.id
+    LEFT JOIN facebook_metrics fm ON fm.post_id = p.id
     ORDER BY p.created_at DESC
     LIMIT 400
   `).all();
@@ -2111,16 +2185,18 @@ function escapeHtml(value) {
 function libraryActionsHtml(row, bucket) {
   const id = Number(row.id);
   const deleteLabel = bucket === "published" ? "🗑 Удалить из панели" : "🗑 Удалить";
+  const favorite = Number(row.favorite || 0) === 1;
+  const common = `<div class="actions meta-actions"><button class="action favorite${favorite ? " active" : ""}" data-action="favorite" data-id="${id}">${favorite ? "★ В избранном" : "☆ В избранное"}</button></div>`;
   const deleteAction = `<div class="actions cleanup-actions"><button class="action delete" data-action="delete_post" data-id="${id}">${deleteLabel}</button></div>`;
   if (bucket === "candidate") {
-    return `<div class="actions"><button class="action primary" data-action="approve" data-id="${id}">✅ Принять</button><button class="action secondary" data-action="rewrite" data-id="${id}">🔄 Переписать</button><button class="action danger" data-action="skip" data-id="${id}">❌ Пропустить</button></div>${deleteAction}`;
+    return `${common}<div class="actions"><button class="action primary" data-action="approve" data-id="${id}">✅ Принять</button><button class="action secondary" data-action="rewrite" data-id="${id}">🔄 Переписать</button><button class="action danger" data-action="skip" data-id="${id}">❌ Пропустить</button></div>${deleteAction}`;
   }
-  if (bucket !== "ready") return deleteAction;
+  if (bucket !== "ready") return `${common}${deleteAction}`;
 
   const mediaChosen = ["product","ai","none"].includes(String(row.media_mode || ""));
   const trustLocked = researchTrustMeta(row).lock;
   const canPublish = mediaChosen && !trustLocked;
-  return `<div class="actions media-actions"><button class="action secondary" data-action="product_picker" data-id="${id}">📷 Фото товара</button><button class="action secondary" data-action="ai_generate" data-id="${id}">🖼 AI фото</button><button class="action ghost" data-action="no_photo" data-id="${id}">🚫 Без фото</button></div>
+  return `${common}<div class="actions media-actions"><button class="action secondary" data-action="product_picker" data-id="${id}">📷 Фото товара</button><button class="action secondary" data-action="ai_generate" data-id="${id}">🖼 AI фото</button>${libraryAiHistoryButtonHtml(row,bucket)}<button class="action ghost" data-action="no_photo" data-id="${id}">🚫 Без фото</button></div>
   <div class="actions publish-actions"><button class="action facebook${canPublish ? "" : " disabled"}" data-action="facebook_publish" data-id="${id}" ${canPublish ? "" : "disabled"} title="${trustLocked ? "Низкой проверки недостаточно для технической публикации" : mediaChosen ? "" : "Сначала выбери медиа или Без фото"}">🚀 Facebook</button>${trustLocked ? '<span class="publish-lock">⛔ Публикация заблокирована: технический пост с низкой проверкой</span>' : ""}</div>${deleteAction}`;
 }
 
@@ -2185,27 +2261,149 @@ function researchTrustHtml(row) {
   </div>`;
 }
 
+
+function normalizeTopicWords(value) {
+  const stop = new Set(["the","a","an","and","or","for","to","of","in","on","with","from","your","you","is","are","why","how","what","when","this","that","knife","knives","maker","makers","making"]);
+  return String(value || "").toLowerCase().replace(/[^a-z0-9а-яё]+/gi," ").split(/\s+/).filter(w => w.length > 2 && !stop.has(w));
+}
+
+function topicSimilarity(a, b) {
+  const aa = new Set(normalizeTopicWords(a));
+  const bb = new Set(normalizeTopicWords(b));
+  if (!aa.size || !bb.size) return 0;
+  let inter = 0;
+  for (const w of aa) if (bb.has(w)) inter++;
+  const union = new Set([...aa, ...bb]).size;
+  return union ? inter / union : 0;
+}
+
+function decorateDuplicateWarnings(rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    let best = null, bestScore = 0;
+    for (let j = 0; j < rows.length; j++) {
+      if (i === j) continue;
+      const other = rows[j];
+      if (Number(other.id) >= Number(row.id)) continue;
+      const score = topicSimilarity(row.topic, other.topic);
+      if (score > bestScore) { bestScore = score; best = other; }
+    }
+    if (best && bestScore >= 0.42) {
+      row._duplicate = { id: Number(best.id), topic: String(best.topic || ""), score: bestScore };
+    }
+  }
+  return rows;
+}
+
+function priorityMeta(value) {
+  const key = ["high","normal","later"].includes(String(value || "")) ? String(value) : "normal";
+  const map = { high:["Высокий","🔥"], normal:["Обычный","•"], later:["Позже","🕓"] };
+  return { key, label: map[key][0], icon: map[key][1] };
+}
+
+function tagsArray(value) {
+  return String(value || "").split(",").map(x => x.trim()).filter(Boolean).slice(0,12);
+}
+
+function librarySourceDetailsHtml(row) {
+  const sources = safeJsonArray(row?.source_json).slice(0,18);
+  if (!sources.length) return '<div class="source-empty">Ссылки на источники для этого кандидата не сохранены.</div>';
+  const list = sources.map((source, index) => {
+    let domain = "Источник";
+    try { domain = prettyDomain(new URL(String(source.url || "")).hostname.replace(/^www\./,"")); } catch (_) {}
+    const title = String(source.title || domain || `Источник ${index+1}`);
+    const href = String(source.url || "");
+    return `<a class="source-row" href="${escapeHtml(href)}" target="_blank" rel="noreferrer"><b>${escapeHtml(domain)}</b><span>${escapeHtml(title)}</span></a>`;
+  }).join("");
+  return `<div class="source-list">${list}</div>`;
+}
+
+function libraryFacebookPreviewHtml(row) {
+  const ru = splitRuPayload(row.ru_text);
+  const mode = String(row.media_mode || "unset");
+  let image = "";
+  if (mode === "product" && String(row.image_url || "").startsWith("http")) image = `<img src="${escapeHtml(row.image_url)}" alt="">`;
+  if (mode === "ai" && String(row.image_url || "").startsWith("tgfile:")) image = `<img src="/library/media?id=${Number(row.id)}" alt="">`;
+  return `<details class="fb-preview"><summary>👀 Preview Facebook</summary><div class="fbmock"><div class="fbhead"><span class="fbavatar">MP</span><div><b>Mosaic Pins Space</b><small>Just now · 🌐</small></div></div><div class="fbtext">${escapeHtml(row.en_text || "")}</div>${image}<div class="fbfooter">Like &nbsp; Comment &nbsp; Share</div></div></details>`;
+}
+
+function libraryMetaEditorHtml(row, bucket) {
+  const id = Number(row.id);
+  const ru = splitRuPayload(row.ru_text);
+  const priority = priorityMeta(row.priority);
+  const disabled = bucket === "published" ? " disabled" : "";
+  const title = bucket === "published" ? "Опубликованный Facebook-пост не меняется. Метаданные библиотеки можно редактировать ниже." : "Редактирование сохранит текст в D1 и синхронизирует Telegram.";
+  return `<details class="editor"><summary>✏️ Редактировать и заметки</summary><div class="editgrid" data-editor="${id}">
+    <label>Тема EN<input class="ed-topic" value="${escapeHtml(row.topic || "")}"${disabled}></label>
+    <label>Тема RU<input class="ed-topic-ru" value="${escapeHtml(ru.topic || "")}"${disabled}></label>
+    <label class="wide">Facebook EN<textarea class="ed-en" rows="7"${disabled}>${escapeHtml(row.en_text || "")}</textarea></label>
+    <label class="wide">Проверка RU<textarea class="ed-ru" rows="7"${disabled}>${escapeHtml(ru.body || "")}</textarea></label>
+    <label>Теги<input class="ed-tags" value="${escapeHtml(row.tags || "")}" placeholder="Glow, Epoxy, Beginner"></label>
+    <label>Приоритет<select class="ed-priority"><option value="high"${priority.key==="high"?" selected":""}>🔥 Высокий</option><option value="normal"${priority.key==="normal"?" selected":""}>Обычный</option><option value="later"${priority.key==="later"?" selected":""}>🕓 Позже</option></select></label>
+    <label class="wide">Личная заметка<textarea class="ed-note" rows="3" placeholder="Только для себя">${escapeHtml(row.note || "")}</textarea></label>
+    <div class="wide edit-help">${escapeHtml(title)}</div>
+    <div class="wide actions"><button class="action primary" data-action="save_edit" data-id="${id}">💾 Сохранить</button></div>
+  </div></details>`;
+}
+
+function libraryScheduleHtml(row, bucket) {
+  if (bucket !== "ready") return "";
+  const id = Number(row.id);
+  const scheduled = String(row.schedule_status || "") === "scheduled" && row.scheduled_at;
+  const when = scheduled ? libraryDate(row.scheduled_at) : "";
+  return `<div class="schedule"><div><b>📅 Очередь публикаций</b>${scheduled ? `<span class="scheduled-badge">Запланировано: ${escapeHtml(when)}</span>` : '<span class="schedule-note">Можно опубликовать автоматически по расписанию</span>'}</div><div class="schedule-row"><input type="datetime-local" class="schedule-at" data-id="${id}"><button class="action secondary" data-action="schedule" data-id="${id}">📅 Запланировать</button>${scheduled ? `<button class="action ghost" data-action="cancel_schedule" data-id="${id}">Отменить</button>` : ""}</div></div>`;
+}
+
+function libraryMetricsHtml(row, bucket) {
+  if (bucket !== "published") return "";
+  const id = Number(row.id);
+  return `<div class="metrics"><div><b>📊 Facebook</b><span>Реакции <strong>${Number(row.reactions || 0)}</strong></span><span>Комментарии <strong>${Number(row.comments || 0)}</strong></span><span>Репосты <strong>${Number(row.shares || 0)}</strong></span><span>Охват <strong>${row.reach == null ? "—" : Number(row.reach)}</strong></span><span>Показы <strong>${row.impressions == null ? "—" : Number(row.impressions)}</strong></span></div><button class="action ghost" data-action="refresh_metrics" data-id="${id}">↻ Обновить</button>${row.metrics_updated_at ? `<small>${escapeHtml(libraryDate(row.metrics_updated_at))}</small>` : ""}${row.reach == null ? '<small title="Для охвата и показов Meta может потребовать read_insights">Insights могут потребовать доп. право Meta</small>' : ""}</div>`;
+}
+
+function libraryDuplicateHtml(row, bucket) {
+  if (!row?._duplicate || !["candidate","ready"].includes(bucket)) return "";
+  const d = row._duplicate;
+  const pct = Math.round(Number(d.score || 0) * 100);
+  return `<div class="duplicate">⚠️ Похожая тема уже была в #${Number(d.id)} (${pct}%): <b>${escapeHtml(d.topic)}</b>${bucket === "candidate" ? `<button class="action ghost" data-action="angle_rewrite" data-id="${Number(row.id)}">↪ Другой угол</button>` : ""}</div>`;
+}
+
+function libraryAiHistoryButtonHtml(row, bucket) {
+  if (bucket !== "ready") return "";
+  return `<button class="action ghost" data-action="ai_history" data-id="${Number(row.id)}">🖼 История AI</button>`;
+}
+
 function libraryCard(row) {
   const ru = splitRuPayload(row.ru_text);
   const bucket = libraryBucket(row);
   const titleRu = ru.topic || "";
-  const search = [row.id,row.topic,titleRu,row.en_text,ru.body,row.content_type,row.theme,row.image_pin,row.image_title,row.preview_product_pin,row.preview_product_title].join(" ").toLowerCase();
+  const tags = tagsArray(row.tags);
+  const priority = priorityMeta(row.priority);
+  const search = [row.id,row.topic,titleRu,row.en_text,ru.body,row.content_type,row.theme,row.image_pin,row.image_title,row.preview_product_pin,row.preview_product_title,row.tags,row.note].join(" ").toLowerCase();
   const facebookMeta = bucket === "published"
     ? `<span class="facebook-ok">Facebook · ${escapeHtml(libraryDate(row.published_at))}</span>`
     : row.facebook_status === "failed"
       ? `<span class="facebook-fail" title="${escapeHtml(row.last_error || "")}">Ошибка Facebook</span>`
       : "";
-  return `<article class="card" data-bucket="${bucket}" data-search="${escapeHtml(search)}" id="post-${Number(row.id)}">
+  const tagHtml = tags.length ? `<div class="tagline">${tags.map(t=>`<span>#${escapeHtml(t)}</span>`).join("")}</div>` : "";
+  return `<article class="card" data-bucket="${bucket}" data-favorite="${Number(row.favorite||0)===1?"1":"0"}" data-search="${escapeHtml(search)}" id="post-${Number(row.id)}">
+    <div class="selectbox"><input type="checkbox" class="bulk-check" value="${Number(row.id)}" aria-label="Выбрать #${Number(row.id)}"></div>
     <div class="media">${libraryMediaHtml(row)}<div class="media-label">${escapeHtml(libraryMediaLabel(row))}</div></div>
     <div class="body">
-      <div class="topline"><span class="id">#${Number(row.id)}</span><span>${escapeHtml(contentTypeRu(row.content_type))}</span><span>${escapeHtml(themeRu(row.theme))}</span></div>
+      <div class="topline"><span class="id">#${Number(row.id)}</span><span>${escapeHtml(contentTypeRu(row.content_type))}</span><span>${escapeHtml(themeRu(row.theme))}</span><span class="priority ${priority.key}">${priority.icon} ${escapeHtml(priority.label)}</span>${Number(row.favorite||0)===1?'<span class="fav-badge">★</span>':""}</div>
       <h2>${escapeHtml(titleRu || row.topic || `Post #${row.id}`)}</h2>
       ${titleRu && row.topic ? `<div class="en-topic">${escapeHtml(row.topic)}</div>` : ""}
+      ${tagHtml}
       <div class="statusline"><span class="status ${bucket}">${bucket === "ready" ? "Готов к публикации" : bucket === "published" ? "Опубликовано" : bucket === "archive" ? "Архив" : "Кандидат"}</span>${researchConfidenceBadgeHtml(row)}${facebookMeta}<span class="date">${escapeHtml(libraryDate(row.created_at))}</span></div>
+      ${libraryDuplicateHtml(row,bucket)}
       <div class="posttext">${escapeHtml(row.en_text || "")}</div>
       ${researchTrustHtml(row)}
+      <details class="sources"><summary>🔎 Показать источники</summary>${librarySourceDetailsHtml(row)}</details>
       ${libraryActionsHtml(row, bucket)}
+      ${libraryScheduleHtml(row,bucket)}
+      ${libraryMetricsHtml(row,bucket)}
       ${bucket === "ready" ? libraryPreviewHtml(row) : ""}
+      ${libraryFacebookPreviewHtml(row)}
+      ${libraryMetaEditorHtml(row,bucket)}
       <details><summary>Русская версия</summary><div class="ru-text">${escapeHtml(ru.body || "")}</div></details>
       <details><summary>Исследование и данные</summary><div class="research">${escapeHtml(stripScopePrefix(row.research_summary_ru) || "Нет заметки")}</div><div class="mini">Rewrite: ${Number(row.rewrite_count || 0)} · Media: ${escapeHtml(row.media_mode || "unset")}${row.facebook_post_id ? ` · FB ID: ${escapeHtml(row.facebook_post_id)}` : ""}</div></details>
     </div>
@@ -2214,10 +2412,16 @@ function libraryCard(row) {
 
 async function renderContentLibrary(env) {
   if (!env.mosaic_marketing_bot_db) return html("D1 is not configured", 500);
-  const rows = await getLibraryRows(env);
-  const counts = { ready:0, published:0, archive:0, candidate:0 };
-  for (const row of rows) counts[libraryBucket(row)]++;
+  const rows = decorateDuplicateWarnings(await getLibraryRows(env));
+  const counts = { ready:0, published:0, archive:0, candidate:0, favorites:0 };
+  for (const row of rows) { counts[libraryBucket(row)]++; if (Number(row.favorite || 0) === 1) counts.favorites++; }
   const cards = rows.map(libraryCard).join("");
+  const published10 = rows.filter(row => libraryBucket(row) === "published").slice(0,10);
+  const balance = {};
+  for (const row of published10) balance[row.content_type] = (balance[row.content_type] || 0) + 1;
+  const balanceHtml = Object.entries(balance).map(([key,value]) => `<span>${escapeHtml(contentTypeRu(key))} <b>${Number(value)}</b></span>`).join("") || '<span>Пока нет опубликованных постов</span>';
+  const upcoming = rows.filter(row => String(row.schedule_status||"") === "scheduled" && row.scheduled_at).sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at)).slice(0,6);
+  const upcomingHtml = upcoming.length ? upcoming.map(row => `<span><b>#${Number(row.id)}</b> ${escapeHtml(libraryDate(row.scheduled_at))} · ${escapeHtml(splitRuPayload(row.ru_text).topic || row.topic)}</span>`).join("") : '<span>Очередь пока пустая</span>';
   const history = await getRecentHistory(env, 30);
   const next = chooseRotation(history);
   const fbReady = has(env.FACEBOOK_PAGE_ID) && has(env.FACEBOOK_PAGE_ACCESS_TOKEN);
@@ -2225,15 +2429,150 @@ async function renderContentLibrary(env) {
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mosaic Pins Marketing Dashboard</title>
 <style>
-:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41;--danger:#7b3439;--blue:#245f9b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.head-actions{display:flex;gap:8px;align-items:center}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.create{border:1px solid #58b979;background:linear-gradient(180deg,#2e9250,#236f3e);color:white;border-radius:14px;padding:14px 28px;font-weight:900;font-size:16px;letter-spacing:.01em;cursor:pointer;box-shadow:0 10px 26px #1e7d4140,0 0 0 1px #ffffff0a inset}.create:hover{filter:brightness(1.08);transform:translateY(-1px)}.new-topic-row{display:flex;justify-content:center;padding:12px 0 2px}.new-topic-row .create{width:min(360px,100%)}.editorial{max-width:980px;margin:0 auto 14px;background:linear-gradient(180deg,#101914,#0d1711);border:1px solid #2d4436;border-radius:14px;padding:11px 14px;color:#aebdb4;font-size:12px}.editorial b{color:#dcebe2}.confidence{border-radius:999px;padding:4px 8px;font-weight:800}.confidence.high{background:#123b24;color:#9fe8b5}.confidence.medium{background:#423518;color:#f0d68d}.confidence.low{background:#4b2429;color:#ffb9bd}.trust{margin-top:13px;border:1px solid #2f4437;background:#0d1711;border-radius:13px;padding:11px 12px}.trust-high{border-color:#28583a;background:#0d1d13}.trust-medium{border-color:#66542a;background:#1b180d}.trust-low,.trust-unknown{border-color:#643238;background:#1d1012}.trust-lock{box-shadow:0 0 0 1px #7f343c44 inset}.trust-head{display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:900;color:#e9f4ed;margin-bottom:9px}.trust-level{font-size:10px;border:1px solid #ffffff1d;border-radius:999px;padding:3px 7px;color:#b7c5bd;white-space:nowrap}.trust-grid{display:grid;grid-template-columns:1.45fr .8fr;gap:10px}.trust-grid>div{background:#09120d;border:1px solid #25362c;border-radius:10px;padding:8px 9px}.trust-grid b{display:block;color:#93a59a;text-transform:uppercase;letter-spacing:.04em;font-size:9px;margin-bottom:3px}.trust-grid span{display:block;color:#d9e4dd;font-size:11px}.trust-verdict{margin-top:9px;color:#dbe6df;font-size:11px;line-height:1.45}.trust-note{margin-top:6px;color:#71837a;font-size:9px}.publish-lock{align-self:center;color:#ffb2b7;font-size:11px;font-weight:800}.rotation{background:#101914;border:1px solid var(--line);border-radius:14px;padding:10px 13px;margin-bottom:12px;color:#b7c3bc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rotation b{color:#e8f3ec}.dot{color:#607168}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:980px;margin:0 auto}.card{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.card.focused{border-color:#58b979;box-shadow:0 0 0 3px #38a75c30,0 14px 42px #0005;transition:border-color .25s,box-shadow .25s}.media{background:#0b130f;min-height:0;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #203027}.media img{width:auto;height:auto;max-width:100%;max-height:250px;object-fit:contain;display:block;border-radius:12px}.media-empty{width:100%;min-height:180px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:static;width:100%;margin-top:10px;background:#07110d;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;text-align:center}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.action{border:1px solid #34483c;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#17231c;color:#e6eee9}.action.primary{background:#236d3d;border-color:#398858}.action.secondary{background:#183526;border-color:#315b40}.action.ghost{background:#111a15}.action.danger{background:#492329;border-color:#70383e}.action.facebook{background:#1e5c93;border-color:#3179b9}.action.delete{background:#241416;border-color:#66343a;color:#ffc6ca}.action.delete:hover{background:#351b1f;border-color:#8b454d}.cleanup-actions{margin-top:10px;padding-top:8px;border-top:1px dashed #2b3931}.action.disabled,.action:disabled{opacity:.4;cursor:not-allowed}.action.busy,.create.busy{opacity:.55;pointer-events:none}.preview-box{margin-top:12px;border:1px solid #31463a;background:#0c1510;border-radius:13px;padding:10px}.preview-title{font-size:11px;color:#9cacA2;font-weight:800;margin-bottom:7px}.preview-box img{width:auto;height:auto;max-width:100%;max-height:280px;object-fit:contain;border-radius:10px;display:block;margin:0 auto}.preview-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;z-index:30;max-width:min(420px,calc(100vw - 36px));background:#152019;border:1px solid #3d5949;color:#eef6f1;border-radius:12px;padding:11px 14px;box-shadow:0 18px 50px #0008;display:none}.toast.error{background:#35191b;border-color:#713239;color:#ffd9db}.modal{position:fixed;inset:0;z-index:20;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px 30px;overflow:auto}.modal.open{display:flex}.modal-box{width:min(980px,100%);background:#101914;border:1px solid #304238;border-radius:18px;padding:16px;box-shadow:0 24px 80px #000b}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.modal-head h3{margin:0;font-size:19px}.close{border:1px solid #33483c;background:#151f19;color:#dce5df;border-radius:9px;padding:7px 10px;cursor:pointer}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-option{background:#0b130f;border:1px solid #293a30;border-radius:13px;overflow:hidden}.product-option img{width:100%;height:180px;object-fit:contain;display:block;background:#08100c;padding:8px}.product-option .po-body{padding:10px}.po-title{font-weight:800;line-height:1.25}.po-meta{color:#8fa096;font-size:11px;margin:4px 0 8px}.product-option button{width:100%}.loader{padding:35px;text-align:center;color:#aab8b0}@media(max-width:900px){.grid{max-width:100%}.card{grid-template-columns:200px minmax(0,1fr)}.media img{max-height:220px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.wrap{padding:14px}.header{align-items:flex-start}.head-actions{flex-direction:column;align-items:stretch}.title{font-size:22px}.card{display:block}.media{padding:12px;border-right:0;border-bottom:1px solid #203027}.media img{max-height:220px}.media-empty{min-height:150px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}.products{grid-template-columns:1fr}.product-option img{height:210px}.rotation{font-size:12px}.new-topic-row{padding-top:10px}.new-topic-row .create{font-size:15px;padding:13px 18px}.trust-grid{grid-template-columns:1fr}.trust-head{align-items:flex-start;flex-direction:column;gap:5px}}
+:root{color-scheme:dark;--bg:#08100c;--panel:#101914;--panel2:#141f19;--line:#29392f;--muted:#92a198;--text:#f3f7f4;--green:#38a75c;--green2:#256f41;--danger:#7b3439;--blue:#245f9b}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07100b,#0a0f0c 420px);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.wrap{max-width:1240px;margin:auto;padding:22px}.header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.title{font-size:26px;font-weight:900;letter-spacing:-.02em}.subtitle{color:var(--muted);margin-top:2px}.head-actions{display:flex;gap:8px;align-items:center}.logout{background:transparent;color:#cbd6d0;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}.create{border:1px solid #58b979;background:linear-gradient(180deg,#2e9250,#236f3e);color:white;border-radius:14px;padding:14px 28px;font-weight:900;font-size:16px;letter-spacing:.01em;cursor:pointer;box-shadow:0 10px 26px #1e7d4140,0 0 0 1px #ffffff0a inset}.create:hover{filter:brightness(1.08);transform:translateY(-1px)}.new-topic-row{display:flex;justify-content:center;padding:12px 0 2px}.new-topic-row .create{width:min(360px,100%)}.editorial{max-width:980px;margin:0 auto 14px;background:linear-gradient(180deg,#101914,#0d1711);border:1px solid #2d4436;border-radius:14px;padding:11px 14px;color:#aebdb4;font-size:12px}.editorial b{color:#dcebe2}.confidence{border-radius:999px;padding:4px 8px;font-weight:800}.confidence.high{background:#123b24;color:#9fe8b5}.confidence.medium{background:#423518;color:#f0d68d}.confidence.low{background:#4b2429;color:#ffb9bd}.trust{margin-top:13px;border:1px solid #2f4437;background:#0d1711;border-radius:13px;padding:11px 12px}.trust-high{border-color:#28583a;background:#0d1d13}.trust-medium{border-color:#66542a;background:#1b180d}.trust-low,.trust-unknown{border-color:#643238;background:#1d1012}.trust-lock{box-shadow:0 0 0 1px #7f343c44 inset}.trust-head{display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:900;color:#e9f4ed;margin-bottom:9px}.trust-level{font-size:10px;border:1px solid #ffffff1d;border-radius:999px;padding:3px 7px;color:#b7c5bd;white-space:nowrap}.trust-grid{display:grid;grid-template-columns:1.45fr .8fr;gap:10px}.trust-grid>div{background:#09120d;border:1px solid #25362c;border-radius:10px;padding:8px 9px}.trust-grid b{display:block;color:#93a59a;text-transform:uppercase;letter-spacing:.04em;font-size:9px;margin-bottom:3px}.trust-grid span{display:block;color:#d9e4dd;font-size:11px}.trust-verdict{margin-top:9px;color:#dbe6df;font-size:11px;line-height:1.45}.trust-note{margin-top:6px;color:#71837a;font-size:9px}.publish-lock{align-self:center;color:#ffb2b7;font-size:11px;font-weight:800}.rotation{background:#101914;border:1px solid var(--line);border-radius:14px;padding:10px 13px;margin-bottom:12px;color:#b7c3bc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rotation b{color:#e8f3ec}.dot{color:#607168}.toolbar{position:sticky;top:0;z-index:5;background:#08100ce8;backdrop-filter:blur(14px);padding:10px 0 14px;margin-bottom:10px}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{white-space:nowrap;border:1px solid var(--line);background:#101914;color:#c6d1cb;border-radius:999px;padding:9px 13px;cursor:pointer}.tab.active{background:var(--green2);border-color:#3f9b61;color:#fff}.search{width:100%;background:#0e1712;border:1px solid var(--line);color:white;border-radius:12px;padding:12px 14px;font-size:15px;outline:none}.search:focus{border-color:#4baa69;box-shadow:0 0 0 3px #4baa6920}.grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:980px;margin:0 auto}.card{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 12px 35px #0003}.card.focused{border-color:#58b979;box-shadow:0 0 0 3px #38a75c30,0 14px 42px #0005;transition:border-color .25s,box-shadow .25s}.media{background:#0b130f;min-height:0;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #203027}.media img{width:auto;height:auto;max-width:100%;max-height:250px;object-fit:contain;display:block;border-radius:12px}.media-empty{width:100%;min-height:180px;display:grid;place-items:center;align-content:center;gap:8px;color:#819188}.media-empty span{font-size:34px}.media-label{position:static;width:100%;margin-top:10px;background:#07110d;border:1px solid #ffffff1f;border-radius:9px;padding:6px 8px;font-size:11px;color:#dbe5df;text-align:center}.body{padding:16px;min-width:0}.topline{display:flex;gap:7px;flex-wrap:wrap;color:#93a59a;font-size:11px}.topline span{background:#17241d;border:1px solid #293a30;border-radius:999px;padding:3px 7px}.topline .id{color:#bceac9;border-color:#31553e}h2{font-size:18px;line-height:1.25;margin:11px 0 4px}.en-topic{color:#9eaca4;font-size:12px;margin-bottom:10px}.statusline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px;font-size:11px}.status{border-radius:999px;padding:4px 8px;font-weight:800}.status.ready{background:#143d23;color:#aaf0bc}.status.published{background:#17304d;color:#b8dafb}.status.archive{background:#3a2525;color:#efbbbb}.status.candidate{background:#3b341d;color:#f2de9c}.facebook-ok{color:#9dd7ad}.facebook-fail{color:#ffaaaa}.date{color:#77877e;margin-left:auto}.posttext,.ru-text,.research{white-space:pre-wrap;color:#e8eeea}.posttext{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.action{border:1px solid #34483c;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#17231c;color:#e6eee9}.action.primary{background:#236d3d;border-color:#398858}.action.secondary{background:#183526;border-color:#315b40}.action.ghost{background:#111a15}.action.danger{background:#492329;border-color:#70383e}.action.facebook{background:#1e5c93;border-color:#3179b9}.action.delete{background:#241416;border-color:#66343a;color:#ffc6ca}.action.delete:hover{background:#351b1f;border-color:#8b454d}.cleanup-actions{margin-top:10px;padding-top:8px;border-top:1px dashed #2b3931}.action.disabled,.action:disabled{opacity:.4;cursor:not-allowed}.action.busy,.create.busy{opacity:.55;pointer-events:none}.preview-box{margin-top:12px;border:1px solid #31463a;background:#0c1510;border-radius:13px;padding:10px}.preview-title{font-size:11px;color:#9cacA2;font-weight:800;margin-bottom:7px}.preview-box img{width:auto;height:auto;max-width:100%;max-height:280px;object-fit:contain;border-radius:10px;display:block;margin:0 auto}.preview-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}details{margin-top:11px;border-top:1px solid #24332a;padding-top:9px}summary{cursor:pointer;color:#a8b8ae;font-weight:700}.ru-text,.research{margin-top:9px;color:#cbd5cf}.mini{margin-top:8px;color:#76867d;font-size:11px}.empty{display:none;padding:50px 10px;text-align:center;color:#89998f}.foot{padding:28px 0 10px;color:#718078;text-align:center;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;z-index:30;max-width:min(420px,calc(100vw - 36px));background:#152019;border:1px solid #3d5949;color:#eef6f1;border-radius:12px;padding:11px 14px;box-shadow:0 18px 50px #0008;display:none}.toast.error{background:#35191b;border-color:#713239;color:#ffd9db}.modal{position:fixed;inset:0;z-index:20;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px 30px;overflow:auto}.modal.open{display:flex}.modal-box{width:min(980px,100%);background:#101914;border:1px solid #304238;border-radius:18px;padding:16px;box-shadow:0 24px 80px #000b}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}.modal-head h3{margin:0;font-size:19px}.close{border:1px solid #33483c;background:#151f19;color:#dce5df;border-radius:9px;padding:7px 10px;cursor:pointer}.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-option{background:#0b130f;border:1px solid #293a30;border-radius:13px;overflow:hidden}.product-option img{width:100%;height:180px;object-fit:contain;display:block;background:#08100c;padding:8px}.product-option .po-body{padding:10px}.po-title{font-weight:800;line-height:1.25}.po-meta{color:#8fa096;font-size:11px;margin:4px 0 8px}.product-option button{width:100%}.loader{padding:35px;text-align:center;color:#aab8b0}.dashboard-widgets{max-width:980px;margin:0 auto 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}.widget{background:#0f1813;border:1px solid #2b3b31;border-radius:14px;padding:11px 13px}.widget>b{font-size:11px;color:#dbe7df}.widget-pills,.upcoming{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.widget-pills span,.upcoming span{font-size:10px;color:#9fb0a6;background:#0a120e;border:1px solid #26362c;border-radius:999px;padding:4px 7px}.upcoming{display:grid}.upcoming span{border-radius:8px}.selectbox{position:absolute;z-index:3;margin:10px}.card{position:relative}.bulk-check{width:18px;height:18px;accent-color:#38a75c}.bulkbar{display:none;align-items:center;gap:7px;flex-wrap:wrap;margin-top:9px;padding:8px 10px;background:#121d16;border:1px solid #304238;border-radius:11px}.bulkbar.show{display:flex}.bulkbar span{margin-right:auto;color:#b9c8bf}.priority.high{border-color:#8a4b2c!important;color:#ffd0ae!important}.priority.later{color:#b5b5d2!important}.fav-badge{color:#ffd76b!important}.action.favorite.active{border-color:#8a7130;background:#392f17;color:#ffe499}.tagline{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.tagline span{font-size:10px;color:#9ccbb0;background:#0d2116;border:1px solid #275038;border-radius:999px;padding:3px 6px}.duplicate{margin:8px 0;border:1px solid #6b5427;background:#201a0c;color:#e9d89c;border-radius:11px;padding:9px 10px;font-size:11px}.duplicate .action{margin-left:7px;padding:5px 7px}.sources{border-top:0!important}.source-list{display:grid;gap:6px;margin-top:9px}.source-row{display:grid;gap:2px;color:#d7e4dc;text-decoration:none;background:#0b130f;border:1px solid #293a30;border-radius:9px;padding:8px 9px}.source-row:hover{border-color:#4b7b5d}.source-row b{font-size:10px;color:#8ecda4}.source-row span{font-size:11px}.source-empty{color:#819188;padding:8px 0}.editor{border:1px solid #2b3d32!important;border-radius:12px;padding:9px 10px!important;background:#0c1510}.editgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.editgrid label{display:grid;gap:5px;color:#9fb0a6;font-size:10px;font-weight:700}.editgrid .wide{grid-column:1/-1}.editgrid input,.editgrid textarea,.editgrid select,.schedule-row input{width:100%;background:#09110d;color:#eef5f0;border:1px solid #32453a;border-radius:9px;padding:9px;font:12px/1.45 system-ui}.editgrid textarea{resize:vertical}.edit-help{font-size:10px;color:#71837a}.schedule{margin-top:11px;border:1px solid #32463a;background:#0c1610;border-radius:12px;padding:10px}.schedule>div:first-child{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.schedule-note{font-size:10px;color:#84968b}.scheduled-badge{font-size:10px;background:#183622;color:#a9eabc;border-radius:999px;padding:3px 7px}.schedule-row{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:7px;margin-top:8px}.metrics{margin-top:11px;border:1px solid #27445e;background:#0c1720;border-radius:12px;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.metrics>div{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-right:auto}.metrics span{font-size:10px;color:#a9c5da}.metrics small{color:#6d8799}.fb-preview{border:1px solid #2b3c34!important;border-radius:12px;padding:9px 10px!important}.fbmock{max-width:520px;margin:10px auto 0;background:#18191a;border:1px solid #303234;border-radius:12px;overflow:hidden;color:#e4e6eb}.fbhead{display:flex;gap:9px;padding:12px;align-items:center}.fbavatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#274f35;font-weight:900}.fbhead small{display:block;color:#b0b3b8}.fbtext{padding:0 12px 12px;white-space:pre-wrap}.fbmock>img{width:100%;max-height:360px;object-fit:contain;background:#0c0c0c}.fbfooter{border-top:1px solid #3a3b3c;padding:9px;text-align:center;color:#b0b3b8}.ai-history-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ai-history-item{border:1px solid #2e4136;border-radius:12px;background:#0a120e;padding:8px}.ai-history-item img{width:100%;height:160px;object-fit:contain;background:#070b09;border-radius:8px}.ai-history-item small{display:block;color:#82938a;margin:5px 0}.ai-history-item button{width:100%}.modal-box.small{width:min(720px,100%)}@media(max-width:900px){.grid{max-width:100%}.card{grid-template-columns:200px minmax(0,1fr)}.media img{max-height:220px}.products{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.dashboard-widgets{grid-template-columns:1fr}.editgrid{grid-template-columns:1fr}.editgrid .wide{grid-column:auto}.schedule-row{grid-template-columns:1fr}.ai-history-grid{grid-template-columns:1fr 1fr}.wrap{padding:14px}.header{align-items:flex-start}.head-actions{flex-direction:column;align-items:stretch}.title{font-size:22px}.card{display:block}.media{padding:12px;border-right:0;border-bottom:1px solid #203027}.media img{max-height:220px}.media-empty{min-height:150px}.body{padding:14px}.date{margin-left:0}.toolbar{top:0}.posttext{-webkit-line-clamp:9}.products{grid-template-columns:1fr}.product-option img{height:210px}.rotation{font-size:12px}.new-topic-row{padding-top:10px}.new-topic-row .create{font-size:15px;padding:13px 18px}.trust-grid{grid-template-columns:1fr}.trust-head{align-items:flex-start;flex-direction:column;gap:5px}}
 </style></head>
 <body><div class="wrap"><header class="header"><div><div class="title">Mosaic Pins Marketing Dashboard</div><div class="subtitle">Темы, фото, согласование и публикация Facebook в одном месте</div></div><div class="head-actions"><form method="post" action="/library/logout"><button class="logout">Выйти</button></form></div></header>
 <div class="rotation"><span>Следующая ротация:</span><b>${escapeHtml(contentTypeRu(next.contentType))}</b><span class="dot">·</span><b>${escapeHtml(themeRu(next.theme))}</b><span class="dot">·</span><span>Facebook ${fbReady ? "подключён ✅" : "не подключён"}</span></div>
+<div class="dashboard-widgets"><div class="widget"><b>🎯 Баланс последних 10 постов</b><div class="widget-pills">${balanceHtml}</div></div><div class="widget"><b>📅 Ближайшие публикации</b><div class="upcoming">${upcomingHtml}</div></div></div>
 <div class="editorial"><b>Наш подход:</b> Mosaic Pins Space не изображает из себя гуру. Бот использует обсуждения для поиска тем, а технические советы публикует только после дополнительной проверки. Слабые или спорные сигналы должны превращаться в вопрос, наблюдение или обсуждение, а не в уверенную инструкцию.</div>
-<div class="toolbar"><div class="tabs"><button class="tab active" data-tab="ready">Готово · ${counts.ready}</button><button class="tab" data-tab="published">Опубликовано · ${counts.published}</button><button class="tab" data-tab="candidate">Кандидаты · ${counts.candidate}</button><button class="tab" data-tab="archive">Архив · ${counts.archive}</button><button class="tab" data-tab="all">Все · ${rows.length}</button></div><input id="search" class="search" type="search" placeholder="Поиск по теме, тексту, типу, PIN..." autocomplete="off"><div class="new-topic-row"><button id="newTopic" class="create">✨ Создать новую тему</button></div></div>
+<div class="toolbar"><div class="tabs"><button class="tab active" data-tab="ready">Готово · ${counts.ready}</button><button class="tab" data-tab="published">Опубликовано · ${counts.published}</button><button class="tab" data-tab="candidate">Кандидаты · ${counts.candidate}</button><button class="tab" data-tab="archive">Архив · ${counts.archive}</button><button class="tab" data-tab="favorites">★ Избранное · ${counts.favorites}</button><button class="tab" data-tab="all">Все · ${rows.length}</button></div><input id="search" class="search" type="search" placeholder="Поиск по теме, тексту, PIN, тегам или заметкам..." autocomplete="off"><div class="bulkbar" id="bulkbar"><span>Выбрано: <b id="bulkCount">0</b></span><button class="action ghost" id="bulkArchive">В архив</button><button class="action delete" id="bulkDelete">Удалить</button><button class="action ghost" id="bulkClear">Снять выбор</button></div><div class="new-topic-row"><button id="newTopic" class="create">✨ Создать новую тему</button></div></div>
 <main id="grid" class="grid">${cards}</main><div id="empty" class="empty">Ничего не найдено</div><div class="foot">Один D1 и одна логика для Telegram и веб-панели. AI фото создаётся только по нажатию.</div></div>
-<div id="productModal" class="modal"><div class="modal-box"><div class="modal-head"><h3>Выбрать реальное фото товара</h3><button id="closeModal" class="close">Закрыть</button></div><div id="products" class="products"><div class="loader">Загрузка…</div></div></div></div><div id="toast" class="toast"></div>
-<script>(()=>{const tabs=[...document.querySelectorAll('.tab')],cards=[...document.querySelectorAll('.card')],search=document.getElementById('search'),empty=document.getElementById('empty'),toast=document.getElementById('toast'),modal=document.getElementById('productModal'),products=document.getElementById('products');let bucket='ready',modalPostId=0;function apply(){const q=search.value.trim().toLowerCase();let shown=0;for(const card of cards){const okBucket=bucket==='all'||card.dataset.bucket===bucket;const okSearch=!q||card.dataset.search.includes(q);const show=okBucket&&okSearch;card.style.display=show?'':'none';if(show)shown++}empty.style.display=shown?'none':'block'}function say(text,error=false){toast.textContent=text;toast.className='toast'+(error?' error':'');toast.style.display='block';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>toast.style.display='none',4200)}async function action(actionName,id=0,extra={}){const res=await fetch('/library/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:actionName,id,...extra})});const data=await res.json().catch(()=>({ok:false,error:'Некорректный ответ'}));if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');return data}async function runButton(btn,actionName,id,extra={},returnTab=''){const old=btn.textContent;btn.classList.add('busy');btn.textContent='Подождите…';try{const data=await action(actionName,id,extra);say(data.message||'Готово');setTimeout(()=>{if(returnTab){location.href='/library?tab='+encodeURIComponent(returnTab)}else{location.reload()}},450)}catch(e){say(e.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}}for(const tab of tabs){tab.addEventListener('click',()=>{for(const x of tabs)x.classList.remove('active');tab.classList.add('active');bucket=tab.dataset.tab;apply()})}search.addEventListener('input',apply);document.getElementById('newTopic').addEventListener('click',async e=>{const btn=e.currentTarget,old=btn.textContent;btn.classList.add('busy');btn.textContent='Создаю тему…';try{const data=await action('new',0);say(data.message||'Новый кандидат создан');const id=Number(data.id||0);if(id>0){setTimeout(()=>{location.href='/library?tab=candidate&focus='+encodeURIComponent(id)+'#post-'+encodeURIComponent(id)},250)}else{setTimeout(()=>location.reload(),450)}}catch(err){say(err.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}});document.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(!btn||btn.disabled)return;const a=btn.dataset.action,id=Number(btn.dataset.id||0);if(a==='product_picker'){modalPostId=id;modal.classList.add('open');products.innerHTML='<div class="loader">Ищу подходящие фотографии…</div>';try{const res=await fetch('/library/product-options?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Не удалось получить фото');products.innerHTML='';for(const p of data.products){const card=document.createElement('div');card.className='product-option';const img=document.createElement('img');img.src=p.image;img.alt=p.title||p.pin||'Product photo';img.loading='lazy';const body=document.createElement('div');body.className='po-body';const title=document.createElement('div');title.className='po-title';title.textContent=p.title||p.pin||'Фото товара';const meta=document.createElement('div');meta.className='po-meta';meta.textContent='PIN: '+(p.pin||'')+' · Stock: '+Number(p.stock||0);const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'product_select',modalPostId,{index:p.index}));body.append(title,meta,pick);card.append(img,body);products.append(card)}if(!data.products.length)products.innerHTML='<div class="loader">Подходящих фотографий не найдено</div>'}catch(err){products.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}const map={approve:'approve',rewrite:'rewrite',skip:'skip',no_photo:'no_photo',ai_generate:'ai_generate',ai_select:'ai_select',facebook_publish:'facebook_publish',delete_post:'delete_post'};if(map[a]){if(a==='facebook_publish'&&!confirm('Опубликовать этот пост на Facebook Page?'))return;if(a==='delete_post'){const card=btn.closest('.card'),published=card?.dataset?.bucket==='published';const msg=published?'Удалить эту запись из панели? Пост в Facebook останется опубликованным. Это действие нельзя отменить.':'Удалить этот пост без возможности восстановления? Если связанные сообщения Telegram ещё доступны, бот попробует удалить и их.';if(!confirm(msg))return}runButton(btn,map[a],id,{},a==='delete_post'?bucket:'')}});document.getElementById('closeModal').addEventListener('click',()=>modal.classList.remove('open'));modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});const params=new URLSearchParams(location.search),initialTab=params.get('tab'),focusId=Number(params.get('focus')||0);if(['ready','published','candidate','archive','all'].includes(initialTab)){bucket=initialTab;for(const tab of tabs)tab.classList.toggle('active',tab.dataset.tab===bucket)}apply();if(focusId>0){setTimeout(()=>{const card=document.getElementById('post-'+focusId);if(card){card.classList.add('focused');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('focused'),2600)}},180)}})();</script></body></html>`);
+<div id="productModal" class="modal"><div class="modal-box"><div class="modal-head"><h3>Выбрать реальное фото товара</h3><button id="closeModal" class="close">Закрыть</button></div><div id="products" class="products"><div class="loader">Загрузка…</div></div></div></div>
+<div class="modal" id="aiModal"><div class="modal-box small"><div class="modal-head"><h3>🖼 История AI</h3><button class="close" id="closeAiModal">Закрыть</button></div><div class="ai-history-grid" id="aiHistory"><div class="loader">Загрузка…</div></div></div></div><div id="toast" class="toast"></div>
+<script>(()=>{
+const tabs=[...document.querySelectorAll('.tab')],cards=[...document.querySelectorAll('.card')],search=document.getElementById('search'),empty=document.getElementById('empty'),toast=document.getElementById('toast'),modal=document.getElementById('productModal'),products=document.getElementById('products'),aiModal=document.getElementById('aiModal'),aiHistory=document.getElementById('aiHistory'),bulkbar=document.getElementById('bulkbar'),bulkCount=document.getElementById('bulkCount');let bucket='ready',modalPostId=0;
+function apply(){const q=search.value.trim().toLowerCase();let shown=0;for(const card of cards){const okBucket=bucket==='all'||(bucket==='favorites'?card.dataset.favorite==='1':card.dataset.bucket===bucket);const okSearch=!q||card.dataset.search.includes(q);const show=okBucket&&okSearch;card.style.display=show?'':'none';if(show)shown++}empty.style.display=shown?'none':'block'}
+function say(text,error=false){toast.textContent=text;toast.className='toast'+(error?' error':'');toast.style.display='block';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>toast.style.display='none',4200)}
+async function action(actionName,id=0,extra={}){const res=await fetch('/library/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:actionName,id,...extra})});const data=await res.json().catch(()=>({ok:false,error:'Некорректный ответ'}));if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');return data}
+async function runButton(btn,actionName,id,extra={},returnTab=''){const old=btn.textContent;btn.classList.add('busy');btn.textContent='Подождите…';try{const data=await action(actionName,id,extra);say(data.message||'Готово');setTimeout(()=>{if(returnTab){location.href='/library?tab='+encodeURIComponent(returnTab)}else{location.reload()}},350)}catch(e){say(e.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}}
+for(const tab of tabs){tab.addEventListener('click',()=>{for(const x of tabs)x.classList.remove('active');tab.classList.add('active');bucket=tab.dataset.tab;apply()})}search.addEventListener('input',apply);
+document.getElementById('newTopic').addEventListener('click',async e=>{const btn=e.currentTarget,old=btn.textContent;btn.classList.add('busy');btn.textContent='Создаю тему…';try{const data=await action('new',0);say(data.message||'Новый кандидат создан');const id=Number(data.id||0);if(id>0){setTimeout(()=>{location.href='/library?tab=candidate&focus='+encodeURIComponent(id)+'#post-'+encodeURIComponent(id)},250)}else setTimeout(()=>location.reload(),350)}catch(err){say(err.message||'Ошибка',true);btn.classList.remove('busy');btn.textContent=old}});
+function updateBulk(){const n=document.querySelectorAll('.bulk-check:checked').length;bulkCount.textContent=String(n);bulkbar.classList.toggle('show',n>0)}document.addEventListener('change',e=>{if(e.target.matches('.bulk-check'))updateBulk()});document.getElementById('bulkClear').addEventListener('click',()=>{document.querySelectorAll('.bulk-check').forEach(x=>x.checked=false);updateBulk()});
+async function bulkDo(type){const ids=[...document.querySelectorAll('.bulk-check:checked')].map(x=>Number(x.value)).filter(Boolean);if(!ids.length)return;const msg=type==='bulk_delete'?\`Удалить \${ids.length} записей? Опубликованные Facebook-посты останутся на Facebook.\`:\`Переместить \${ids.length} кандидатов в архив?\`;if(!confirm(msg))return;try{const data=await action(type,0,{ids});say(data.message||'Готово');setTimeout(()=>location.href='/library?tab='+encodeURIComponent(bucket),350)}catch(e){say(e.message||'Ошибка',true)}}document.getElementById('bulkDelete').addEventListener('click',()=>bulkDo('bulk_delete'));document.getElementById('bulkArchive').addEventListener('click',()=>bulkDo('bulk_archive'));
+document.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(!btn||btn.disabled)return;const a=btn.dataset.action,id=Number(btn.dataset.id||0);
+if(a==='product_picker'){modalPostId=id;modal.classList.add('open');products.innerHTML='<div class="loader">Ищу подходящие фотографии…</div>';try{const res=await fetch('/library/product-options?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Не удалось получить фото');products.innerHTML='';for(const p of data.products){const card=document.createElement('div');card.className='product-option';const img=document.createElement('img');img.src=p.image;img.alt=p.title||p.pin||'Product photo';img.loading='lazy';const body=document.createElement('div');body.className='po-body';const title=document.createElement('div');title.className='po-title';title.textContent=p.title||p.pin||'Фото товара';const meta=document.createElement('div');meta.className='po-meta';meta.textContent='PIN: '+(p.pin||'')+' · Stock: '+Number(p.stock||0);const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'product_select',modalPostId,{index:p.index}));body.append(title,meta,pick);card.append(img,body);products.append(card)}if(!data.products.length)products.innerHTML='<div class="loader">Подходящих фотографий не найдено</div>'}catch(err){products.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}
+if(a==='ai_history'){aiModal.classList.add('open');aiHistory.innerHTML='<div class="loader">Загрузка…</div>';try{const res=await fetch('/library/ai-history?id='+encodeURIComponent(id));const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Ошибка');aiHistory.innerHTML='';for(const h of data.items){const item=document.createElement('div');item.className='ai-history-item';const img=document.createElement('img');img.src='/library/history-media?id='+encodeURIComponent(h.id);img.loading='lazy';const small=document.createElement('small');small.textContent=h.createdAt||'';const pick=document.createElement('button');pick.className='action primary';pick.textContent='✅ Выбрать';pick.addEventListener('click',()=>runButton(pick,'ai_select_history',id,{historyId:h.id}));item.append(img,small,pick);aiHistory.append(item)}if(!data.items.length)aiHistory.innerHTML='<div class="loader">Сохранённых AI вариантов пока нет</div>'}catch(err){aiHistory.innerHTML='<div class="loader">'+String(err.message||'Ошибка')+'</div>'}return}
+if(a==='save_edit'){const ed=document.querySelector(\`[data-editor="\${id}"]\`);if(!ed)return;const extra={topic:ed.querySelector('.ed-topic')?.value||'',topicRu:ed.querySelector('.ed-topic-ru')?.value||'',enText:ed.querySelector('.ed-en')?.value||'',ruText:ed.querySelector('.ed-ru')?.value||'',tags:ed.querySelector('.ed-tags')?.value||'',priority:ed.querySelector('.ed-priority')?.value||'normal',note:ed.querySelector('.ed-note')?.value||''};return runButton(btn,'save_edit',id,extra,bucket)}
+if(a==='schedule'){const input=document.querySelector(\`.schedule-at[data-id="\${id}"]\`);if(!input?.value){say('Выбери дату и время',true);return}const iso=new Date(input.value).toISOString();return runButton(btn,'schedule',id,{scheduledAt:iso},bucket)}
+if(a==='facebook_publish'&&!confirm('Опубликовать этот пост на Facebook Page?'))return;
+if(a==='delete_post'){const card=btn.closest('.card'),published=card?.dataset?.bucket==='published';const msg=published?'Удалить эту запись из панели? Пост в Facebook останется опубликованным. Это действие нельзя отменить.':'Удалить этот пост без возможности восстановления? Если связанные сообщения Telegram ещё доступны, бот попробует удалить и их.';if(!confirm(msg))return}
+const map={approve:'approve',rewrite:'rewrite',angle_rewrite:'angle_rewrite',skip:'skip',no_photo:'no_photo',ai_generate:'ai_generate',ai_select:'ai_select',facebook_publish:'facebook_publish',delete_post:'delete_post',favorite:'favorite',cancel_schedule:'cancel_schedule',refresh_metrics:'refresh_metrics'};if(map[a])runButton(btn,map[a],id,{},a==='delete_post'?bucket:bucket)});
+document.getElementById('closeModal').addEventListener('click',()=>modal.classList.remove('open'));modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});document.getElementById('closeAiModal').addEventListener('click',()=>aiModal.classList.remove('open'));aiModal.addEventListener('click',e=>{if(e.target===aiModal)aiModal.classList.remove('open')});
+const params=new URLSearchParams(location.search),initialTab=params.get('tab'),focusId=Number(params.get('focus')||0);if(['ready','published','candidate','archive','favorites','all'].includes(initialTab)){bucket=initialTab;for(const tab of tabs)tab.classList.toggle('active',tab.dataset.tab===bucket)}apply();if(focusId>0){setTimeout(()=>{const card=document.getElementById('post-'+focusId);if(card){card.classList.add('focused');card.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>card.classList.remove('focused'),2600)}},180)}
+})();</script></script></body></html>`);
+}
+
+
+async function saveAiHistoryEntry(env, postId, imageUrl, imageTitle) {
+  await ensurePublishingTables(env);
+  const ref = String(imageUrl || "");
+  if (!ref.startsWith("tgfile:")) return;
+  const exists = await env.mosaic_marketing_bot_db.prepare(`SELECT id FROM content_ai_history WHERE post_id = ? AND image_url = ? LIMIT 1`).bind(postId, ref).first();
+  if (exists) return;
+  await env.mosaic_marketing_bot_db.prepare(`INSERT INTO content_ai_history(post_id,image_url,image_title,created_at) VALUES(?,?,?,?)`).bind(postId, ref, String(imageTitle || ""), new Date().toISOString()).run();
+}
+
+async function libraryAiHistory(env, postId) {
+  await ensurePublishingTables(env);
+  const result = await env.mosaic_marketing_bot_db.prepare(`SELECT id, image_title, created_at FROM content_ai_history WHERE post_id = ? ORDER BY id DESC LIMIT 20`).bind(postId).all();
+  const items = Array.isArray(result?.results) ? result.results.map(row => ({ id:Number(row.id), title:String(row.image_title||""), createdAt:libraryDate(row.created_at) })) : [];
+  return json({ ok:true, items });
+}
+
+async function serveLibraryHistoryMedia(env, historyId) {
+  await ensurePublishingTables(env);
+  const row = await env.mosaic_marketing_bot_db.prepare(`SELECT image_url FROM content_ai_history WHERE id = ?`).bind(historyId).first();
+  const ref = String(row?.image_url || "");
+  if (!ref.startsWith("tgfile:")) return new Response("Media not found", { status:404 });
+  try {
+    const blob = await fetchTelegramStoredImage(env, ref.slice("tgfile:".length));
+    return new Response(blob, { headers:{ "content-type":blob.type||"image/jpeg", "cache-control":"private, max-age=3600", "x-content-type-options":"nosniff" } });
+  } catch (_) { return new Response("Media unavailable", { status:502 }); }
+}
+
+async function getLibraryMeta(env, postId) {
+  await ensurePublishingTables(env);
+  return env.mosaic_marketing_bot_db.prepare(`SELECT * FROM content_library_meta WHERE post_id = ?`).bind(postId).first();
+}
+
+async function saveLibraryMeta(env, postId, patch = {}) {
+  await ensurePublishingTables(env);
+  const current = await getLibraryMeta(env, postId) || {};
+  const favorite = patch.favorite !== undefined ? (patch.favorite ? 1 : 0) : Number(current.favorite || 0);
+  const priority = ["high","normal","later"].includes(String(patch.priority || current.priority || "normal")) ? String(patch.priority || current.priority || "normal") : "normal";
+  const tags = patch.tags !== undefined ? String(patch.tags || "").slice(0,500) : String(current.tags || "");
+  const note = patch.note !== undefined ? String(patch.note || "").slice(0,4000) : String(current.note || "");
+  const scheduledAt = patch.scheduledAt !== undefined ? (patch.scheduledAt || null) : (current.scheduled_at || null);
+  const scheduleStatus = patch.scheduleStatus !== undefined ? String(patch.scheduleStatus || "none") : String(current.schedule_status || "none");
+  await env.mosaic_marketing_bot_db.prepare(`INSERT INTO content_library_meta(post_id,favorite,priority,tags,note,scheduled_at,schedule_status,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(post_id) DO UPDATE SET favorite=excluded.favorite,priority=excluded.priority,tags=excluded.tags,note=excluded.note,scheduled_at=excluded.scheduled_at,schedule_status=excluded.schedule_status,updated_at=excluded.updated_at`).bind(postId,favorite,priority,tags,note,scheduledAt,scheduleStatus,new Date().toISOString()).run();
+}
+
+async function findMostSimilarStoredPost(env, row) {
+  const history = await getRecentHistory(env, 200);
+  let best = null, bestScore = 0;
+  for (const other of history) {
+    if (Number(other.id) === Number(row.id)) continue;
+    const score = topicSimilarity(row.topic, other.topic);
+    if (score > bestScore) { bestScore=score; best=other; }
+  }
+  return best && bestScore >= 0.42 ? { ...best, score:bestScore } : null;
+}
+
+async function refreshFacebookMetrics(env, postId) {
+  await ensurePublishingTables(env);
+  const pub = await env.mosaic_marketing_bot_db.prepare(`SELECT facebook_post_id FROM facebook_publications WHERE post_id = ? AND status = 'published'`).bind(postId).first();
+  const objectId = String(pub?.facebook_post_id || "").trim();
+  const token = String(env.FACEBOOK_PAGE_ACCESS_TOKEN || "").trim();
+  if (!objectId || !token) return { ok:false, status:409, error:"Нет опубликованного Facebook ID или токена" };
+  const fields = "reactions.limit(0).summary(true),comments.limit(0).summary(true),shares";
+  const url = `https://graph.facebook.com/${encodeURIComponent(objectId)}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`;
+  const res = await fetch(url);
+  const data = await res.json().catch(()=>({}));
+  const now = new Date().toISOString();
+  if (!res.ok || data?.error) {
+    const error = String(data?.error?.message || `Facebook HTTP ${res.status}`);
+    await env.mosaic_marketing_bot_db.prepare(`INSERT INTO facebook_metrics(post_id,updated_at,last_error) VALUES(?,?,?) ON CONFLICT(post_id) DO UPDATE SET updated_at=excluded.updated_at,last_error=excluded.last_error`).bind(postId,now,error).run();
+    return { ok:false, status:502, error:`Не удалось получить статистику: ${error}` };
+  }
+  const reactions = Number(data?.reactions?.summary?.total_count || 0);
+  const comments = Number(data?.comments?.summary?.total_count || 0);
+  const shares = Number(data?.shares?.count || 0);
+  let impressions = null, reach = null;
+  try {
+    const insightsUrl = `https://graph.facebook.com/${encodeURIComponent(objectId)}/insights?metric=post_impressions,post_impressions_unique&period=lifetime&access_token=${encodeURIComponent(token)}`;
+    const ir = await fetch(insightsUrl);
+    const idata = await ir.json().catch(()=>({}));
+    if (ir.ok && Array.isArray(idata?.data)) {
+      for (const metric of idata.data) {
+        const value = Number(metric?.values?.[0]?.value);
+        if (metric?.name === "post_impressions" && Number.isFinite(value)) impressions = value;
+        if (metric?.name === "post_impressions_unique" && Number.isFinite(value)) reach = value;
+      }
+    }
+  } catch (_) {}
+  await env.mosaic_marketing_bot_db.prepare(`INSERT INTO facebook_metrics(post_id,reactions,comments,shares,impressions,reach,updated_at,last_error) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(post_id) DO UPDATE SET reactions=excluded.reactions,comments=excluded.comments,shares=excluded.shares,impressions=excluded.impressions,reach=excluded.reach,updated_at=excluded.updated_at,last_error=''`).bind(postId,reactions,comments,shares,impressions,reach,now,"").run();
+  return { ok:true, reactions, comments, shares, impressions, reach };
+}
+
+async function refreshStaleFacebookMetrics(env) {
+  await ensurePublishingTables(env);
+  const cutoff = new Date(Date.now()-3*3600*1000).toISOString();
+  const result = await env.mosaic_marketing_bot_db.prepare(`SELECT f.post_id FROM facebook_publications f LEFT JOIN facebook_metrics m ON m.post_id=f.post_id WHERE f.status='published' AND (m.updated_at IS NULL OR m.updated_at < ?) ORDER BY f.published_at DESC LIMIT 5`).bind(cutoff).all();
+  for (const row of Array.isArray(result?.results)?result.results:[]) await refreshFacebookMetrics(env, Number(row.post_id)).catch(()=>{});
+}
+
+async function processScheduledPosts(env) {
+  if (!env.mosaic_marketing_bot_db) return;
+  await ensurePublishingTables(env);
+  const now = new Date().toISOString();
+  const result = await env.mosaic_marketing_bot_db.prepare(`SELECT post_id FROM content_library_meta WHERE schedule_status='scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= ? ORDER BY scheduled_at ASC LIMIT 5`).bind(now).all();
+  for (const item of Array.isArray(result?.results)?result.results:[]) {
+    const postId = Number(item.post_id);
+    const out = await publishFromLibrary(env, postId).catch(error=>({ok:false,error:String(error?.message||error)}));
+    await saveLibraryMeta(env, postId, { scheduleStatus:out.ok?"published":"failed" }).catch(()=>{});
+    if (!out.ok) await sendTelegramText(env, `⚠️ Запланированная публикация #${postId} не вышла\\n${out.error || "Неизвестная ошибка"}`).catch(()=>{});
+  }
+  await refreshStaleFacebookMetrics(env).catch(()=>{});
 }
 
 async function serveLibraryMedia(env, postId) {
@@ -2314,6 +2653,19 @@ async function handleLibraryAction(request, env) {
       }, ok ? 200 : (result?.status || 500));
     }
 
+    if (action === "bulk_delete" || action === "bulk_archive") {
+      const ids = Array.isArray(payload.ids) ? [...new Set(payload.ids.map(Number).filter(id => Number.isInteger(id) && id > 0))].slice(0,100) : [];
+      if (!ids.length) return json({ ok:false, error:"Ничего не выбрано" },400);
+      let done = 0;
+      for (const id of ids) {
+        const item = await getPost(env,id);
+        if (!item) continue;
+        if (action === "bulk_delete") { const out = await deleteLibraryPost(env,item); if (out.ok) done++; }
+        else if (item.status === "candidate") { await skipCandidate(env,id,item.telegram_message_id); done++; }
+      }
+      return json({ ok:true, message: action === "bulk_delete" ? `Удалено: ${done}` : `В архив перемещено: ${done}` });
+    }
+
     if (!Number.isInteger(postId) || postId <= 0) return json({ ok: false, error: "Некорректный ID поста" }, 400);
     const row = await getPost(env, postId);
     if (!row) return json({ ok: false, error: "Кандидат не найден" }, 404);
@@ -2334,6 +2686,41 @@ async function handleLibraryAction(request, env) {
       return json({ ok, message: ok ? "Текст переписан" : undefined, error: ok ? undefined : "Не удалось переписать текст" }, ok ? 200 : 502);
     }
 
+    if (action === "angle_rewrite") {
+      if (row.status !== "candidate") return json({ ok:false, error:"Другой угол можно сделать только для кандидата" },409);
+      const similar = await findMostSimilarStoredPost(env,row);
+      const before = Number(row.rewrite_count || 0);
+      await rewriteCandidate(env,postId,row.telegram_message_id,{differentAngle:true,avoidTopic:similar?.topic||""});
+      const updated = await getPost(env,postId);
+      const ok = Number(updated?.rewrite_count||0) > before;
+      return json({ok,message:ok?"Сделан другой угол подачи":undefined,error:ok?undefined:"Не удалось изменить угол"},ok?200:502);
+    }
+
+    if (action === "favorite") {
+      const meta = await getLibraryMeta(env,postId);
+      const next = Number(meta?.favorite||0) === 1 ? 0 : 1;
+      await saveLibraryMeta(env,postId,{favorite:next});
+      return json({ok:true,message:next?"Добавлено в избранное ★":"Убрано из избранного"});
+    }
+
+    if (action === "save_edit") {
+      const priority = ["high","normal","later"].includes(String(payload.priority||"")) ? String(payload.priority) : "normal";
+      await saveLibraryMeta(env,postId,{tags:String(payload.tags||""),priority,note:String(payload.note||"")});
+      if (row.status !== "published") {
+        const topic = cleanPublicText(payload.topic || row.topic);
+        const topicRu = cleanPublicText(payload.topicRu || splitRuPayload(row.ru_text).topic);
+        const enText = cleanPublicText(payload.enText || row.en_text);
+        const ruText = cleanPublicText(payload.ruText || splitRuPayload(row.ru_text).body);
+        await env.mosaic_marketing_bot_db.prepare(`UPDATE content_posts SET topic=?,en_text=?,ru_text=?,updated_at=? WHERE id=?`).bind(topic,enText,composeRuPayload(topicRu,ruText),new Date().toISOString(),postId).run();
+        const updated = await getPost(env,postId);
+        if (updated?.telegram_message_id) {
+          if (updated.status === "approved") await editTelegramText(env,updated.telegram_message_id,formatApprovedMessage(updated,await getMediaSelection(env,postId)),approvedKeyboard(postId)).catch(()=>{});
+          else await editTelegramText(env,updated.telegram_message_id,formatCandidateMessage(updated),candidateKeyboard(postId)).catch(()=>{});
+        }
+      }
+      return json({ok:true,message:"Изменения сохранены"});
+    }
+
     if (action === "skip") {
       if (row.status !== "candidate") return json({ ok: false, error: "Этот пост уже обработан" }, 409);
       await skipCandidate(env, postId, row.telegram_message_id);
@@ -2343,6 +2730,16 @@ async function handleLibraryAction(request, env) {
     if (action === "delete_post") {
       const result = await deleteLibraryPost(env, row);
       return json(result, result.ok ? 200 : (result.status || 500));
+    }
+
+    if (action === "refresh_metrics") {
+      const result = await refreshFacebookMetrics(env,postId);
+      return json({ ...result, message: result.ok ? `Статистика обновлена: ${result.reactions} реакций, ${result.comments} комментариев, ${result.shares} репостов` : undefined }, result.ok?200:(result.status||502));
+    }
+
+    if (action === "cancel_schedule") {
+      await saveLibraryMeta(env,postId,{scheduledAt:null,scheduleStatus:"none"});
+      return json({ok:true,message:"Публикация снята с расписания"});
     }
 
     if (row.status !== "approved") return json({ ok: false, error: "Сначала нужно принять пост" }, 409);
@@ -2379,6 +2776,27 @@ async function handleLibraryAction(request, env) {
       return json({ ok: media?.mode === "ai", message: media?.mode === "ai" ? "AI фото выбрано" : undefined, error: media?.mode === "ai" ? undefined : "Не удалось выбрать AI фото" }, media?.mode === "ai" ? 200 : 500);
     }
 
+    if (action === "ai_select_history") {
+      const historyId = Number(payload.historyId||0);
+      const h = await env.mosaic_marketing_bot_db.prepare(`SELECT image_url,image_title FROM content_ai_history WHERE id=? AND post_id=?`).bind(historyId,postId).first();
+      if (!String(h?.image_url||"").startsWith("tgfile:")) return json({ok:false,error:"AI вариант не найден"},404);
+      await saveMediaPreviewState(env,postId,{aiImageUrl:String(h.image_url),aiImageTitle:String(h.image_title||"AI")});
+      await selectAiImage(env,postId,null);
+      return json({ok:true,message:"Старый AI вариант снова выбран"});
+    }
+
+    if (action === "schedule") {
+      const when = new Date(String(payload.scheduledAt||""));
+      if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()+60000) return json({ok:false,error:"Выбери время хотя бы на минуту вперёд"},400);
+      const media = await getMediaSelection(env,postId);
+      if (!media || media.mode === "unset") return json({ok:false,error:"Сначала выбери фото или Без фото"},409);
+      const trust = researchTrustMeta(row);
+      if (trust.lock) return json({ok:false,error:"Технический пост с низкой проверкой нельзя ставить в очередь"},409);
+      if (!has(env.FACEBOOK_PAGE_ID) || !has(env.FACEBOOK_PAGE_ACCESS_TOKEN)) return json({ok:false,error:"Facebook не подключён"},503);
+      await saveLibraryMeta(env,postId,{scheduledAt:when.toISOString(),scheduleStatus:"scheduled"});
+      return json({ok:true,message:`Запланировано: ${libraryDate(when.toISOString())}`});
+    }
+
     if (action === "facebook_publish") {
       const result = await publishFromLibrary(env, postId);
       return json(result, result.ok ? 200 : (result.status || 502));
@@ -2413,6 +2831,9 @@ async function deleteLibraryPost(env, row) {
   await db.batch([
     db.prepare(`DELETE FROM content_media_previews WHERE post_id = ?`).bind(postId),
     db.prepare(`DELETE FROM content_media WHERE post_id = ?`).bind(postId),
+    db.prepare(`DELETE FROM content_ai_history WHERE post_id = ?`).bind(postId),
+    db.prepare(`DELETE FROM facebook_metrics WHERE post_id = ?`).bind(postId),
+    db.prepare(`DELETE FROM content_library_meta WHERE post_id = ?`).bind(postId),
     db.prepare(`DELETE FROM facebook_publications WHERE post_id = ?`).bind(postId),
     db.prepare(`DELETE FROM content_posts WHERE id = ?`).bind(postId)
   ]);
@@ -2459,9 +2880,11 @@ async function publishFromLibrary(env, postId) {
     return { ok: false, status: 502, error: String(result.error || "Facebook publish failed") };
   }
 
+  await saveLibraryMeta(env,postId,{scheduleStatus:"published"}).catch(()=>{});
   if (row.telegram_message_id) {
     await editTelegramText(env, row.telegram_message_id, `✅ ОПУБЛИКОВАНО В FACEBOOK\nPublished: ${now}\nFacebook ID: ${result.postId || ""}\n\n` + formatCandidateMessage(row, false), null).catch(() => {});
   }
+  await refreshFacebookMetrics(env,postId).catch(()=>{});
   return { ok: true, message: "Опубликовано в Facebook ✅", facebookPostId: String(result.postId || ""), publishedAt: now };
 }
 

@@ -9,3 +9,6 @@ keep_vars = true
 binding = "mosaic_marketing_bot_db"
 database_name = "mosaic-marketing-bot-db"
 database_id = "534fb276-cf9e-4dc0-b57c-9add29047471"
+
+[triggers]
+crons = ["*/5 * * * *"]
