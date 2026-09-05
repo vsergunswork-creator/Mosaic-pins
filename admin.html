@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta name="color-scheme" content="dark" />
+  <title>Mosaic Pins Space - Admin</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/assets/css/admin.css" />
+</head>
+<body>
+  <div class="adminApp" id="adminApp">
+    <header class="topbar">
+      <div class="brandBlock">
+        <div class="brandMark"><img src="/assets/img/mosaic-pins-mark.png" alt="" /></div>
+        <div>
+          <div class="eyebrow">MOSAIC PINS SPACE</div>
+          <h1>Панель владельца</h1>
+        </div>
+      </div>
+      <div class="topActions">
+        <a class="ghostBtn" href="/" target="_blank" rel="noopener">Открыть магазин ↗</a>
+        <button class="ghostBtn" id="refreshBtn" type="button">↻ Обновить</button>
+        <button class="ghostBtn dangerText" id="logoutBtn" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="loginCard" id="loginCard" hidden>
+        <div class="loginIcon">🔐</div>
+        <div class="eyebrow">ЗАКРЫТЫЙ ДОСТУП</div>
+        <h2>Вход в Admin</h2>
+        <p>Код придёт на служебную почту Mosaic Pins Space. Данные Airtable и ключи никогда не попадают в браузер.</p>
+        <div id="loginStepEmail" class="loginStep">
+          <label>Admin email</label>
+          <input id="loginEmail" type="email" value="support@mosaicpins.space" autocomplete="email" />
+          <button class="primaryBtn" id="sendCodeBtn" type="button">Получить код</button>
+        </div>
+        <div id="loginStepCode" class="loginStep" hidden>
+          <label>6-значный код</label>
+          <input id="loginCode" class="codeInput" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code" />
+          <div class="loginRow">
+            <button class="primaryBtn" id="verifyCodeBtn" type="button">Войти</button>
+            <button class="ghostBtn" id="backToEmailBtn" type="button">Назад</button>
+          </div>
+        </div>
+        <div class="formMessage" id="loginMessage"></div>
+      </section>
+
+      <section id="panel" hidden>
+        <nav class="tabs" id="tabs" aria-label="Разделы">
+          <button class="tab active" data-tab="dashboard">⌂ <span>Главная</span></button>
+          <button class="tab" data-tab="orders">📦 <span>Заказы</span><b class="tabBadge" id="ordersBadge" hidden>0</b></button>
+          <button class="tab" data-tab="products">◉ <span>Товары</span></button>
+          <button class="tab" data-tab="reviews">★ <span>Отзывы</span></button>
+          <button class="tab" data-tab="content">▤ <span>Сайт</span></button>
+          <button class="tab" data-tab="materials">文 <span>Материалы</span></button>
+        </nav>
+
+        <section class="view active" data-view="dashboard">
+          <div class="pageHead">
+            <div><div class="eyebrow">ОБЗОР</div><h2>Сегодня в магазине</h2></div>
+            <div class="statusPill"><span class="statusDot"></span><span id="adminIdentity">Admin</span></div>
+          </div>
+          <div class="statsGrid" id="statsGrid">
+            <div class="statCard skeleton"></div><div class="statCard skeleton"></div><div class="statCard skeleton"></div><div class="statCard skeleton"></div>
+          </div>
+          <div class="quickGrid">
+            <button class="quickCard" data-go="orders"><span class="quickIcon">📦</span><strong>Заказы к отправке</strong><small>Добавить DHL трек и сразу отправить письмо клиенту</small></button>
+            <button class="quickCard" data-go="products"><span class="quickIcon">＋</span><strong>Добавить товар</strong><small>PIN, цена, остаток, материалы, фото и описания</small></button>
+            <button class="quickCard" data-go="reviews"><span class="quickIcon">★</span><strong>Отзывы</strong><small>Проверить, отредактировать, показать или скрыть</small></button>
+            <button class="quickCard" data-go="content"><span class="quickIcon">✎</span><strong>Контент сайта</strong><small>Hero, About, галерея и переводы без Airtable</small></button>
+          </div>
+        </section>
+
+        <section class="view" data-view="orders">
+          <div class="pageHead">
+            <div><div class="eyebrow">ORDERS</div><h2>Заказы</h2></div>
+            <button class="ghostBtn" id="reloadOrdersBtn">↻ Обновить</button>
+          </div>
+          <div class="toolbar">
+            <div class="searchBox"><span>⌕</span><input id="ordersSearch" placeholder="Order ID, имя, email, страна, tracking..." /></div>
+            <div class="segmented" id="ordersFilter">
+              <button class="active" data-filter="toship">К отправке</button>
+              <button data-filter="all">Все</button>
+              <button data-filter="shipped">Отправлены</button>
+              <button data-filter="refunded">Возвраты</button>
+            </div>
+          </div>
+          <div class="listStack" id="ordersList"></div>
+        </section>
+
+        <section class="view" data-view="products">
+          <div class="pageHead">
+            <div><div class="eyebrow">PRODUCTS</div><h2>Товары</h2></div>
+            <button class="primaryBtn compact" id="newProductBtn">＋ Новый товар</button>
+          </div>
+          <div class="toolbar">
+            <div class="searchBox"><span>⌕</span><input id="productsSearch" placeholder="PIN, название, материал, диаметр..." /></div>
+            <div class="segmented" id="productsFilter">
+              <button class="active" data-filter="all">Все</button>
+              <button data-filter="active">Активные</button>
+              <button data-filter="low">Мало</button>
+              <button data-filter="out">Нет в наличии</button>
+              <button data-filter="hidden">Скрытые</button>
+            </div>
+          </div>
+          <div class="productTableWrap">
+            <table class="productTable">
+              <thead><tr><th>Товар</th><th>Тип</th><th>Ø</th><th>Цена</th><th>Остаток</th><th>Статус</th><th></th></tr></thead>
+              <tbody id="productsBody"></tbody>
+            </table>
+          </div>
+          <div class="mobileProductList" id="mobileProducts"></div>
+        </section>
+
+        <section class="view" data-view="reviews">
+          <div class="pageHead"><div><div class="eyebrow">REVIEWS</div><h2>Отзывы</h2></div><button class="ghostBtn" id="reloadReviewsBtn">↻ Обновить</button></div>
+          <div class="toolbar"><div class="searchBox"><span>⌕</span><input id="reviewsSearch" placeholder="Имя, текст, страна..." /></div><div class="segmented" id="reviewsFilter"><button class="active" data-filter="all">Все</button><button data-filter="active">Опубликованы</button><button data-filter="hidden">Скрыты</button></div></div>
+          <div class="listStack" id="reviewsList"></div>
+        </section>
+
+        <section class="view" data-view="content">
+          <div class="pageHead"><div><div class="eyebrow">SITE CONTENT</div><h2>Контент сайта</h2></div><button class="ghostBtn" id="reloadContentBtn">↻ Обновить</button></div>
+          <div class="contentGrid" id="contentList"></div>
+        </section>
+
+        <section class="view" data-view="materials">
+          <div class="pageHead"><div><div class="eyebrow">TRANSLATIONS</div><h2>Материалы и переводы</h2></div><button class="primaryBtn compact" id="newMaterialBtn">＋ Материал</button></div>
+          <div class="materialGrid" id="materialsList"></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="drawerBackdrop" id="drawerBackdrop" hidden></div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawerHead"><div><div class="eyebrow" id="drawerEyebrow">EDIT</div><h2 id="drawerTitle">Редактирование</h2></div><button class="iconBtn" id="closeDrawerBtn" aria-label="Закрыть">×</button></div>
+    <div class="drawerBody" id="drawerBody"></div>
+  </aside>
+
+  <div class="toastHost" id="toastHost" aria-live="polite"></div>
+  <script src="/assets/js/admin.js" defer></script>
+</body>
+</html>
