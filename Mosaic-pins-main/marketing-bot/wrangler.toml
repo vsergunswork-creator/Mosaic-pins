@@ -1,0 +1,14 @@
+name = "mosaic-marketing-bot"
+main = "src/index.js"
+compatibility_date = "2026-08-29"
+
+# Preserve runtime variables created in the Cloudflare dashboard.
+keep_vars = true
+
+[[d1_databases]]
+binding = "mosaic_marketing_bot_db"
+database_name = "mosaic-marketing-bot-db"
+database_id = "534fb276-cf9e-4dc0-b57c-9add29047471"
+
+[triggers]
+crons = ["*/5 * * * *"]

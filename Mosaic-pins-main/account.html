@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="icon" href="/favicon.ico?v=20260823-step24f" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20260823-step24f" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=20260823-step24f" />
+  <link rel="manifest" href="/site.webmanifest?v=20260823-step24f" />
+    <script src="/assets/js/i18n-prepaint.js?v=20260831-step54"></script>
+<title>Account — Mosaic Pins Space</title>
+  <link rel="stylesheet" href="/assets/css/account.css?v=20260831-step52" />
+  <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-step24e-brand">
+  <script src="/assets/js/google-consent.js?v=20260831-step51d"></script>
+</head>
+<body class="mp-page-account">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="brand"><span class="dot"></span> Mosaic Pins Space</div>
+        <div class="pill">Account</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/" id="navShop">Shop</a>
+        <a class="nav-item" href="/about" id="navAbout">About</a>
+        <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
+        <a class="nav-item" href="/returns" id="navReturns">Returns</a>
+        <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
+        <a class="nav-item active" href="/account" id="navAccount">Account</a>
+      </nav>
+
+      <div class="sb-scroll">
+        <div class="sb-card">
+          <h3>Contact</h3>
+          <p><a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a></p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="top-left">
+          <div>
+            <h1 class="h-title">Account</h1>
+            <div class="sub">Mosaic Pins Space</div>
+          </div>
+        </div>
+        <div class="top-right"></div>
+      </div>
+
+      <div class="content">
+        <main class="account-shell">
+
+    <a class="back-link" href="/">← Back to Shop</a>
+
+    <section class="account-card" aria-labelledby="accountTitle">
+      <div class="brand"><span class="dot"></span> Mosaic Pins Space</div>
+
+      <div id="accountLoading" class="account-state">
+        <h1 id="accountTitle">My Account</h1>
+        <p class="muted">Checking your session…</p>
+      </div>
+
+      <div id="accountGuest" class="account-state" hidden>
+        <h1 data-i18n="signIn">Sign in</h1>
+        <p class="muted" data-i18n="intro">Enter your email and we’ll send you a 6-digit sign-in code. No password needed.</p>
+
+        <form id="emailForm" class="account-form">
+          <label for="accountEmail" data-i18n="emailLabel">Email address</label>
+          <input id="accountEmail" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          <button id="sendCodeBtn" class="primary-btn" type="submit" data-i18n="sendCode">Send sign-in code</button>
+        </form>
+
+        <form id="codeForm" class="account-form" hidden>
+          <div class="sent-row">
+            <span class="muted" data-i18n="sentTo">Code sent to</span>
+            <strong id="sentEmail"></strong>
+          </div>
+          <label for="accountCode" data-i18n="codeLabel">6-digit code</label>
+          <input id="accountCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="6" pattern="[0-9]{6}" required placeholder="000000" />
+          <button id="verifyCodeBtn" class="primary-btn" type="submit" data-i18n="verify">Sign in</button>
+          <button id="changeEmailBtn" class="secondary-btn" type="button" data-i18n="changeEmail">Use another email</button>
+        </form>
+
+        <div id="accountMessage" class="message" role="status" aria-live="polite"></div>
+
+        <div class="account-info-note">
+          <strong data-i18n="noRegistrationTitle">No registration required</strong>
+          <p data-i18n="noRegistrationText">You can shop without signing in. The email used at checkout stays linked to your order. If you later sign in with the same email, your previous orders will automatically appear in My Orders.</p>
+        </div>
+      </div>
+
+      <div id="accountSignedIn" class="account-state" hidden>
+        <div class="success-mark">✓</div>
+        <h1 data-i18n="signedIn">You’re signed in</h1>
+        <p class="muted" data-i18n="signedInAs">Signed in as</p>
+        <div id="signedInEmail" class="email-chip"></div>
+
+        <section id="ordersSection" class="orders-section" hidden aria-live="polite">
+          <div class="orders-heading">
+            <div>
+              <div id="ordersEyebrow" class="orders-eyebrow"></div>
+              <h2 id="ordersTitle"></h2>
+            </div>
+            <span id="ordersCount" class="orders-count"></span>
+          </div>
+
+          <div id="ordersLoading" class="orders-placeholder"></div>
+          <div id="ordersEmpty" class="orders-placeholder" hidden></div>
+          <div id="ordersList" class="orders-list"></div>
+          <div id="ordersFootnote" class="orders-footnote"></div>
+        </section>
+
+        <button id="logoutBtn" class="secondary-btn" type="button" data-i18n="logout">Sign out</button>
+      </div>
+    </section>
+  
+        </main>
+      </div>
+
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span class="dot" aria-hidden="true"></span>
+            <span>© <span id="year"></span> Mosaic Pins Space</span>
+          </div>
+          <div class="footerLinks">
+            <a href="/">Shop</a>
+            <a href="/about">About</a>
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns</a>
+            <a href="/reviews">Reviews</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/impressum">Impressum</a>
+            <a href="mailto:support@mosaicpins.space">Support</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="/assets/js/account.js?v=20260831-step52"></script>
+  <script src="/assets/js/site-common.js?v=20260831-step54"></script>
+</body>
+</html>

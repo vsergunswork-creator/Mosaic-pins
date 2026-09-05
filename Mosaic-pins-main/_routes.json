@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "include": [
+    "/api/*",
+    "/p/*",
+    "/product",
+    "/sitemap.xml",
+    "/robots.txt",
+    "/mosaic-pins-for-knives",
+    "/knife-handle-mosaic-pins",
+    "/lanyard-pins-for-knives",
+    "/glow-mosaic-pins"
+  ],
+  "exclude": []
+}

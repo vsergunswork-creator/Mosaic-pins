@@ -1,0 +1,648 @@
+:root{
+  --bg:#0b0d11;
+  --text:#e9eef7;
+  --muted:#a8b3c7;
+  --line:rgba(255,255,255,.08);
+  --shadow:0 12px 30px rgba(0,0,0,.45);
+  --r:18px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+[hidden]{display:none!important}
+
+body{
+  margin:0;
+  font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  overflow:hidden;
+  position:relative;
+  isolation:isolate;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:-20vh -20vw;
+  z-index:-1;
+  pointer-events:none;
+  background:
+    radial-gradient(1100px 700px at 35% -10%,rgba(50,220,150,.25),transparent 55%),
+    radial-gradient(900px 600px at 75% 10%,rgba(120,90,255,.22),transparent 55%),
+    var(--bg);
+  filter:blur(18px) saturate(1.05);
+}
+
+*{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,.18) rgba(0,0,0,.25);
+}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track{background:rgba(0,0,0,.25);border-radius:999px}
+*::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:999px;border:2px solid rgba(0,0,0,.25)}
+*::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.25)}
+
+/* Same desktop shell as the rest of Mosaic Pins */
+.app{
+  display:grid;
+  grid-template-columns:280px minmax(0,1fr);
+  height:100vh;
+  gap:16px;
+  padding:16px;
+}
+.sidebar{
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.sb-top{
+  padding:18px 18px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex:0 0 auto;
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.4px}
+.dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#60a5fa)}
+.pill{
+  padding:8px 10px;
+  border-radius:999px;
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--line);
+  color:var(--muted);
+  font-size:12px;
+  white-space:nowrap;
+}
+.sb-nav{padding:6px;display:grid;gap:6px;flex:0 0 auto}
+.nav-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:12px;
+  color:var(--muted);
+  text-decoration:none;
+  border:1px solid transparent;
+}
+.nav-item:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.nav-item.active{
+  background:rgba(34,197,94,.12);
+  border-color:rgba(34,197,94,.22);
+  color:var(--text);
+}
+.sb-scroll{flex:1 1 auto;min-height:0;overflow:auto;padding:10px 6px}
+.sb-card{
+  margin:0 6px 10px;
+  padding:12px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.22);
+}
+.sb-card h3{margin:0 0 6px;font-size:13px;font-weight:950}
+.sb-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.4}
+.sb-card a{color:var(--text);text-decoration:none;opacity:.9}
+
+.main{
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  min-height:0;
+}
+.topbar{
+  padding:calc(16px + env(safe-area-inset-top)) 18px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(34,197,94,.14),rgba(0,0,0,0));
+  flex:0 0 auto;
+}
+.top-left{display:flex;align-items:center;gap:10px;min-width:0}
+.h-title{font-weight:900;font-size:18px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{color:var(--muted);font-size:12px;margin-top:4px}
+.top-right{display:flex;align-items:center;gap:10px;min-height:44px}
+
+.content{
+  padding:22px;
+  overflow:auto;
+  min-height:0;
+  flex:1 1 auto;
+}
+
+/* Account workspace */
+.account-shell{
+  width:min(1320px,100%);
+  margin:0 auto;
+  position:relative;
+}
+.back-link{display:none}
+
+.account-card{
+  width:100%;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  backdrop-filter:none;
+}
+.account-card>.brand{display:none}
+
+.account-state h1{font-size:30px;line-height:1.1;margin:0 0 10px}
+.muted{color:var(--muted);line-height:1.55}
+
+/* Loading and sign-in stay cosy, but live inside the normal site shell. */
+/* Center the sign-in/loading card inside the right Account workspace.
+   Signed-in My Orders layout remains untouched. */
+.content:has(#accountGuest:not([hidden])),
+.content:has(#accountLoading:not([hidden])){
+  display:grid;
+  place-items:center;
+}
+
+.account-shell:has(#accountGuest:not([hidden])),
+.account-shell:has(#accountLoading:not([hidden])){
+  width:100%;
+  display:grid;
+  place-items:center;
+}
+
+#accountLoading,
+#accountGuest{
+  width:min(560px,100%);
+  margin:0;
+  padding:30px;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.03));
+  box-shadow:var(--shadow);
+}
+
+.account-form{display:grid;gap:10px;margin-top:24px}
+.account-form label{font-size:13px;font-weight:850;color:#dce4ef}
+.account-form input{
+  width:100%;
+  height:50px;
+  border-radius:13px;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.28);
+  color:var(--text);
+  outline:none;
+  padding:0 14px;
+  font:700 15px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+.account-form input:focus{
+  border-color:rgba(34,197,94,.55);
+  box-shadow:0 0 0 3px rgba(34,197,94,.09);
+}
+#accountCode{font-size:22px;letter-spacing:7px;text-align:center}
+
+.primary-btn,.secondary-btn{
+  min-height:46px;
+  border-radius:12px;
+  font-weight:900;
+  cursor:pointer;
+  font-size:14px;
+}
+.primary-btn{
+  border:1px solid rgba(34,197,94,.45);
+  background:rgba(34,197,94,.18);
+  color:var(--text);
+}
+.primary-btn:hover{background:rgba(34,197,94,.25)}
+.secondary-btn{
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.045);
+  color:var(--text);
+}
+.secondary-btn:hover{background:rgba(255,255,255,.075)}
+button:disabled{opacity:.55;cursor:wait}
+.sent-row{display:flex;gap:6px;flex-wrap:wrap;font-size:13px;margin-bottom:5px}
+.message{min-height:22px;margin-top:16px;font-size:13px;color:var(--muted)}
+.message.error{color:#fca5a5}
+.message.success{color:#86efac}
+
+.account-info-note{
+  margin-top:16px;
+  padding:14px 15px;
+  border-radius:13px;
+  border:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.025);
+}
+.account-info-note strong{
+  display:block;
+  color:#dce6f3;
+  font-size:12px;
+  font-weight:900;
+  line-height:1.35;
+}
+.account-info-note p{
+  margin:6px 0 0;
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.55;
+}
+
+/* Signed-in view: no giant check mark, no separate-login-page feel. */
+#accountSignedIn{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px 16px;
+  align-items:center;
+}
+#accountSignedIn>.success-mark,
+#accountSignedIn>h1{display:none}
+#accountSignedIn>.muted{
+  grid-column:1;
+  margin:0;
+  font-size:11px;
+  font-weight:850;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+}
+.email-chip{
+  grid-column:1;
+  margin:0;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  width:max-content;
+  max-width:100%;
+  padding:10px 14px;
+  border-radius:12px;
+  background:rgba(0,0,0,.24);
+  border:1px solid var(--line);
+  font-weight:850;
+  font-size:13px;
+  overflow-wrap:anywhere;
+}
+#logoutBtn{
+  grid-column:2;
+  grid-row:1 / span 2;
+  width:auto;
+  min-width:112px;
+  padding:0 18px;
+}
+
+/* My Orders is the main content, not a tiny card inside a card. */
+.orders-section{
+  grid-column:1 / -1;
+  margin:18px 0 0;
+  padding-top:20px;
+  border-top:1px solid var(--line);
+}
+.orders-heading{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:16px;
+}
+.orders-eyebrow{
+  min-height:16px;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+}
+.orders-heading h2{
+  margin:3px 0 0;
+  font-size:26px;
+  line-height:1.15;
+}
+.orders-count{
+  flex:0 0 auto;
+  min-width:34px;
+  height:32px;
+  padding:0 10px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  border:1px solid rgba(34,197,94,.25);
+  background:rgba(34,197,94,.10);
+  color:#9af0b7;
+  font-size:12px;
+  font-weight:900;
+}
+.orders-placeholder{
+  padding:18px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:rgba(255,255,255,.025);
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5;
+}
+.orders-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(440px,1fr));
+  gap:16px;
+}
+.order-card{
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(0,0,0,.18));
+  box-shadow:0 14px 34px rgba(0,0,0,.22);
+}
+.order-card-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:16px 18px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(34,197,94,.075),rgba(0,0,0,0));
+}
+.order-number{font-size:15px;font-weight:950;letter-spacing:.01em}
+.order-date{margin-top:4px;color:var(--muted);font-size:11px}
+.order-status{
+  flex:0 0 auto;
+  padding:7px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.05);
+  color:#dbe5f3;
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.order-status[data-status="paid"],
+.order-status[data-status="shipped"]{
+  border-color:rgba(34,197,94,.25);
+  background:rgba(34,197,94,.10);
+  color:#9af0b7;
+}
+.order-status[data-status="refunded"],
+.order-status[data-status="cancelled"],
+.order-status[data-status="canceled"]{
+  border-color:rgba(248,113,113,.25);
+  background:rgba(248,113,113,.10);
+  color:#fecaca;
+}
+
+.order-items{display:grid;gap:12px;padding:16px 18px 6px}
+.order-item{
+  display:grid;
+  grid-template-columns:92px minmax(0,1fr);
+  gap:15px;
+  align-items:center;
+}
+.order-item-image,
+.order-item-image-fallback{
+  width:92px;
+  height:92px;
+  border-radius:15px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.035);
+}
+.order-item-image{display:block;object-fit:cover}
+.order-item-image-fallback{display:grid;place-items:center;color:var(--muted);font-size:22px}
+.order-item-title{font-size:14px;font-weight:950;line-height:1.3}
+.order-item-pin{margin-top:4px;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.order-item-meta{
+  margin-top:8px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  color:#cad4e4;
+  font-size:11px;
+}
+.order-item-meta span{
+  padding:5px 8px;
+  border-radius:9px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
+.order-review-btn,
+.order-review-status{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:10px;
+  min-height:34px;
+  padding:7px 11px;
+  border-radius:10px;
+  font-size:11px;
+  font-weight:900;
+  width:max-content;
+  max-width:100%;
+}
+.order-review-btn{
+  border:1px solid rgba(34,197,94,.28);
+  background:rgba(34,197,94,.09);
+  color:#b9f6cc;
+  text-decoration:none;
+}
+.order-review-btn:hover{background:rgba(34,197,94,.15)}
+.order-review-status{
+  border:1px solid rgba(148,163,184,.18);
+  background:rgba(148,163,184,.07);
+  color:#aeb9c9;
+  cursor:default;
+  user-select:none;
+}
+
+.order-summary{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;
+  padding:14px 18px 18px;
+}
+.order-detail{
+  min-width:0;
+  padding:11px 12px;
+  border-radius:12px;
+  background:rgba(255,255,255,.028);
+  border:1px solid rgba(255,255,255,.06);
+}
+.order-detail-label{
+  color:var(--muted);
+  font-size:10px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.order-detail-value{
+  margin-top:5px;
+  color:var(--text);
+  font-size:12px;
+  font-weight:850;
+  overflow-wrap:anywhere;
+}
+.orders-footnote{margin-top:12px;color:var(--muted);font-size:11px;line-height:1.45}
+
+.order-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  padding:0 18px 18px;
+}
+.order-invoice-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:36px;
+  padding:8px 12px;
+  border-radius:10px;
+  border:1px solid rgba(34,197,94,.28);
+  background:rgba(34,197,94,.09);
+  color:#b9f6cc;
+  text-decoration:none;
+  font-size:11px;
+  font-weight:900;
+}
+.order-invoice-btn:hover{background:rgba(34,197,94,.15)}
+
+/* Footer matches the rest of the site. */
+.footer{flex:0 0 auto;padding:10px 18px 14px;border-top:1px solid var(--line)}
+.footerRow{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.footerBrand{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px}
+.footerLinks{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.footerLinks a{
+  color:var(--muted);
+  text-decoration:none;
+  font-size:10px;
+  padding:6px 8px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.025);
+}
+.footerLinks a:hover{color:var(--text);background:rgba(255,255,255,.05)}
+
+/* Preserve the compact account presentation on phones/tablets.
+   The desktop redesign intentionally starts only above 980px. */
+@media(max-width:980px){
+  body{overflow:auto}
+  body::before{
+    background:
+      radial-gradient(900px 600px at 30% 0%,rgba(50,220,150,.20),transparent 55%),
+      radial-gradient(800px 560px at 80% 10%,rgba(120,90,255,.18),transparent 55%),
+      var(--bg);
+    filter:none;
+  }
+  .app{display:block;height:auto;padding:0}
+  .sidebar,.topbar,.footer{display:none!important}
+  .main{
+    min-height:100vh;
+    border:0;
+    border-radius:0;
+    box-shadow:none;
+    background:transparent;
+    overflow:visible;
+  }
+  .content{padding:0;overflow:visible}
+  .account-shell{
+    min-height:100vh;
+    display:grid;
+    place-items:center;
+    padding:72px 14px 24px;
+  }
+  .back-link{
+    display:block;
+    position:absolute;
+    top:20px;
+    left:16px;
+    color:var(--muted);
+    text-decoration:none;
+    font-weight:800;
+    font-size:14px;
+  }
+  .account-card{
+    width:min(100%,480px);
+    padding:22px 18px;
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.035));
+    box-shadow:0 24px 70px rgba(0,0,0,.45);
+    backdrop-filter:blur(16px);
+  }
+  .account-card>.brand{display:flex;margin-bottom:26px}
+  #accountLoading,#accountGuest{
+    width:100%;
+    margin:0;
+    padding:0;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
+  }
+  #accountSignedIn{
+    display:block;
+  }
+  #accountSignedIn>.success-mark{display:none}
+  #accountSignedIn>h1{display:block;font-size:27px;margin:0 0 10px}
+  #accountSignedIn>.muted{margin:0;color:var(--muted);font-size:inherit;font-weight:inherit;letter-spacing:0;text-transform:none}
+  .email-chip{margin:10px 0 20px;width:100%}
+  #logoutBtn{width:100%;min-width:0}
+  .orders-section{margin:22px 0 0;padding-top:20px}
+  .orders-heading h2{font-size:21px}
+  .orders-list{grid-template-columns:1fr;gap:12px}
+  .order-item{grid-template-columns:68px minmax(0,1fr);gap:12px}
+  .order-item-image,.order-item-image-fallback{width:68px;height:68px;border-radius:13px}
+  .order-summary{grid-template-columns:1fr;gap:8px;padding:12px 14px 14px}
+  .order-card-head{padding:14px}
+  .order-items{padding:12px 14px 4px}
+}
+
+@media(min-width:981px){
+  #accountGuest{
+    min-height:300px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+  }
+  #accountGuest h1{
+    font-size:34px;
+  }
+}
+
+
+/* True desktop centering of the sign-in card inside the right workspace.
+   The full account card becomes the centering canvas; signed-in My Orders is untouched. */
+@media(min-width:981px){
+  .content:has(#accountGuest:not([hidden])),
+  .content:has(#accountLoading:not([hidden])){
+    display:flex;
+    align-items:stretch;
+    justify-content:stretch;
+  }
+
+  .content:has(#accountGuest:not([hidden])) .account-shell,
+  .content:has(#accountLoading:not([hidden])) .account-shell{
+    flex:1 1 auto;
+    width:100%;
+    max-width:none;
+    margin:0;
+    display:flex;
+    align-items:stretch;
+  }
+
+  .content:has(#accountGuest:not([hidden])) .account-card,
+  .content:has(#accountLoading:not([hidden])) .account-card{
+    flex:1 1 auto;
+    width:100%;
+    display:grid;
+    place-items:center;
+  }
+
+  #accountGuest,
+  #accountLoading{
+    margin:0;
+  }
+}

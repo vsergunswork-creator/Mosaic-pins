@@ -1,0 +1,209 @@
+<!-- about.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="icon" href="/favicon.ico?v=20260823-step24f" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20260823-step24f" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=20260823-step24f" />
+  <link rel="manifest" href="/site.webmanifest?v=20260823-step24f" />
+    <script src="/assets/js/i18n-prepaint.js?v=20260831-step54"></script>
+<title>About — Mosaic Pins Space</title>
+
+  <link rel="stylesheet" href="/assets/css/about.css?v=20260823-step24d">
+  <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-step24e-brand">
+  <script src="/assets/js/google-consent.js?v=20260831-step51d"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="brand"><span class="dot"></span> Mosaic Pins Space</div>
+        <div class="pill">About</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/" id="navShop">Shop</a>
+        <a class="nav-item active" href="/about" id="navAbout">About</a>
+        <a class="nav-item" href="/shipping" id="navShipping">Shipping</a>
+        <a class="nav-item" href="/returns" id="navReturns">Returns</a>
+        <a class="nav-item" href="/reviews" id="navReviews">Reviews</a>
+      </nav>
+
+      <div class="sb-scroll">
+
+        <div class="sb-card">
+          <h3>Contact</h3>
+          <p>
+            <a href="mailto:support@mosaicpins.space">support@mosaicpins.space</a>
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="top-left">
+          <div>
+            <h1 class="h-title" id="topTitle">About</h1>
+            <div class="sub" id="topSub">Mosaic Pins Space</div>
+          </div>
+        </div>
+
+        <div class="top-right">
+          <button class="cartBtn" id="openCart" type="button" title="Cart">
+            🛒 Cart <span class="cartBadge" id="cartBadge">0</span>
+          </button>
+
+          <select class="currency" id="currency" title="Currency" aria-label="Currency">
+            <option value="EUR">EUR €</option>
+            <option value="USD">USD $</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="content">
+        <section class="hero" id="hero">
+          <div class="heroImg" id="heroImg"></div>
+          <div class="heroOverlay"></div>
+          <div class="heroInner">
+            <h2 class="heroTitle" id="heroTitle">Mosaic Pins Space</h2>
+            <p class="heroSubtitle" id="heroSubtitle">Loading…</p>
+          </div>
+        </section>
+
+        <div class="aboutWrap">
+          <section class="panel">
+            <div class="panelHead">
+              <h3 class="panelTitle">About us</h3>
+              <div class="hint"></div>
+            </div>
+            <div class="panelBody" id="aboutBody">Loading…</div>
+          </section>
+
+          <section class="panel">
+            <div class="panelHead">
+              <h3 class="panelTitle">Gallery</h3>
+              <div class="hint" id="galHint">—</div>
+            </div>
+
+            <div class="carousel">
+              <button class="carBtn carPrev" id="prevBtn" type="button" aria-label="Previous">‹</button>
+              <button class="carBtn carNext" id="nextBtn" type="button" aria-label="Next">›</button>
+
+              <div class="viewport" id="viewport">
+                <div class="track" id="track"></div>
+              </div>
+
+              <div class="dots" id="dots"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ✅ Footer (stay at bottom) -->
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span class="dot" aria-hidden="true"></span>
+            <span>© <span id="year"></span> Mosaic Pins Space</span>
+          </div>
+
+          <div class="footerLinks">
+            <a href="/">Shop</a>
+            <a href="/about">About</a>
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns</a>
+            <a href="/reviews">Reviews</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/impressum">Impressum</a>
+            <a href="mailto:support@mosaicpins.space">Support</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightboxBack" id="lightboxBack"></div>
+  <div class="lightbox" id="lightbox">
+    <div class="lightboxCard">
+      <div class="lbTop">
+        <div class="lbPill" id="lbCounter">—</div>
+        <button class="lbClose" id="lbClose" type="button" aria-label="Close">✕</button>
+      </div>
+
+      <button class="lbNav lbPrev" id="lbPrev" type="button" aria-label="Previous">‹</button>
+      <button class="lbNav lbNext" id="lbNext" type="button" aria-label="Next">›</button>
+
+      <img class="lightboxImg" id="lbImg" alt="Gallery large" />
+    </div>
+  </div>
+
+  <!-- ✅ CART DRAWER (обновлено как в index) -->
+  <div class="cartBack" id="cartBack"></div>
+  <div class="cartDrawer" id="cartDrawer">
+    <div class="cartHead">
+      <div class="cartTitle">Cart</div>
+      <button class="cartClose" id="closeCart" type="button">✕</button>
+    </div>
+
+    <div class="cartBody" id="cartBody"></div>
+
+    <div class="cartFoot">
+      <div class="cartShippingPanel">
+        <label class="cartShippingLabel" for="shipCountry">Shipping country</label>
+        <select class="cartShippingSelect" id="shipCountry" aria-label="Shipping country">
+          <option value="">Loading DHL countries…</option>
+        </select>
+        <div class="shippingService" id="shippingService">Choose a destination to calculate DHL tracked shipping.</div>
+      </div>
+
+      <div class="cartSumRows">
+        <div class="cartSumRow">
+          <div>Subtotal</div>
+          <div id="cartSubtotal">—</div>
+        </div>
+        <div class="cartSumRow">
+          <div>Shipping</div>
+          <div id="cartShipping">—</div>
+        </div>
+        <div class="cartSumRow cartGrandTotal">
+          <div>Total</div>
+          <div id="cartTotal">—</div>
+        </div>
+      </div>
+
+      <div class="cartActions">
+        <div class="actionRow">
+          <!-- PayPal button as "button" -->
+          <div class="ppWrap btn2 actionBtn" id="ppWrap">
+            <div id="paypal-button-container"></div>
+          </div>
+
+          <!-- Stripe Checkout -->
+          <button class="btn2 actionBtn" id="cartCheckout" type="button">Pay by card</button>
+
+          <!-- Clear cart -->
+          <button class="btn2 actionBtn" id="cartClear" type="button">Clear</button>
+        </div>
+
+        <div class="ppNote" id="ppNote">PayPal is loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <div style="font-weight:800" id="toastTitle">Notice</div>
+    <small id="toastMsg">—</small>
+  </div>
+
+  <!-- PayPal SDK placeholder -->
+  <script id="pp-sdk" data-loaded="0"></script>
+
+<script src="/assets/js/shipping-ui.js"></script>
+  <script src="/assets/js/about.js?v=20260901-step55-about-banner-mobile-ratio"></script>
+  <script src="/assets/js/site-common.js?v=20260831-step54"></script>
+</body>
+</html>

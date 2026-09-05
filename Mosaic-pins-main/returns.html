@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="icon" href="/favicon.ico?v=20260823-step24f" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20260823-step24f" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=20260823-step24f" />
+  <link rel="manifest" href="/site.webmanifest?v=20260823-step24f" />
+    <script src="/assets/js/i18n-prepaint.js?v=20260901-step56"></script>
+<title>Returns • Mosaic Pins Space</title>
+  <link rel="stylesheet" href="/assets/css/returns.css">
+  <link rel="stylesheet" href="/assets/css/ui-unify.css?v=20260823-step24e-brand">
+
+  <script id="returnPolicyStructuredData" type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "OnlineStore",
+    "@id": "https://mosaicpins.space/#store",
+    "name": "Mosaic Pins Space",
+    "url": "https://mosaicpins.space/",
+    "hasMerchantReturnPolicy": {
+      "@type": "MerchantReturnPolicy",
+      "merchantReturnLink": "https://mosaicpins.space/returns"
+    }
+  }
+  </script>
+  <script src="/assets/js/google-consent.js?v=20260831-step51d"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sb-top">
+        <div class="brand"><span class="dot"></span> Mosaic Pins Space</div>
+        <div class="pill">Info</div>
+      </div>
+
+      <nav class="sb-nav">
+        <a class="nav-item" href="/">Shop</a>
+        <a class="nav-item" href="/about">About</a>
+        <a class="nav-item" href="/shipping">Shipping</a>
+        <a class="nav-item active" href="/returns">Returns</a>
+        <a class="nav-item" href="/reviews">Reviews</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 class="h-title">Returns &amp; Refunds</h1>
+          <div class="sub">30-day returns and refunds • Clear conditions for every order</div>
+        </div>
+
+        <a class="btn backBtn" href="/">← Back to Shop</a>
+      </div>
+
+      <div class="content">
+        <p class="subtext">
+          Unused items in their original condition can be returned within 30 days of receipt. The buyer is responsible for return shipping costs. Damaged, defective or incorrectly shipped items are handled separately.
+        </p>
+
+        <div class="grid">
+          <div class="card">
+            <h2>30-day return window</h2>
+            <p>You may request a return within 30 days of delivery. Items must be unused, uncut, uninstalled and in their original condition.</p>
+          </div>
+
+          <div class="card">
+            <h2>Damaged / wrong item</h2>
+            <p>If your order arrives damaged, defective or you receive the wrong item, contact us within 30 days of delivery and include your order details and photos.</p>
+            <p>Where applicable, we will arrange a replacement or refund and cover the reasonable return shipping cost caused by our error.</p>
+          </div>
+
+          <div class="card">
+            <h2>Return method &amp; shipping cost</h2>
+            <p>Returns are accepted by mail. For standard returns, the buyer is responsible for return shipping costs. We recommend a tracked return service.</p>
+            <p>No restocking fee is charged.</p>
+          </div>
+
+          <div class="card">
+            <h2>Refunds</h2>
+            <p>After the returned item is received and checked, approved refunds are sent to the original payment method within up to 7 days. Your bank or payment provider may need additional processing time.</p>
+          </div>
+
+          <div class="card">
+            <h2>How to return an item</h2>
+            <p id="returnInstructionsText">Before returning an item, email support@mosaicpins.space with your order ID and the reason for the return. We will confirm the return instructions.</p>
+            <p>Return address: Mosaic Pins Space / Vitalijs Serguns, Tribseer Damm 50, 18437 Stralsund, Germany.</p>
+          </div>
+
+          <div class="card">
+            <h2>Exceptions</h2>
+            <p>Custom or personalized items are not eligible for standard returns unless they arrive damaged, defective or incorrect. Your statutory consumer rights remain unaffected.</p>
+            <p>This exception applies only to items made to order or personalized specifically for the buyer. All standard products in our catalog are covered by our regular 30-day return policy.</p>
+          </div>
+        </div>
+
+        <div class="note">
+          Questions about a return?
+          <small>Contact: <a href="mailto:support@mosaicpins.space" style="color:inherit; text-decoration:none; opacity:.95;">support@mosaicpins.space</a></small>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <div class="footerRow">
+          <div class="footerBrand">
+            <span class="dot" aria-hidden="true"></span>
+            <span>© <span id="year"></span> Mosaic Pins Space</span>
+          </div>
+
+          <div class="footerLinks">
+            <a href="/">Shop</a>
+            <a href="/about">About</a>
+            <a href="/shipping">Shipping</a>
+            <a href="/returns">Returns</a>
+            <a href="/reviews">Reviews</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/impressum">Impressum</a>
+            <a href="mailto:support@mosaicpins.space">Support</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="/assets/js/returns.js"></script>
+  <script>
+    (() => {
+      const el = document.getElementById("returnInstructionsText");
+      if (!el) return;
+      let lang = "en";
+      try { lang = String(localStorage.getItem("mp_language") || "en").toLowerCase(); } catch (_) {}
+      const copy = {
+        en: "Before returning an item, email support@mosaicpins.space with your order ID and the reason for the return. We will confirm the return instructions.",
+        de: "Sende vor der Rückgabe eine E-Mail an support@mosaicpins.space und gib deine Bestellnummer sowie den Rückgabegrund an. Wir bestätigen dir anschließend die Rückgabeanweisungen.",
+        ru: "Перед возвратом напишите на support@mosaicpins.space, укажите номер заказа и причину возврата. Мы подтвердим инструкции по возврату.",
+        fr: "Avant de retourner un article, écrivez à support@mosaicpins.space en indiquant votre numéro de commande et le motif du retour. Nous vous confirmerons les instructions de retour."
+      };
+      el.textContent = copy[lang] || copy.en;
+    })();
+  </script>
+  <script src="/assets/js/site-common.js?v=20260903-step59"></script>
+</body>
+</html>
