@@ -4,9 +4,9 @@ import { invalidateProductCache } from "../_airtable-products.js";
 import { clearContentCache } from "./content.js";
 
 const TARGETS = {
-  products: { tableEnv: "AIRTABLE_TABLE_NAME", table: "Products", fields: new Set(["Images"]), max: 10 * 1024 * 1024 },
-  content: { tableEnv: "AIRTABLE_CONTENT_TABLE_NAME", table: "SiteContent", fields: new Set(["Hero Image", "Gallery"]), max: 10 * 1024 * 1024 },
-  reviews: { tableEnv: "AIRTABLE_REVIEWS_TABLE", table: "Reviews", fields: new Set(["Photos"]), max: 10 * 1024 * 1024 },
+  products: { tableEnv: "AIRTABLE_TABLE_NAME", table: "Products", fields: new Set(["Images"]), max: 5 * 1024 * 1024 },
+  content: { tableEnv: "AIRTABLE_CONTENT_TABLE_NAME", table: "SiteContent", fields: new Set(["Hero Image", "Gallery"]), max: 5 * 1024 * 1024 },
+  reviews: { tableEnv: "AIRTABLE_REVIEWS_TABLE", table: "Reviews", fields: new Set(["Photos"]), max: 5 * 1024 * 1024 },
 };
 
 export async function onRequestPost({ request, env }) {
@@ -21,7 +21,7 @@ export async function onRequestPost({ request, env }) {
     const cfg = TARGETS[target];
     if (!cfg || !cfg.fields.has(field)) return json({ ok: false, error: "Invalid attachment target" }, 400);
     if (!recordId || !file || typeof file.arrayBuffer !== "function" || Number(file.size || 0) <= 0) return json({ ok: false, error: "Missing file" }, 400);
-    if (Number(file.size || 0) > cfg.max) return json({ ok: false, error: "File is too large (max 10 MB)" }, 400);
+    if (Number(file.size || 0) > cfg.max) return json({ ok: false, error: "File is too large (max 5 MB)" }, 400);
     if (!String(file.type || "").startsWith("image/")) return json({ ok: false, error: "Only image files are allowed here" }, 400);
     const table = String(env[cfg.tableEnv] || cfg.table);
     const data = await uploadAttachment(env, table, recordId, field, file);
