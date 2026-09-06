@@ -1,4 +1,4 @@
-const DEFAULT_ADMIN_EMAILS = ["support@mosaicpins.space", "v.sergun.work@gmail.com"];
+const DEFAULT_ADMIN_EMAILS = ["support@mosaicpins.space", "v.serguns.work@gmail.com"];
 
 export async function requireAdmin(request, env, { write = false } = {}) {
   if (!env?.DB) return { ok: false, response: json({ ok: false, error: "DB binding is not configured" }, 500) };
