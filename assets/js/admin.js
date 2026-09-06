@@ -9,7 +9,7 @@
 
   function bind(){
     $("#sendCodeBtn").onclick=sendCode; $("#verifyCodeBtn").onclick=verifyCode; $("#backToEmailBtn").onclick=()=>showCodeStep(false);
-    $("#logoutBtn").onclick=logout; $("#refreshBtn").onclick=()=>reloadCurrent(true); $("#closeDrawerBtn").onclick=closeDrawer; $("#drawerBackdrop").onclick=closeDrawer;
+    $("#logoutBtn").onclick=logout; $("#refreshBtn").onclick=refreshAdmin; $("#closeDrawerBtn").onclick=closeDrawer; $("#drawerBackdrop").onclick=closeDrawer;
     $$(".tab").forEach(b=>b.onclick=()=>go(b.dataset.tab)); $$("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go));
     $("#ordersSearch").oninput=renderOrders; $("#productsSearch").oninput=renderProducts; $("#reviewsSearch").oninput=renderReviews;
     bindSegment("#ordersFilter",v=>{S.orderFilter=v;renderOrders()}); bindSegment("#productsFilter",v=>{S.productFilter=v;renderProducts()}); bindSegment("#reviewsFilter",v=>{S.reviewFilter=v;renderReviews()});
@@ -32,6 +32,21 @@
   function showCodeStep(on){ $("#loginStepEmail").hidden=on; $("#loginStepCode").hidden=!on; }
   function setMsg(text,type=""){const el=$("#loginMessage");el.textContent=text||"";el.className="formMessage "+type}
   async function logout(){ try{await api("/api/account/logout",{method:"POST",body:{},admin:false})}catch(_){} location.reload() }
+
+  async function refreshAdmin(){
+    const btn=$("#refreshBtn");
+    busyBtn(btn,true,"↻ Обновляю...");
+    try{
+      S.loaded={};
+      if(S.tab==="dashboard") await loadOverview(true);
+      else await Promise.all([reloadCurrent(true),loadOverview(true)]);
+      toast("Данные обновлены","ok");
+    }catch(e){
+      toast(e.message||"Не удалось обновить данные","error");
+    }finally{
+      busyBtn(btn,false);
+    }
+  }
 
   async function go(tab){ S.tab=tab; $$(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab)); $$(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===tab)); await reloadCurrent(false); }
   async function reloadCurrent(force){ if(S.tab==="dashboard")return loadOverview(force); if(S.tab==="orders")return loadOrders(force); if(S.tab==="products")return loadProducts(force); if(S.tab==="reviews")return loadReviews(force); if(S.tab==="content")return loadContent(force); if(S.tab==="materials")return loadMaterials(force); }
@@ -111,7 +126,7 @@
   function miniField(name,value){return `<div class="field"><label>${esc(name)}</label><input name="${esc(name)}" value="${esc(value)}"></div>`}
   function readNamedFields(root){const out={};$$('[name]',root).forEach(el=>{if(el.type==="checkbox")return;if(el.name==="Materials")return;out[el.name]=el.value});return out}
 
-  async function api(url,opt={}){const method=opt.method||"GET";const init={method,credentials:"same-origin",headers:{Accept:"application/json"}};if(opt.admin!==false&&method!=="GET")init.headers["x-mp-admin"]="1";if(opt.formData)init.body=opt.formData;else if(opt.body!==undefined){init.headers["Content-Type"]="application/json";init.body=JSON.stringify(opt.body)}const r=await fetch(url,init);const data=await r.json().catch(()=>({}));if(!r.ok||data.ok===false)throw new Error(data.error||`HTTP ${r.status}`);return data}
+  async function api(url,opt={}){const method=opt.method||"GET";const init={method,credentials:"same-origin",headers:{Accept:"application/json"}};if(method==="GET")init.cache="no-store";if(opt.admin!==false&&method!=="GET")init.headers["x-mp-admin"]="1";if(opt.formData)init.body=opt.formData;else if(opt.body!==undefined){init.headers["Content-Type"]="application/json";init.body=JSON.stringify(opt.body)}const r=await fetch(url,init);const data=await r.json().catch(()=>({}));if(!r.ok||data.ok===false)throw new Error(data.error||`HTTP ${r.status}`);return data}
   function toast(text,type=""){const el=document.createElement("div");el.className="toast "+type;el.textContent=text;$("#toastHost").append(el);setTimeout(()=>el.remove(),3600)}
   function empty(sel,msg){const el=$(sel);if(el)el.innerHTML=`<div class="emptyState">${esc(msg||"Нет данных")}</div>`}
   function setBusy(sel,on){const el=$(sel);if(el)el.classList.toggle("loading",on)}
