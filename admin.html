@@ -96,8 +96,13 @@
             <div><div class="eyebrow">PRODUCTS</div><h2>Товары</h2></div>
             <button class="primaryBtn compact" id="newProductBtn">＋ Новый товар</button>
           </div>
-          <div class="toolbar">
+          <div class="toolbar productsToolbar">
             <div class="searchBox"><span>⌕</span><input id="productsSearch" placeholder="PIN, название, материал, диаметр..." /></div>
+            <div class="diameterSelectWrap">
+              <select id="productsDiameterFilter" class="diameterSelect" aria-label="Фильтр по диаметру">
+                <option value="all">Все диаметры</option>
+              </select>
+            </div>
             <div class="segmented" id="productsFilter">
               <button class="active" data-filter="all">Все</button>
               <button data-filter="active">Активные</button>

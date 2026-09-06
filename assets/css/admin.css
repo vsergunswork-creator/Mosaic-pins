@@ -637,3 +637,36 @@ button.loading{
   border-color:var(--line) !important;
   opacity:.48;
 }
+
+
+/* Step70: compact product diameter dropdown */
+.diameterSelectWrap{
+  position:relative;
+  flex:0 0 auto;
+}
+.diameterSelect{
+  min-height:44px;
+  min-width:156px;
+  padding:0 38px 0 13px;
+  border:1px solid var(--action-line);
+  border-radius:13px;
+  background:#111512;
+  color:var(--text);
+  font-weight:850;
+  font-size:12px;
+  outline:none;
+  cursor:pointer;
+  appearance:auto;
+}
+.diameterSelect:hover,
+.diameterSelect:focus{
+  border-color:var(--action-line-hover);
+  background:var(--action-bg-hover);
+}
+.diameterSelect:focus{
+  box-shadow:0 0 0 3px rgba(86,201,130,.07);
+}
+@media(max-width:720px){
+  .productsToolbar .diameterSelectWrap,
+  .productsToolbar .diameterSelect{width:100%}
+}
