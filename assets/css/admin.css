@@ -536,3 +536,104 @@ main{padding-top:14px}
   }
   .drawerFooter .primaryBtn{width:100%;min-width:0}
 }
+
+/* Step66: make interactive controls clearly clickable with one restrained green outline */
+:root{
+  --action-line:rgba(86,201,130,.48);
+  --action-line-hover:rgba(86,201,130,.82);
+  --action-bg:rgba(86,201,130,.055);
+  --action-bg-hover:rgba(86,201,130,.10);
+}
+
+/* Real buttons/actions only. Informational cards stay neutral. */
+button:not(:disabled),
+a.ghostBtn,
+a.primaryBtn,
+.tab,
+.quickCard,
+.toggle{
+  border-color:var(--action-line) !important;
+}
+
+button:not(:disabled):hover,
+a.ghostBtn:hover,
+a.primaryBtn:hover,
+.tab:hover,
+.quickCard:hover,
+.toggle:hover{
+  border-color:var(--action-line-hover) !important;
+}
+
+/* Secondary actions stay dark, with the green frame doing the visual work. */
+.ghostBtn,
+.iconBtn,
+.tab,
+.segmented button,
+.stockControl button,
+.imageTile button,
+.quickCard{
+  background:#111512;
+}
+
+.ghostBtn:hover,
+.iconBtn:hover,
+.tab:hover,
+.segmented button:hover,
+.stockControl button:hover,
+.imageTile button:hover,
+.quickCard:hover{
+  background:var(--action-bg-hover);
+}
+
+/* Primary actions are still stronger, but no loud solid-green block. */
+.primaryBtn{
+  color:#dff7e7;
+  background:rgba(86,201,130,.13);
+  border-color:rgba(86,201,130,.88) !important;
+  box-shadow:none;
+}
+.primaryBtn:hover{
+  color:#effff4;
+  background:rgba(86,201,130,.20);
+  border-color:var(--green) !important;
+  filter:none;
+}
+
+/* Navigation/filter states: selected is clear without adding another color. */
+.tab.active,
+.segmented button.active{
+  border:1px solid rgba(86,201,130,.66) !important;
+  background:rgba(86,201,130,.09);
+  color:var(--text);
+}
+.segmented button{
+  border:1px solid var(--action-line) !important;
+}
+
+/* Compact stock +/- and on/off switches are actions too. */
+.stockControl button{
+  border-color:var(--action-line) !important;
+}
+.toggle{
+  border:1px solid var(--action-line) !important;
+}
+.toggle.on{
+  border-color:rgba(86,201,130,.82) !important;
+}
+
+/* Native upload chooser follows the same action language. */
+.uploadBox input[type="file"]::file-selector-button{
+  border-color:var(--action-line) !important;
+  background:#111512;
+}
+.uploadBox input[type="file"]::file-selector-button:hover{
+  border-color:var(--action-line-hover) !important;
+  background:var(--action-bg-hover);
+}
+
+/* Disabled controls must not look actionable. */
+button:disabled,
+button.loading{
+  border-color:var(--line) !important;
+  opacity:.48;
+}
