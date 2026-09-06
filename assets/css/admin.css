@@ -17,3 +17,404 @@ main{padding-top:20px}.tabs{display:grid;grid-template-columns:repeat(6,minmax(0
 @media(max-width:1050px){.statsGrid,.quickGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.tabs{grid-template-columns:repeat(3,minmax(0,1fr))}.contentGrid{grid-template-columns:1fr}.materialGrid{grid-template-columns:1fr}.orderTop{grid-template-columns:1fr 1fr auto}.money{grid-column:3;grid-row:1}.orderActions{grid-column:1/-1;justify-content:flex-start}.detailGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.adminApp{width:min(100% - 20px,1540px);padding-top:10px}.topbar{align-items:flex-start}.topActions{justify-content:flex-end}.topActions a{display:none}.brandMark{width:42px;height:42px}.brandBlock h1{font-size:18px}.topActions .ghostBtn{font-size:0;width:40px;padding:0}.topActions #refreshBtn:before{content:"↻";font-size:20px}.topActions #logoutBtn:before{content:"⏻";font-size:16px}.tabs{grid-template-columns:repeat(6,1fr);gap:5px;position:sticky;top:76px;z-index:25;background:rgba(7,18,13,.93);padding:6px 0;backdrop-filter:blur(12px)}.tab{min-height:45px;padding:7px 4px;font-size:18px}.tab span{display:none}.tabBadge{position:absolute;right:0;top:0}.statsGrid,.quickGrid{grid-template-columns:1fr 1fr}.toolbar{align-items:stretch;flex-direction:column}.searchBox{min-width:0}.segmented{width:100%}.pageHead{align-items:center}.productTableWrap{display:none}.mobileProductList{display:flex;flex-direction:column;gap:8px}.mobileProductCard{border:1px solid var(--line);border-radius:15px;background:rgba(13,29,20,.82);padding:11px;display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:center}.mobileProductCard .thumb{width:58px;height:58px}.mobileProductActions{display:flex;flex-direction:column;gap:6px;align-items:flex-end}.orderTop{grid-template-columns:1fr auto;gap:8px}.orderCustomer{grid-column:1}.money{grid-column:2;grid-row:1;text-align:right}.orderActions{grid-column:1/-1}.detailGrid{grid-template-columns:1fr}.shipRow{grid-template-columns:1fr}.formGrid{grid-template-columns:1fr}.field.full{grid-column:auto}.imageGrid{grid-template-columns:repeat(3,minmax(0,1fr))}.materialCard{grid-template-columns:1fr 1fr}.materialCard .materialSave{grid-column:1/-1}.loginCard{margin:4vh auto;padding:22px}}
 @media(max-width:430px){.statsGrid,.quickGrid{grid-template-columns:1fr}.quickCard{min-height:112px}.tabs{top:70px}.statusPill{display:none}.imageGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Step61: tracking controls are always visible on paid orders */
+.shipRowVisible{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);align-items:end}
+.trackingField{min-width:0}
+.trackingLabel{display:block;color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.shipRowVisible .primaryBtn{min-height:42px;white-space:nowrap}
+@media(max-width:720px){.shipRowVisible{grid-template-columns:1fr}.shipRowVisible .primaryBtn{width:100%}}
+
+/* Step63: strict professional owner panel - visual only */
+:root{
+  --bg:#0a0d0b;
+  --bg2:#0a0d0b;
+  --panel:#111512;
+  --panel2:#151a16;
+  --line:rgba(239,246,241,.10);
+  --line-strong:rgba(239,246,241,.16);
+  --text:#edf2ee;
+  --muted:#8c9790;
+  --green:#56c982;
+  --green2:#56c982;
+  --red:#a6afa9;
+  --amber:#a6afa9;
+  --blue:#a6afa9;
+  --shadow:0 10px 28px rgba(0,0,0,.18);
+  --r:10px;
+  --r2:8px;
+}
+
+html,body{background:var(--bg)}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-size:14px;
+}
+.adminApp{width:min(1440px,calc(100% - 36px));padding:14px 0 52px}
+
+/* Header: one calm surface, no gradients or glow */
+.topbar{
+  gap:18px;
+  padding:10px 0 14px;
+  background:rgba(10,13,11,.98);
+  border-bottom:1px solid var(--line);
+  backdrop-filter:none;
+}
+.brandBlock{gap:11px}
+.brandMark{
+  width:40px;height:40px;
+  border-radius:9px;
+  background:#0d110e;
+  border-color:var(--line);
+}
+.brandMark img{width:32px;height:32px}
+.eyebrow{
+  color:var(--muted);
+  font-size:10px;
+  letter-spacing:.11em;
+  font-weight:700;
+}
+.brandBlock h1,.pageHead h2,.drawerHead h2,.loginCard h2{
+  font-size:clamp(19px,1.7vw,25px);
+  font-weight:760;
+  letter-spacing:-.02em;
+}
+.topActions{gap:6px}
+
+/* Buttons: compact, square-minded, no glossy gradients */
+.ghostBtn,.primaryBtn,.iconBtn{
+  min-height:36px;
+  padding:7px 11px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:#111512;
+  box-shadow:none;
+  font-weight:700;
+  transition:background .12s ease,border-color .12s ease,color .12s ease;
+}
+.ghostBtn:hover,.iconBtn:hover{
+  background:#171c18;
+  border-color:var(--line-strong);
+  transform:none;
+}
+.primaryBtn{
+  background:var(--green);
+  border-color:var(--green);
+  color:#071009;
+  box-shadow:none;
+}
+.primaryBtn:hover{filter:brightness(1.04);transform:none}
+.compact{min-height:34px;padding:6px 10px}
+.dangerText{color:var(--muted)}
+.dangerText:hover{color:var(--text)}
+.iconBtn{width:36px;height:36px;font-size:21px}
+
+main{padding-top:14px}
+
+/* Navigation: one restrained bar instead of six large tiles */
+.tabs{
+  display:flex;
+  grid-template-columns:none;
+  gap:3px;
+  padding:4px;
+  margin-bottom:18px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#0f1310;
+  overflow-x:auto;
+}
+.tab{
+  flex:1 1 0;
+  min-width:118px;
+  min-height:36px;
+  padding:7px 10px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:#a9b2ac;
+  font-size:13px;
+  font-weight:700;
+  font-variant-emoji:text;
+}
+.tab:hover{background:#151a16;color:var(--text)}
+.tab.active{
+  background:#1a211c;
+  color:var(--text);
+  border:0;
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+.tabBadge{
+  background:var(--green);
+  color:#071009;
+  min-width:18px;height:18px;
+  padding:0 5px;
+  font-size:10px;
+  font-weight:800;
+}
+
+.pageHead{margin:10px 0 14px;align-items:center}
+.pageHead h2{margin-top:3px}
+.statusPill{
+  border-radius:8px;
+  padding:6px 9px;
+  background:#0f1310;
+  font-size:12px;
+}
+.statusDot{width:6px;height:6px;box-shadow:none}
+
+/* Dashboard numbers: smaller and quieter */
+.statsGrid{gap:8px}
+.statCard{
+  min-height:94px;
+  padding:13px 14px;
+  border-radius:10px;
+  background:#111512;
+  border-color:var(--line);
+  box-shadow:none;
+}
+.statCard .statTop{font-size:12px}
+.statCard .statTop span:last-child{
+  color:var(--muted);
+  font-family:"Segoe UI Symbol",Arial,sans-serif;
+  font-variant-emoji:text;
+  opacity:.75;
+}
+.statCard .statValue{
+  font-size:25px;
+  font-weight:780;
+  letter-spacing:-.03em;
+  line-height:1.1;
+}
+.statCard .statNote{font-size:11px}
+
+.quickGrid{gap:8px;margin-top:8px}
+.quickCard{
+  min-height:100px;
+  padding:13px 14px;
+  gap:5px;
+  border-radius:10px;
+  background:#0f1310;
+  box-shadow:none;
+}
+.quickCard:hover{
+  background:#151a16;
+  border-color:var(--line-strong);
+  transform:none;
+}
+.quickIcon{
+  font-size:17px;
+  line-height:1;
+  color:var(--muted);
+  font-family:"Segoe UI Symbol",Arial,sans-serif;
+  font-variant-emoji:text;
+  filter:grayscale(1);
+  opacity:.8;
+}
+.quickCard strong{font-size:14px;font-weight:740}
+.quickCard small{font-size:12px;line-height:1.35}
+
+/* Search + filters */
+.toolbar{gap:8px;margin-bottom:10px}
+.searchBox{
+  min-height:38px;
+  padding:0 10px;
+  border-radius:8px;
+  background:#0f1310;
+}
+.searchBox span{font-size:17px;color:#7f8983}
+.searchBox input::placeholder{color:#68716c}
+.segmented{
+  gap:2px;
+  padding:3px;
+  border-radius:8px;
+  background:#0f1310;
+}
+.segmented button{
+  min-height:30px;
+  border-radius:6px;
+  padding:5px 9px;
+  color:#8f9993;
+  font-weight:700;
+}
+.segmented button.active{
+  background:#1a211c;
+  color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+
+/* Lists/cards: same surface everywhere */
+.listStack{gap:7px}
+.orderCard,.reviewCard,.contentCard,.materialCard,.mobileProductCard{
+  border-radius:10px;
+  background:#111512;
+  border-color:var(--line);
+  box-shadow:none;
+}
+.orderCard,.reviewCard{padding:12px 13px}
+.orderTop{gap:10px}
+.orderId{font-size:15px;font-weight:780}
+.money{font-size:15px;font-weight:760}
+
+/* All status chips are neutral. Green is reserved for explicitly active/healthy state. */
+.badge{
+  min-height:22px;
+  padding:3px 7px;
+  border-radius:6px;
+  background:#161b17;
+  border-color:var(--line);
+  color:#aeb7b1;
+  font-size:10px;
+  font-weight:700;
+}
+.badge.amber,.badge.red{
+  color:#aeb7b1;
+  border-color:var(--line);
+  background:#161b17;
+}
+.badge.green{
+  color:#bfe8cc;
+  border-color:rgba(86,201,130,.24);
+  background:rgba(86,201,130,.07);
+}
+
+.orderDetails{margin-top:10px;padding-top:10px}
+.detailGrid{gap:7px}
+.detailBox{
+  border-radius:8px;
+  padding:9px 10px;
+  background:#0e120f;
+}
+.detailBox label,.field label,.loginStep label,.trackingLabel{
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.035em;
+}
+.shipRow input,.field input,.field textarea,.field select,.loginStep input{
+  background:#0c100d;
+  border-color:var(--line);
+  border-radius:7px;
+  padding:9px 10px;
+}
+.shipRow input:focus,.field input:focus,.field textarea:focus,.field select:focus,.loginStep input:focus{
+  border-color:rgba(86,201,130,.55);
+  box-shadow:0 0 0 2px rgba(86,201,130,.08);
+}
+.productChip{border-radius:7px;background:#0f1310}
+
+/* Products */
+.productTableWrap{
+  border-radius:10px;
+  background:#111512;
+}
+.productTable th{
+  background:#0f1310;
+  padding:10px 11px;
+  color:#89938d;
+  font-weight:700;
+}
+.productTable td{padding:9px 11px;border-bottom-color:rgba(239,246,241,.055)}
+.productTable tr:hover td{background:#141915}
+.thumb{border-radius:8px;background:#0b0f0c}
+.stockControl button{
+  width:29px;height:29px;
+  border-radius:6px;
+  background:#0f1310;
+}
+.toggle{
+  width:39px;height:22px;
+  background:#222824;
+  border-color:var(--line);
+}
+.toggle:after{width:16px;height:16px;background:#858e88}
+.toggle.on{background:rgba(86,201,130,.16);border-color:rgba(86,201,130,.28)}
+.toggle.on:after{left:19px;background:var(--green)}
+
+/* Reviews/content: no gold/yellow decoration */
+.stars{color:#99a39d;letter-spacing:.5px}
+.reviewText{color:#d9dfdb}
+.mediaRow img,.contentHero{border-radius:8px}
+.contentGrid,.materialGrid{gap:8px}
+.contentCard{padding:13px}
+.materialCard{padding:11px;gap:7px}
+
+/* Drawer/form: flat professional surface */
+.drawerBackdrop{background:rgba(0,0,0,.64);backdrop-filter:none}
+.drawer{
+  width:min(700px,94vw);
+  background:#0d110e;
+  box-shadow:-18px 0 45px rgba(0,0,0,.28);
+  border-left-color:var(--line);
+}
+.drawerHead{padding:14px 16px;background:#0d110e}
+.drawerBody{padding:16px}
+.formGrid{gap:9px}
+.checkChip{
+  border-radius:7px;
+  padding:8px 9px;
+  background:#0f1310;
+}
+.drawerFooter{margin-top:13px;padding-top:12px}
+.imageGrid{gap:7px}
+.imageTile{border-radius:8px;background:#0b0f0c}
+.imageTile button{border-radius:6px;background:#111512}
+.uploadBox{
+  border-color:var(--line-strong);
+  border-radius:8px;
+  background:#0f1310;
+}
+
+/* Login and notifications use same language */
+.loginCard{
+  border-radius:12px;
+  background:#111512;
+  padding:24px;
+  box-shadow:var(--shadow);
+}
+.loginIcon{filter:grayscale(1);font-variant-emoji:text}
+.formMessage.error,.formMessage.ok{color:var(--muted)}
+.toast{
+  border-radius:8px;
+  background:#151a16;
+  box-shadow:var(--shadow);
+}
+.toast.error,.toast.ok{border-color:var(--line-strong)}
+.emptyState{border-radius:10px;padding:26px}
+
+/* Step61/62 tracking controls fit the stricter visual language */
+.shipRowVisible{margin-top:9px;padding-top:9px}
+.shipRowVisible .primaryBtn{min-height:36px}
+
+@media(max-width:1050px){
+  .tabs{grid-template-columns:none}
+}
+@media(max-width:720px){
+  .adminApp{width:min(100% - 20px,1440px);padding-top:8px}
+  .topbar{background:rgba(10,13,11,.98)}
+  .tabs{
+    display:flex;
+    grid-template-columns:none;
+    top:66px;
+    gap:2px;
+    padding:3px;
+    background:#0f1310;
+    backdrop-filter:none;
+  }
+  .tab{
+    flex:0 0 48px;
+    min-width:48px;
+    min-height:38px;
+    padding:6px;
+    font-size:16px;
+  }
+  .tab span{display:none}
+  .statsGrid,.quickGrid{gap:7px}
+  .statCard{min-height:88px;padding:11px 12px}
+  .quickCard{min-height:90px;padding:11px 12px}
+  .mobileProductCard{border-radius:9px;background:#111512}
+  .shipRowVisible .primaryBtn{width:100%}
+}
+@media(max-width:430px){
+  .quickCard{min-height:86px}
+  .tabs{top:62px}
+}
