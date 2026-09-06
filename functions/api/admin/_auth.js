@@ -1,4 +1,4 @@
-const DEFAULT_ADMIN_EMAIL = "support@mosaicpins.space";
+const DEFAULT_ADMIN_EMAILS = ["support@mosaicpins.space", "v.sergun.work@gmail.com"];
 
 export async function requireAdmin(request, env, { write = false } = {}) {
   if (!env?.DB) return { ok: false, response: json({ ok: false, error: "DB binding is not configured" }, 500) };
@@ -46,9 +46,12 @@ export async function requireAdmin(request, env, { write = false } = {}) {
 }
 
 export function allowedAdminEmails(env) {
-  const raw = String(env?.ADMIN_EMAILS || env?.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL);
+  const raw = String(env?.ADMIN_EMAILS || env?.ADMIN_EMAIL || "");
   const values = raw.split(/[;,\s]+/).map(normalizeEmail).filter(Boolean);
-  if (!values.includes(DEFAULT_ADMIN_EMAIL)) values.push(DEFAULT_ADMIN_EMAIL);
+  for (const email of DEFAULT_ADMIN_EMAILS) {
+    const normalized = normalizeEmail(email);
+    if (normalized && !values.includes(normalized)) values.push(normalized);
+  }
   return new Set(values);
 }
 
