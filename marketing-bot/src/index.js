@@ -2387,6 +2387,16 @@ function libraryBucket(row) {
   return "candidate";
 }
 
+function libraryMediaVersion(value) {
+  const text = String(value || "");
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 function libraryMediaLabel(row) {
   const mode = String(row?.media_mode || "unset");
   if (mode === "product") return row?.image_pin ? `Реальное фото · ${row.image_pin}` : "Реальное фото";
@@ -2401,7 +2411,8 @@ function libraryMediaHtml(row) {
     return `<img src="${escapeHtml(row.image_url)}" alt="${escapeHtml(row.image_title || row.topic || "Selected product photo")}" loading="lazy">`;
   }
   if (mode === "ai" && String(row?.image_url || "").startsWith("tgfile:")) {
-    return `<img src="/library/media?id=${Number(row.id)}" alt="Selected AI image" loading="lazy">`;
+    const v = libraryMediaVersion(row.image_url);
+    return `<img src="/library/media?id=${Number(row.id)}&v=${v}" alt="Selected AI image" loading="lazy">`;
   }
   if (mode === "none") return `<div class="media-empty"><span>🚫</span><b>Без фото</b></div>`;
   return `<div class="media-empty"><span>📷</span><b>Медиа не выбрано</b></div>`;
@@ -2419,7 +2430,8 @@ function libraryPreviewHtml(row) {
   const select = blocked
     ? `<button class="action secondary disabled" disabled title="AI image check: Reject">⛔ Выбор заблокирован</button>`
     : `<button class="action secondary" data-action="ai_select" data-id="${Number(row.id)}">${status === "warning" ? "⚠️ Выбрать всё равно" : "✅ Выбрать AI"}</button>`;
-  return `<div class="preview-box"><div class="preview-title">Последний AI вариант</div><img src="/library/preview-media?id=${Number(row.id)}" alt="AI preview" loading="lazy">${check}<div class="preview-actions">${select}<button class="action ghost" data-action="ai_generate" data-id="${Number(row.id)}">🔄 Другое AI</button></div></div>`;
+  const v = libraryMediaVersion(row.preview_ai_image_url);
+  return `<div class="preview-box"><div class="preview-title">Последний AI вариант</div><img src="/library/preview-media?id=${Number(row.id)}&v=${v}" alt="AI preview" loading="lazy">${check}<div class="preview-actions">${select}<button class="action ghost" data-action="ai_generate" data-id="${Number(row.id)}">🔄 Другое AI</button></div></div>`;
 }
 
 function libraryDate(value) {
@@ -2935,7 +2947,8 @@ async function serveLibraryMedia(env, postId) {
     return new Response(blob, {
       headers: {
         "content-type": blob.type || "image/jpeg",
-        "cache-control": "private, max-age=3600",
+        "cache-control": "private, no-store, max-age=0",
+        "pragma": "no-cache",
         "x-content-type-options": "nosniff"
       }
     });
@@ -2954,7 +2967,8 @@ async function serveLibraryPreviewMedia(env, postId) {
     return new Response(blob, {
       headers: {
         "content-type": blob.type || "image/jpeg",
-        "cache-control": "private, max-age=900",
+        "cache-control": "private, no-store, max-age=0",
+        "pragma": "no-cache",
         "x-content-type-options": "nosniff"
       }
     });
