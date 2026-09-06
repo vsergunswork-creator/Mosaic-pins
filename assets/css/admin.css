@@ -670,3 +670,22 @@ button.loading{
   .productsToolbar .diameterSelectWrap,
   .productsToolbar .diameterSelect{width:100%}
 }
+
+/* Step71: force the native diameter dropdown to follow the dark Admin theme */
+.diameterSelect{
+  color-scheme:dark;
+}
+.diameterSelect option{
+  background:#111512;
+  color:#eef5f0;
+  font-weight:700;
+}
+.diameterSelect option:checked{
+  background:#1b2a20;
+  color:#effff4;
+}
+.diameterSelect option:hover,
+.diameterSelect option:focus{
+  background:#203126;
+  color:#ffffff;
+}
