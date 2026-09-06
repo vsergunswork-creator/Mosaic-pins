@@ -11,6 +11,7 @@
   const message = $("accountMessage");
   const logoutBtn = $("logoutBtn");
   const signedInEmail = $("signedInEmail");
+  const adminAccessCard = $("adminAccessCard");
   const ordersSection = $("ordersSection");
   const ordersEyebrow = $("ordersEyebrow");
   const ordersTitle = $("ordersTitle");
@@ -30,6 +31,7 @@
       emailLabel:"E-Mail-Adresse", sendCode:"Anmeldecode senden", sentTo:"Code gesendet an",
       codeLabel:"6-stelliger Code", verify:"Anmelden", changeEmail:"Andere E-Mail verwenden",
       signedIn:"Du bist angemeldet", signedInAs:"Angemeldet als", logout:"Abmelden",
+      adminPanel:"Admin-Bereich", adminPanelHint:"Bestellungen, Produkte, Bewertungen und Website-Inhalte verwalten",
       ordersEyebrow:"Käufe", myOrders:"Meine Bestellungen", loadingOrders:"Bestellungen werden geladen…",
       noOrders:"Für diese E-Mail wurden noch keine Bestellungen gefunden.", orderLabel:"Bestellung",
       total:"Gesamt", destination:"Ziel", tracking:"Sendungsnummer", quantity:"Menge", diameter:"Durchmesser",
@@ -45,6 +47,7 @@
       emailLabel:"Электронная почта", sendCode:"Отправить код", sentTo:"Код отправлен на",
       codeLabel:"6-значный код", verify:"Войти", changeEmail:"Использовать другой email",
       signedIn:"Вы вошли в аккаунт", signedInAs:"Вы вошли как", logout:"Выйти",
+      adminPanel:"Админ-панель", adminPanelHint:"Управление заказами, товарами, отзывами и контентом сайта",
       ordersEyebrow:"Покупки", myOrders:"Мои заказы", loadingOrders:"Загружаем заказы…",
       noOrders:"Для этого email пока не найдено заказов.", orderLabel:"Заказ",
       total:"Итого", destination:"Доставка", tracking:"Трек-номер", quantity:"Количество", diameter:"Диаметр",
@@ -60,6 +63,7 @@
       emailLabel:"Adresse e-mail", sendCode:"Envoyer le code", sentTo:"Code envoyé à",
       codeLabel:"Code à 6 chiffres", verify:"Se connecter", changeEmail:"Utiliser un autre e-mail",
       signedIn:"Vous êtes connecté", signedInAs:"Connecté en tant que", logout:"Se déconnecter",
+      adminPanel:"Panneau admin", adminPanelHint:"Gérer les commandes, produits, avis et le contenu du site",
       ordersEyebrow:"Achats", myOrders:"Mes commandes", loadingOrders:"Chargement des commandes…",
       noOrders:"Aucune commande n’a encore été trouvée pour cet e-mail.", orderLabel:"Commande",
       total:"Total", destination:"Destination", tracking:"Suivi", quantity:"Quantité", diameter:"Diamètre",
@@ -319,12 +323,32 @@
     return data;
   }
 
+  async function updateAdminAccess() {
+    if (!adminAccessCard) return;
+    adminAccessCard.hidden = true;
+
+    try {
+      const response = await fetch("/api/admin/me", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Accept": "application/json" }
+      });
+      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+      adminAccessCard.hidden = !Boolean(data.admin);
+    } catch (_) {
+      adminAccessCard.hidden = true;
+    }
+  }
+
   async function loadSession() {
     try {
       const data = await api("/api/account/me");
       if (data.authenticated) {
         signedInEmail.textContent = data.user?.email || "";
         show("signed");
+        updateAdminAccess();
         loadOrders();
       } else {
         show("guest");
@@ -376,6 +400,7 @@
       if (data.authenticated) {
         signedInEmail.textContent = data.user?.email || pendingEmail;
         show("signed");
+        updateAdminAccess();
         loadOrders();
       }
     } catch (error) {
@@ -403,6 +428,7 @@
       codeForm.hidden = true;
       emailForm.hidden = false;
       show("guest");
+      if (adminAccessCard) adminAccessCard.hidden = true;
       ordersSection.hidden = true;
       ordersList.replaceChildren();
       setMessage("");

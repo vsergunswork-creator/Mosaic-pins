@@ -295,6 +295,42 @@ button:disabled{opacity:.55;cursor:wait}
   padding:0 18px;
 }
 
+.admin-access-card{
+  grid-column:1 / -1;
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) auto;
+  align-items:center;
+  gap:13px;
+  margin-top:10px;
+  padding:13px 15px;
+  border:1px solid rgba(34,197,94,.38);
+  border-radius:14px;
+  background:rgba(34,197,94,.055);
+  color:var(--text);
+  text-decoration:none;
+  transition:border-color .16s ease,background .16s ease,transform .16s ease;
+}
+.admin-access-card:hover{
+  border-color:rgba(34,197,94,.68);
+  background:rgba(34,197,94,.09);
+  transform:translateY(-1px);
+}
+.admin-access-icon{
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(34,197,94,.25);
+  border-radius:11px;
+  background:rgba(0,0,0,.18);
+  color:#9af0b7;
+  font-size:18px;
+}
+.admin-access-copy{min-width:0;display:grid;gap:3px}
+.admin-access-copy strong{font-size:13px;font-weight:950;letter-spacing:.01em}
+.admin-access-copy small{color:var(--muted);font-size:11px;line-height:1.35}
+.admin-access-arrow{color:#9af0b7;font-size:18px;font-weight:900;padding:0 3px}
+
 /* My Orders is the main content, not a tiny card inside a card. */
 .orders-section{
   grid-column:1 / -1;
@@ -645,4 +681,12 @@ button:disabled{opacity:.55;cursor:wait}
   #accountLoading{
     margin:0;
   }
+}
+
+
+/* Step68: admin access card on small screens */
+@media (max-width:640px){
+  .admin-access-card{grid-template-columns:38px minmax(0,1fr) auto;padding:12px;gap:10px}
+  .admin-access-icon{width:38px;height:38px}
+  .admin-access-copy small{font-size:10.5px}
 }
