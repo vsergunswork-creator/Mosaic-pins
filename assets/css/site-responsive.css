@@ -1,0 +1,120 @@
+/* Mosaic Pins Space — responsive layout refinement, 2026-11-14.
+   Deliberately leaves branding, color scheme, APIs and store behavior unchanged.
+   Desktop and tablet catalog columns are determined by AVAILABLE CATALOG WIDTH,
+   not just by the browser viewport width. */
+
+/* All storefront pages: give the content space on compact desktop displays. */
+@media (min-width: 981px) {
+  body:not(.mp-page-admin) .app {
+    grid-template-columns: clamp(200px, 19vw, 280px) minmax(0, 1fr);
+    gap: clamp(10px, 1vw, 16px);
+    padding: clamp(10px, 1vw, 16px);
+  }
+
+  body:not(.mp-page-admin) .main,
+  body:not(.mp-page-admin) .topbar,
+  body:not(.mp-page-admin) .top-right {
+    min-width: 0;
+  }
+
+  /* The link bar should take less vertical space on shorter monitors. */
+  body:not(.mp-page-admin) .footer {
+    padding: 10px 12px;
+  }
+  body:not(.mp-page-admin) .footerRow { gap: 8px; }
+  body:not(.mp-page-admin) .footerLinks { gap: 5px; }
+  body:not(.mp-page-admin) .footerLinks a {
+    padding: 6px 8px;
+  }
+}
+
+/* The shop needs a little more flexible header sizing than the other pages. */
+@media (min-width: 981px) {
+  body.mp-page-shop .topbar { flex-wrap: wrap; }
+  body.mp-page-shop .search {
+    flex: 1 1 230px;
+    min-width: min(230px, 100%);
+    max-width: 520px;
+  }
+  body.mp-page-shop .top-right {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1250px) {
+  body.mp-page-shop .topbar .search {
+    order: 3;
+    flex: 1 0 100%;
+    max-width: none;
+  }
+  body.mp-page-shop .topbar .top-right { margin-left: auto; }
+}
+
+/* Use the actual inner width of the product area (sidebar and paddings excluded).
+   This also responds correctly to browser zoom and Windows display scaling. */
+body.mp-page-shop .content {
+  container: shop-catalog / inline-size;
+}
+body.mp-page-shop .grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+@container shop-catalog (max-width: 1160px) {
+  body.mp-page-shop .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container shop-catalog (max-width: 920px) {
+  body.mp-page-shop .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container shop-catalog (max-width: 700px) {
+  body.mp-page-shop .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container shop-catalog (max-width: 430px) {
+  body.mp-page-shop .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Small language/long-name product cards must wrap instead of cutting off buttons. */
+body.mp-page-shop .grid .card,
+body.mp-page-shop .grid .meta,
+body.mp-page-shop .grid .thumb {
+  min-width: 0;
+}
+body.mp-page-shop .grid .name {
+  overflow-wrap: anywhere;
+}
+body.mp-page-shop .grid .card-chip {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+body.mp-page-shop .grid .card .row {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+body.mp-page-shop .grid .card .row > div:last-child {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+body.mp-page-shop .grid .card .row .btn,
+body.mp-page-shop .grid .card .row .btn2 {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+@media (max-width: 980px) {
+  /* Preserve the existing shared mobile menu; only the product grid changes. */
+  body.mp-page-shop .content { width: 100%; }
+  body.mp-page-shop .grid { gap: 12px; }
+}
+
+/* Progressive fallback for browsers without CSS container queries. */
+@supports not (container-type: inline-size) {
+  body.mp-page-shop .grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  }
+}
