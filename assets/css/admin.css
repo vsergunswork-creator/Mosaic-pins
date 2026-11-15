@@ -739,3 +739,6 @@ button.loading{
   .descriptionToggle{align-items:flex-start;flex-direction:column;gap:3px}
   .descriptionToggle small{text-align:left}
 }
+
+/* Explicitly hide inactive admin sections, even when other CSS defines display. */
+[hidden]{display:none!important}
